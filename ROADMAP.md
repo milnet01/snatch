@@ -97,7 +97,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: in-session-2026-08-19.
   Lanes: security, config.
 
-- 📋 [SNAT-0007] **Verify the GUI renders on Windows from a real desktop session.**
+- ✅ [SNAT-0007] **Verify the GUI renders on Windows from a real desktop session.**
   The 2026-08-19 test reached the Tk main loop over SSH, but SSH runs in
   a non-interactive window station (`MainWindowHandle=0`), so nothing
   confirmed a window is drawn, that the icon and theme load, or that the
@@ -108,6 +108,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: test.
   Source: in-session-2026-08-19.
   Lanes: packaging, test.
+  Resolved (2026-08-19): confirmed by the user on the real machine. The GUI renders, the theme and icon load, search returns results, and video plays inside the app's own player frame. This was open because every earlier Windows test ran over SSH, which has no interactive desktop -- MainWindowHandle was 0 and mpv drew into a window nobody could see, so the embedding path (mpv into a Tk frame via --wid) was the one thing a headless test could never exercise.
 
 - ✅ [SNAT-0010] **Bundle a JavaScript runtime so YouTube works out of the box.**
   Reported by the user with a screenshot of Snatch's own "JavaScript
@@ -173,7 +174,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: user-report-2026-08-19.
   Lanes: player, ux.
 
-- 📋 [SNAT-0013] **Bundle mpv so the in-app player works with nothing installed.**
+- ✅ [SNAT-0013] **Bundle mpv so the in-app player works with nothing installed.**
   Chosen by the user 2026-08-19, deferred out of v1.0.0 as too large to
   block a release on. Scope and known costs, measured that day:
 
@@ -195,6 +196,11 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Rejected alternative: writing our own player. That means codecs, A/V
   sync and hardware acceleration; months of work for something worse than
   mpv, which is why the app shells out to mpv in the first place.
+  Windows half SHIPPED and user-confirmed (2026-08-19): the build bundles mpv v0.41.0 (32 MB, mpv.exe plus its DLLs) and points it at the bundled yt-dlp via ytdl_hook-ytdl_path. Verified on real hardware with no mpv, yt-dlp, ffmpeg or Python installed; the user then confirmed video plays in the app window.
+
+  STILL OPEN for macOS: no plain mpv binary exists there, only a .dmg carrying a .app with frameworks. Linux needs nothing -- system mpv is used and works.
+
+  Recorded so it is not misread later: bundling mpv was NOT what fixed playback. SNAT-0014 was -- a five-month-stale yt-dlp. This item makes an in-app player EXIST on Windows, where none was installed.
   **Layman:** Make the video player work inside the app on every system without the user installing anything.
   Kind: package.
   Source: user-request-2026-08-19.
