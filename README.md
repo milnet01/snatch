@@ -1,93 +1,182 @@
 # Snatch
 
-A tkinter-based graphical frontend for [yt-dlp](https://github.com/yt-dlp/yt-dlp), built for Linux desktops.
+**Save videos from the web to your computer.**
 
-Four tabs in one window: download videos, search YouTube with embedded playback, inspect local media files, and browse download history. Seven themes (Dark, Nord, Monokai, YouTube, Dracula, Gruvbox, Solarized), drag-and-drop URL support, optional embedded mpv player, browser cookie import, and yt-dlp self-update from the GUI.
+Snatch is a simple window with buttons that does the hard part for you. Paste a
+link, pick a quality, click Download. It handles YouTube and around a thousand
+other sites.
 
-## Download for Windows
+It's a friendly face on a powerful tool called
+[yt-dlp](https://github.com/yt-dlp/yt-dlp) — Snatch does the clicking so you
+never have to type a command.
 
-A single-file `snatch.exe` is published on the [Releases page](https://github.com/milnet01/snatch/releases) — no Python install needed. Double-click to run; user data is created next to the .exe. See [docs/windows-build.md](docs/windows-build.md) for build internals.
+---
 
-## Features
+## Download
 
-- **Download tab** — paste a URL (or drag-and-drop), pick format/resolution, queue multiple downloads, watch live progress
-- **Search tab** — search YouTube and preview results in an embedded mpv player before downloading
-- **Media Info tab** — inspect any local video/audio file via `ffprobe` (codec, bitrate, duration, streams)
-- **History tab** — browse and manage previous downloads (stored locally, max 200 entries)
-- **Browser cookie import** — pull cookies from Firefox/Chrome for age-gated or member-only videos
-- **yt-dlp version check + update** — one-click self-update via `pkexec`
-- **SponsorBlock + subtitle support** — toggle per-download
-- **Speed limit + audio merging** — configurable per session
+Grab the file for your computer from the
+**[Releases page](https://github.com/milnet01/snatch/releases/latest)**.
+Everything is inside that one file — you do **not** need to install Python,
+yt-dlp, ffmpeg or anything else.
 
-## Screenshots
+| Your computer | File to download | How to open it |
+|---|---|---|
+| **Windows** | `snatch.exe` | Double-click it. |
+| **Mac** | `Snatch-arm64.dmg` | Open it, drag Snatch to Applications. **First time only:** right-click the app and choose **Open** (see below). |
+| **Linux** | `Snatch-x86_64.AppImage` | Right-click → Properties → tick "allow executing as program", then double-click. |
 
-_(Add screenshots here — `icon.png` ships with the repo.)_
+<details>
+<summary><b>Windows says "Windows protected your PC"</b></summary>
 
-## Requirements
+That's SmartScreen. It shows this for any program it hasn't seen many people
+run yet — it is not a virus warning. Click **More info**, then **Run anyway**.
+</details>
 
-**Required:**
-- Python 3.10+
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) on `PATH`
-- Tkinter (`python3-tk` on Debian/Ubuntu, usually preinstalled on most distros)
+<details>
+<summary><b>Mac says "Snatch cannot be opened because the developer cannot be verified"</b></summary>
 
-**Optional (auto-detected):**
-- [`mpv`](https://mpv.io/) — enables the embedded player in the Search tab
-- [`ffprobe`](https://ffmpeg.org/) — required for the Media Info tab
-- [`tkinterdnd2`](https://pypi.org/project/tkinterdnd2/) — enables drag-and-drop URL support (`pip install tkinterdnd2`)
-- [`Pillow`](https://pypi.org/project/Pillow/) — enables thumbnail rendering (`pip install Pillow`)
-- `zenity` — nicer native file picker on GNOME/KDE
+Apple charges a yearly fee to sign apps, and Snatch isn't signed. The app is
+fine; macOS is just being cautious about software it can't trace to a paid
+developer account.
 
-## Install
+To open it the first time: **right-click** (or Control-click) the Snatch app
+and choose **Open**, then click **Open** in the box that appears. You only do
+this once — after that it opens normally.
+</details>
+
+<details>
+<summary><b>Linux: the AppImage won't run</b></summary>
+
+The file needs permission to run. In a terminal:
+
+```bash
+chmod +x Snatch-x86_64.AppImage
+./Snatch-x86_64.AppImage
+```
+</details>
+
+---
+
+## What you can do with it
+
+**Download tab** — Paste a link (or drag one onto the window), choose the
+quality you want, and click Download. You can queue several at once and watch
+the progress bar for each.
+
+**Search tab** — Search YouTube without opening a browser. Preview a result to
+check it's the right video before you download it.
+
+**Media Info tab** — Point it at a video file already on your computer and it
+tells you what's inside: how long it is, the quality, the file type.
+
+**History tab** — Everything you've downloaded, with a button to open the file
+or the folder it went to.
+
+**Other things it does**
+
+- **Seven colour themes** — Dark, Nord, Monokai, YouTube, Dracula, Gruvbox and
+  Solarized.
+- **Skip sponsor segments** — optionally cuts sponsor reads out of YouTube
+  videos automatically (SponsorBlock).
+- **Subtitles** — download them alongside the video.
+- **Speed limit** — stop Snatch from eating your whole connection.
+- **Audio only** — pull just the sound out, for music or podcasts.
+- **Private videos** — import cookies from Firefox or Chrome so Snatch can
+  reach age-restricted or members-only videos you already have access to.
+
+---
+
+## Where Snatch keeps your files
+
+Downloads go wherever you choose in the app. Snatch also keeps a few small
+files of its own — your settings and your download history:
+
+| Your computer | Where |
+|---|---|
+| **Windows** | Next to `snatch.exe`. Move the .exe and your settings move with it. |
+| **Mac** | `~/Library/Application Support/Snatch` |
+| **Linux** | `~/.local/share/snatch` |
+
+These stay on your computer. Nothing is uploaded anywhere.
+
+---
+
+## Something's not working
+
+**"No video formats found"** — the site may have changed. Click **Check
+version** in the app; a newer yt-dlp usually fixes it.
+
+**Download stops partway** — check the disk isn't full, then try again. Snatch
+resumes where it left off.
+
+**The video and audio are separate files** — Snatch normally joins them for
+you using a bundled tool. If you built Snatch yourself rather than downloading
+it, you may be missing `ffmpeg`.
+
+**Something else** — please [open an
+issue](https://github.com/milnet01/snatch/issues) and say what you clicked and
+what happened.
+
+---
+
+## Running from source
+
+Only needed if you want to change the code — the downloads above are complete
+on their own.
+
+**You'll need:** Python 3.10 or newer, Tkinter (`python3-tk` on Debian and
+Ubuntu), and `yt-dlp` available on your `PATH`.
 
 ```bash
 git clone https://github.com/milnet01/snatch.git
 cd snatch
-# Optional extras:
-pip install --user tkinterdnd2 Pillow
-```
-
-## Run
-
-```bash
+pip install -r requirements.txt
 python3 snatch.py
 ```
 
-or as a module:
+Optional extras: `mpv` for the preview player, `ffmpeg`/`ffprobe` for merging
+and Media Info, `zenity` for a nicer file picker on GNOME and KDE.
+
+`Snatch.desktop` is a Linux launcher entry. Its `Exec=`, `Path=` and `Icon=`
+lines point at `/mnt/Games/Scripts/Linux/Snatch`; edit them to match wherever
+you cloned the repo, then copy it into `~/.local/share/applications/`.
+
+### Building the downloadable files yourself
+
+Each platform has one script, and GitHub Actions runs those same scripts — so
+what you build locally is what CI builds.
 
 ```bash
-python3 -m snatch
+scripts/build-linux.sh      # -> dist/Snatch-x86_64.AppImage   (run on Linux)
+scripts/build-windows.sh    # -> dist/snatch.exe               (run on Windows)
+scripts/build-macos.sh      # -> dist/Snatch-<arch>.dmg        (run on macOS)
 ```
 
-### Desktop launcher
+Before pushing, run the local gate. It executes the real
+`.github/workflows/ci.yml` through [`act`](https://github.com/nektos/act)
+rather than imitating it, and tells you which jobs it could not run:
 
-`YT-DLP.desktop` is provided but its `Exec=` and `Path=` lines point at the original author's install location. Edit both lines to your actual checkout path, then drop it into `~/.local/share/applications/`.
+```bash
+scripts/local-ci.sh          # lint + execute the Linux jobs in a container
+scripts/local-ci.sh --lint   # lint only — enough for a docs-only change
+```
 
-## Configuration
+### How the code is laid out
 
-Three files are created at runtime in the project root, all mode `0600`:
+`SnatchApp` in `snatch/app.py` is assembled from seven mixins — one per tab,
+plus the player, version checks and the download engine. Anything slow runs on
+a background thread and posts results back to the UI via `root.after(0, ...)`.
 
-| File | Purpose |
-|------|---------|
-| `config.json` | UI preferences (save path, default format, theme, window geometry) |
-| `history.json` | Download history (max 200 entries) |
-| `cookies.txt` | Browser-exported cookies (when used) |
+See [docs/building.md](docs/building.md) for how the downloads are produced
+and where every version is pinned, [STANDARDS.md](STANDARDS.md) for the
+architecture, theme system, security rules and coding conventions,
+[ROADMAP.md](ROADMAP.md) for what's planned, and
+[CHANGELOG.md](CHANGELOG.md) for what changed.
 
-These are git-ignored and never uploaded.
+---
 
-## Architecture
+## Licence
 
-The main `SnatchApp` class in `snatch/app.py` is composed of seven mixins (one per concern: each tab, the player, version checks, the download engine). All blocking work runs in daemon threads and posts back to the Tk event loop via `root.after(0, ...)`.
-
-See [STANDARDS.md](STANDARDS.md) for the full architecture, mixin contracts, theme system, security rules, and coding conventions.
-
-## Security notes
-
-- All subprocess calls use argument lists with a `--` separator before URLs (no shell, no command injection surface).
-- URLs are validated as `http`/`https` only before being passed to `yt-dlp`.
-- Network fetches (thumbnails, update check) are HTTPS-only.
-- The mpv IPC socket lives in a directory whose ownership is checked before connecting.
-- User data files are written with `0600` permissions.
-
-## License
-
-[MIT](LICENSE) © 2026 milnet01
+See [LICENSE](LICENSE). Snatch bundles [yt-dlp](https://github.com/yt-dlp/yt-dlp)
+(Unlicense) and [ffmpeg](https://ffmpeg.org/) (LGPL/GPL), each under its own
+licence.

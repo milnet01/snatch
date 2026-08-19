@@ -22,3 +22,12 @@ __pycache__/
 .venv/
 venv/
 env/
+
+# Build outputs and local build cache
+bin/
+dist/
+build/
+AppDir/
+.cache/
+appimagetool
+*.AppImage

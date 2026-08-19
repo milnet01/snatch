@@ -1,0 +1,178 @@
+name: ci
+
+# Every job below delegates to a script in scripts/. That is deliberate: the
+# local gate (scripts/local-ci.sh) runs this same file through `act`, and the
+# per-platform builds run the same scripts, so a local pass and a CI pass
+# cannot drift apart.
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  static-checks:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Byte-compile every module
+        run: python -m compileall -q snatch.py snatch scripts
+
+      - name: Shell lint
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq shellcheck
+          shellcheck scripts/*.sh
+
+  build-linux:
+    needs: static-checks
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install Tk runtime, X libraries and FUSE
+        run: |
+          sudo apt-get update -qq
+          # libx* are runtime dependencies of tkinterdnd2's libtkdnd shared
+          # object. Without them installed at build time PyInstaller cannot
+          # resolve them, does not bundle them, and drag-and-drop fails on a
+          # user machine that lacks them. Caught 2026-08-19 by running this
+          # job locally under act, which logged:
+          #   Library not found: could not resolve 'libXcursor.so.1'
+          sudo apt-get install -y -qq \
+            python3-tk tk-dev libfuse2 desktop-file-utils \
+            libxcursor1 libxrandr2 libxinerama1 libxi6 libxss1
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller==6.11.1
+
+      - name: Build AppImage
+        run: scripts/build-linux.sh
+
+      # Skipped under act (env.ACT), which has no artifact service — the
+      # upload would always fail locally and mask the real build result.
+      # On GitHub, ACT is unset, so this always runs.
+      - name: Upload AppImage
+        uses: actions/upload-artifact@v4
+        if: ${{ !env.ACT }}
+        with:
+          name: snatch-linux
+          path: dist/Snatch-*.AppImage
+          retention-days: 30
+
+  build-windows:
+    needs: static-checks
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller==6.11.1
+
+      - name: Build .exe
+        shell: bash
+        run: scripts/build-windows.sh
+
+      # Skipped under act (env.ACT), which has no artifact service — the
+      # upload would always fail locally and mask the real build result.
+      # On GitHub, ACT is unset, so this always runs.
+      - name: Upload .exe
+        uses: actions/upload-artifact@v4
+        if: ${{ !env.ACT }}
+        with:
+          name: snatch-windows
+          path: dist/snatch.exe
+          retention-days: 30
+
+  build-macos:
+    needs: static-checks
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller==6.11.1
+
+      - name: Build .app and .dmg
+        run: scripts/build-macos.sh
+
+      # Skipped under act (env.ACT), which has no artifact service — the
+      # upload would always fail locally and mask the real build result.
+      # On GitHub, ACT is unset, so this always runs.
+      - name: Upload .dmg
+        uses: actions/upload-artifact@v4
+        if: ${{ !env.ACT }}
+        with:
+          name: snatch-macos
+          path: dist/Snatch-*.dmg
+          retention-days: 30
+
+  release:
+    # Tag pushes only. Needs all three builds, so a release can never be cut
+    # with a platform missing or broken.
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-linux, build-windows, build-macos]
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List what will be attached
+        run: find artifacts -type f -print
+
+      - name: Attach to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/snatch-linux/Snatch-*.AppImage
+            artifacts/snatch-windows/snatch.exe
+            artifacts/snatch-macos/Snatch-*.dmg
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

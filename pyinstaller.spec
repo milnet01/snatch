@@ -1,10 +1,14 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""PyInstaller spec for the Windows one-file build.
+"""PyInstaller spec for the self-contained Windows, Linux and macOS builds.
 
-Invoked by .github/workflows/build-windows.yml after it downloads
-yt-dlp.exe and ffmpeg.exe into the ./bin/ directory of the build checkout.
-The .exe extracts everything to a temp dir at runtime; user data goes
-next to the .exe itself via platform_utils.app_data_dir().
+Invoked by .github/workflows/build.yml after it downloads yt-dlp, ffmpeg and
+ffprobe into the ./bin/ directory of the build checkout. One spec serves all
+three platforms; the differences are the binary file extensions and the macOS
+.app bundle at the bottom.
+
+Where user data lives is NOT decided here — platform_utils.app_data_dir()
+owns that, and it differs per platform (next to the .exe on Windows,
+~/Library/Application Support on macOS, XDG data dir under an AppImage).
 """
 
 import os
@@ -13,20 +17,31 @@ import sys
 # ── Inputs ────────────────────────────────────────────────────────────
 APP_NAME = "snatch"
 ENTRY = "snatch.py"
-ICON = "icon.png"  # PyInstaller converts PNG → .ico automatically on Windows.
+ICON_PNG = "icon.png"
 
-# Bundled binaries are downloaded by the CI workflow into ./bin/ before
-# this spec runs. If they're missing locally, the build still succeeds
-# but produces a non-self-contained .exe that needs PATH-installed
-# yt-dlp/ffmpeg — useful for dev/test, not for distribution.
+IS_WINDOWS = sys.platform == "win32"
+IS_MACOS = sys.platform == "darwin"
+EXE_SUFFIX = ".exe" if IS_WINDOWS else ""
+
+# Bundled binaries are downloaded by the CI workflow into ./bin/ before this
+# spec runs. If they're missing locally the build still succeeds, but produces
+# a non-self-contained app that needs PATH-installed yt-dlp/ffmpeg — useful for
+# dev/test, not for distribution. platform_utils._find_bundled_binary() looks
+# for exactly these names under <_MEIPASS>/bin/.
 BIN_DIR = "bin"
 binaries = []
-for name in ("yt-dlp.exe", "ffmpeg.exe"):
-    path = os.path.join(BIN_DIR, name)
+missing = []
+for stem in ("yt-dlp", "ffmpeg", "ffprobe"):
+    path = os.path.join(BIN_DIR, stem + EXE_SUFFIX)
     if os.path.isfile(path):
         binaries.append((path, "bin"))
+    else:
+        missing.append(path)
+if missing:
+    print(f"[spec] WARNING: not bundling {', '.join(missing)} — "
+          f"the build will fall back to PATH at runtime.")
 
-# Data files (icons, etc.) bundled into the .exe.
+# Data files (icons, etc.) bundled into the app.
 datas = [
     ("icon.png", "."),
     ("icon_48.png", "."),
@@ -71,6 +86,27 @@ exe = EXE(
     runtime_tmpdir=None,
     console=False,        # No console window — pure GUI.
     disable_windowed_traceback=False,
-    icon="icon.png",
+    icon=ICON_PNG,
     version=None,         # Could embed a Windows version-info resource later.
 )
+
+# ── macOS .app bundle ─────────────────────────────────────────────────
+# Only meaningful on darwin; the workflow wraps this in a .dmg. The bundle is
+# unsigned and un-notarised, so Gatekeeper blocks a first double-click —
+# README documents the right-click → Open workaround.
+if IS_MACOS:
+    app = BUNDLE(
+        exe,
+        name="Snatch.app",
+        icon=ICON_PNG,
+        bundle_identifier="io.github.milnet01.snatch",
+        info_plist={
+            "CFBundleName": "Snatch",
+            "CFBundleDisplayName": "Snatch",
+            "CFBundleShortVersionString": "1.0.0",
+            "CFBundleVersion": "1.0.0",
+            "NSHighResolutionCapable": True,
+            # Tk apps must not be treated as background-only.
+            "LSBackgroundOnly": False,
+        },
+    )

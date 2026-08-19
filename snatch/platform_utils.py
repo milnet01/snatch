@@ -28,12 +28,37 @@ def is_frozen():
 def app_data_dir():
     """Directory for user data (config.json, history.json, cookies.txt, downloads).
 
-    Frozen .exe: the directory containing the .exe — user data lives next to it.
+    Frozen Windows .exe: the directory containing the .exe, so the app stays
+    portable — copy the .exe and its data travels with it.
+
+    Frozen macOS .app: ~/Library/Application Support/Snatch. Writing next to
+    sys.executable would put user data *inside* the .app bundle, which breaks
+    on upgrade and on a read-only /Applications mount.
+
+    Frozen Linux AppImage: $XDG_DATA_HOME/snatch (default ~/.local/share/snatch).
+    sys.executable points at PyInstaller's temp extraction dir, which is deleted
+    on exit, so it can never hold user data.
+
     Dev mode: the project root (same as the previous script_dir behaviour).
     """
     if is_frozen():
-        return os.path.dirname(os.path.abspath(sys.executable))
+        if is_windows():
+            return os.path.dirname(os.path.abspath(sys.executable))
+        if is_macos():
+            base = os.path.expanduser("~/Library/Application Support")
+            return _ensure_dir(os.path.join(base, "Snatch"))
+        base = os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")
+        return _ensure_dir(os.path.join(base, "snatch"))
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _ensure_dir(path):
+    """Create a user-data directory 0700 if absent, and return it."""
+    try:
+        os.makedirs(path, mode=0o700, exist_ok=True)
+    except OSError:
+        pass
+    return path
 
 
 def resource_path(*parts):

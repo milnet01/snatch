@@ -1,0 +1,5 @@
+# Runner images for `act`, so scripts/local-ci.sh needs no interactive setup
+# and every clone resolves the same image. "act-22.04" is the medium image
+# (~500MB) and matches the ubuntu-22.04 runner ci.yml asks for.
+-P ubuntu-22.04=catthehacker/ubuntu:act-22.04
+-P ubuntu-latest=catthehacker/ubuntu:act-22.04

@@ -25,6 +25,7 @@ snatch/
 ├── player.py                  # PlayerMixin — embedded mpv via IPC
 ├── version.py                 # VersionMixin — yt-dlp version check + update
 ├── downloader.py              # DownloaderMixin — downloads, queue, format logic
+├── platform_utils.py          # Platform-aware paths, bundled-binary lookup, open_path
 └── tabs/
     ├── __init__.py             # Empty module marker
     ├── download.py             # DownloadTabMixin — Download tab UI
@@ -528,7 +529,18 @@ python snatch.py   # Launch the GUI
 
 | File | Location | Permissions | Format |
 |------|----------|-------------|--------|
-| `config.json` | Project root | `0o600` | JSON (2-space indent) |
-| `history.json` | Project root | `0o600` | JSON array (2-space indent) |
-| `cookies.txt` | Project root | `0o600` | Netscape cookie format |
+| `config.json` | See below | `0o600` | JSON (2-space indent) |
+| `history.json` | See below | `0o600` | JSON array (2-space indent) |
+| `cookies.txt` | See below | `0o600` | Netscape cookie format |
+
+**Location is decided by `platform_utils.app_data_dir()`, not by this table.**
+Running from source it is the project root. In a packaged build it is not:
+
+| Build | Directory | Why |
+|-------|-----------|-----|
+| Windows `.exe` | Alongside the executable | Keeps the app portable. |
+| macOS `.app` | `~/Library/Application Support/Snatch` | Writing inside the bundle breaks on upgrade and on a read-only mount. |
+| Linux AppImage | `$XDG_DATA_HOME/snatch` | `sys.executable` is a temp dir that is deleted on exit. |
+
+The directory itself is created `0o700`.
 | `icon.png` | Project root | Default | PNG (optional window icon) |

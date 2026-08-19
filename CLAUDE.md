@@ -42,9 +42,30 @@ Modular tkinter GUI frontend for yt-dlp. Entry point: `snatch.py`. Package: `sna
 - **PEP 8 import ordering** — stdlib, third-party, local (separated by blank lines)
 - **All subprocess calls need `timeout`** — handle `TimeoutExpired`
 
+## Before Pushing
+
+**Run `scripts/local-ci.sh` before every push.** It executes the real
+`.github/workflows/ci.yml` through `act` rather than imitating it — a
+hand-written mirror of a pipeline goes green on a pipeline that will fail, so
+the gate runs the actual file.
+
+- **Documentation-only change** — `scripts/local-ci.sh --lint` is enough. No
+  build job acts on `*.md`, so a full run buys nothing.
+- **Any code, workflow, spec or script change** — run it in full.
+- **It cannot run the Windows or macOS jobs.** `act` runs Linux containers and
+  this machine is Linux; nothing local can execute those two. The script says
+  so in its own report. A green local run is NOT evidence about them — they
+  are verified by pushing and reading CI.
+
+**The workflow and the local gate call the same scripts** (`scripts/build-*.sh`),
+so what runs locally and what runs in CI cannot drift. When changing how a
+platform builds, change the script — never the workflow step that calls it.
+
 ## Quick Reference
 - Config: `config.json` (project root, 0o600)
 - History: `history.json` (project root, 0o600, max 200 entries)
 - Themes: `theme.py` — Dark, Nord, Monokai, YouTube, Dracula, Gruvbox, Solarized (registry: `THEMES`)
 - Feature flags: `HAS_DND`, `HAS_MPV`, `HAS_PIL` (detected at import)
 - Verify changes: `python3 -m py_compile snatch/<file>.py`
+- Pre-push gate: `scripts/local-ci.sh` (`--lint` for docs-only)
+- Roadmap: `ROADMAP.md`, ants-v1 format, store-backed (project `snatch`)
