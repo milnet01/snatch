@@ -59,25 +59,25 @@ jobs:
       - name: Smoke-test the built .exe (import-only — full GUI needs a desktop)
         shell: pwsh
         run: |
-          if (-not (Test-Path "dist/ytdlp-gui.exe")) {
-            Write-Error "dist/ytdlp-gui.exe not produced"
+          if (-not (Test-Path "dist/snatch.exe")) {
+            Write-Error "dist/snatch.exe not produced"
             exit 1
           }
-          $size = (Get-Item "dist/ytdlp-gui.exe").Length / 1MB
-          Write-Host ("Built ytdlp-gui.exe: {0:N1} MB" -f $size)
+          $size = (Get-Item "dist/snatch.exe").Length / 1MB
+          Write-Host ("Built snatch.exe: {0:N1} MB" -f $size)
 
       - name: Upload .exe as workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ytdlp-gui-windows
-          path: dist/ytdlp-gui.exe
+          name: snatch-windows
+          path: dist/snatch.exe
           retention-days: 30
 
       - name: Attach to GitHub Release (tag pushes only)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/ytdlp-gui.exe
+          files: dist/snatch.exe
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -13,7 +13,7 @@ import sys
 # Allow running from project root without installing the package.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ytdlp_gui import platform_utils as pu
+from snatch import platform_utils as pu
 
 
 def main():

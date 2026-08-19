@@ -49,7 +49,7 @@ class PlayerMixin:
         runtime_dir = os.path.realpath(runtime_dir)
         if is_windows() or not os.path.isdir(runtime_dir) or os.stat(runtime_dir).st_uid != os.getuid():
             runtime_dir = tempfile.gettempdir()
-        self.mpv_socket_path = os.path.join(runtime_dir, f"ytdlp-gui-mpv-{os.getpid()}")
+        self.mpv_socket_path = os.path.join(runtime_dir, f"snatch-mpv-{os.getpid()}")
         if os.path.exists(self.mpv_socket_path):
             os.unlink(self.mpv_socket_path)
 

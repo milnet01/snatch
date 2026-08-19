@@ -41,7 +41,7 @@ class VersionMixin:
         # Check latest version from GitHub
         try:
             url = "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest"
-            req = urllib.request.Request(url, headers={"User-Agent": "YT-DLP-GUI"})
+            req = urllib.request.Request(url, headers={"User-Agent": "Snatch"})
             with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode())
                 self.latest_version = data.get("tag_name", "").lstrip("v")
@@ -81,16 +81,16 @@ class VersionMixin:
     def _show_update_available(self):
         """Show update available button and prompt user (Linux only)."""
         if is_windows():
-            # Bundled yt-dlp.exe is shipped with each GUI release — the user
-            # updates by downloading a new ytdlp-gui.exe. Show a passive label
+            # Bundled yt-dlp.exe is shipped with each Snatch release — the user
+            # updates by downloading a new snatch.exe. Show a passive label
             # only; don't prompt or wire the update button to run pkexec/curl.
             self.update_btn.config(
-                text=f"v{self.latest_version} available — download new GUI",
+                text=f"v{self.latest_version} available — download new Snatch",
                 state=tk.DISABLED,
             )
             self.status_var.set(
                 f"yt-dlp {self.latest_version} is out — grab the latest "
-                f"ytdlp-gui.exe from GitHub Releases to update."
+                f"snatch.exe from GitHub Releases to update."
             )
             return
 
@@ -108,10 +108,10 @@ class VersionMixin:
         """Update yt-dlp to latest version (called from button)."""
         if is_windows():
             messagebox.showinfo(
-                "Update via GUI download",
+                "Update via Snatch download",
                 "On Windows, yt-dlp is bundled inside this app.\n\n"
-                "To update, download the latest ytdlp-gui.exe from\n"
-                "https://github.com/milnet01/ytdlp-gui/releases"
+                "To update, download the latest snatch.exe from\n"
+                "https://github.com/milnet01/snatch/releases"
             )
             return
         if self.latest_version:

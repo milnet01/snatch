@@ -17,12 +17,12 @@ from .tabs.media_info import MediaInfoTabMixin
 from .tabs.history import HistoryTabMixin
 
 
-class YTDLPGui(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
+class SnatchApp(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
                HistoryTabMixin, PlayerMixin, VersionMixin, DownloaderMixin):
 
     def __init__(self, root):
         self.root = root
-        self.root.title("YT-DLP Video Downloader")
+        self.root.title("Snatch")
         self.root.resizable(True, True)
         self.root.minsize(1000, 750)
 
@@ -38,9 +38,9 @@ class YTDLPGui(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
         self.latest_version = None
         self.browser_var = tk.StringVar(value="none")
         self.merge_audio_var = tk.IntVar(value=1)
-        self._base_title = "YT-DLP Video Downloader"
+        self._base_title = "Snatch"
 
-        # Paths - use the project root (parent of ytdlp_gui package)
+        # Paths - use the project root (parent of snatch package)
         self.script_dir = app_data_dir()
         self.config_file = os.path.join(self.script_dir, "config.json")
         saved_config = self._load_config()
@@ -169,7 +169,7 @@ class YTDLPGui(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
         header_frame = ttk.Frame(self.main_frame)
         header_frame.pack(fill=tk.X, pady=(0, 15))
 
-        title_label = ttk.Label(header_frame, text="YT-DLP Video Downloader",
+        title_label = ttk.Label(header_frame, text="Snatch",
                                 style="Title.TLabel")
         title_label.pack(side=tk.LEFT)
 

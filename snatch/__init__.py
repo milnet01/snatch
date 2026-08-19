@@ -1,4 +1,4 @@
-"""YT-DLP GUI Frontend package"""
+"""Snatch — a yt-dlp frontend package"""
 
 import shutil
 

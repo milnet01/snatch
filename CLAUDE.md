@@ -1,10 +1,10 @@
-# CLAUDE.md — YT-DLP GUI Frontend
+# CLAUDE.md — Snatch
 
 ## Project
-Modular tkinter GUI frontend for yt-dlp. Entry point: `ytdlp_gui.py`. Package: `ytdlp_gui/`.
+Modular tkinter GUI frontend for yt-dlp. Entry point: `snatch.py`. Package: `snatch/`.
 
 ## Architecture
-- Mixin-based composition: `YTDLPGui` in `app.py` inherits from 7 mixins
+- Mixin-based composition: `SnatchApp` in `app.py` inherits from 7 mixins
 - Tabs: Download | Search | Media Info | History
 - All blocking work runs in daemon threads; GUI updates via `root.after(0, callback)`
 - See `STANDARDS.md` for full architecture docs
@@ -45,6 +45,6 @@ Modular tkinter GUI frontend for yt-dlp. Entry point: `ytdlp_gui.py`. Package: `
 ## Quick Reference
 - Config: `config.json` (project root, 0o600)
 - History: `history.json` (project root, 0o600, max 200 entries)
-- Themes: `theme.py` — DarkTheme, NordTheme, MonokaiTheme
+- Themes: `theme.py` — Dark, Nord, Monokai, YouTube, Dracula, Gruvbox, Solarized (registry: `THEMES`)
 - Feature flags: `HAS_DND`, `HAS_MPV`, `HAS_PIL` (detected at import)
-- Verify changes: `python3 -m py_compile ytdlp_gui/<file>.py`
+- Verify changes: `python3 -m py_compile snatch/<file>.py`

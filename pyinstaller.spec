@@ -11,8 +11,8 @@ import os
 import sys
 
 # ── Inputs ────────────────────────────────────────────────────────────
-APP_NAME = "ytdlp-gui"
-ENTRY = "ytdlp_gui.py"
+APP_NAME = "snatch"
+ENTRY = "snatch.py"
 ICON = "icon.png"  # PyInstaller converts PNG → .ico automatically on Windows.
 
 # Bundled binaries are downloaded by the CI workflow into ./bin/ before

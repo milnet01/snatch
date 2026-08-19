@@ -211,7 +211,7 @@ class DownloaderMixin:
             if thumbnail_url and HAS_PIL and thumbnail_url.startswith("https://"):
                 try:
                     req = urllib.request.Request(thumbnail_url,
-                                                headers={"User-Agent": "YT-DLP-GUI"})
+                                                headers={"User-Agent": "Snatch"})
                     with urllib.request.urlopen(req, timeout=10) as resp:
                         img_data = resp.read()
                     img = Image.open(BytesIO(img_data))
