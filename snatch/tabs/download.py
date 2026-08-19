@@ -1,13 +1,13 @@
 """Download tab UI construction"""
 
 import os
-import subprocess
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
 from ..theme import get_theme
 from ..widgets import ToggleSwitch
 from ..utils import zenity_file_dialog
+from ..platform_utils import open_path
 
 
 class DownloadTabMixin:
@@ -372,13 +372,13 @@ class DownloadTabMixin:
         path = self.last_download_path or self.save_path_var.get()
         resolved = os.path.realpath(path)
         if os.path.isdir(resolved):
-            subprocess.Popen(["xdg-open", "--", resolved])
+            open_path(resolved)
         elif os.path.isfile(resolved):
-            subprocess.Popen(["xdg-open", "--", os.path.dirname(resolved)])
+            open_path(os.path.dirname(resolved))
         else:
             fallback = os.path.realpath(self.save_path_var.get())
             if os.path.isdir(fallback):
-                subprocess.Popen(["xdg-open", "--", fallback])
+                open_path(fallback)
 
     def _setup_drag_drop(self):
         """Register URL entry as drag & drop target"""

@@ -1,0 +1,83 @@
+name: build-windows
+
+on:
+  push:
+    branches: [main, windows-build]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller==6.11.1
+
+      - name: Download bundled yt-dlp.exe and ffmpeg.exe
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path bin | Out-Null
+          # yt-dlp.exe — pinned release matching requirements.txt yt-dlp version.
+          # GitHub tags zero-pad the month (2026.03.17); PyPI strips the zero (2026.3.17).
+          $ytdlpVersion = "2026.03.17"
+          Invoke-WebRequest -UseBasicParsing `
+            -Uri "https://github.com/yt-dlp/yt-dlp/releases/download/$ytdlpVersion/yt-dlp.exe" `
+            -OutFile "bin/yt-dlp.exe"
+          # ffmpeg — pinned essentials build from gyan.dev (smaller than full).
+          Invoke-WebRequest -UseBasicParsing `
+            -Uri "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" `
+            -OutFile "ffmpeg.zip"
+          Expand-Archive -Path ffmpeg.zip -DestinationPath ffmpeg-extract -Force
+          $ffmpegExe = Get-ChildItem -Path ffmpeg-extract -Recurse -Filter ffmpeg.exe | Select-Object -First 1
+          $ffprobeExe = Get-ChildItem -Path ffmpeg-extract -Recurse -Filter ffprobe.exe | Select-Object -First 1
+          Copy-Item -Path $ffmpegExe.FullName -Destination "bin/ffmpeg.exe"
+          Copy-Item -Path $ffprobeExe.FullName -Destination "bin/ffprobe.exe"
+          Remove-Item -Recurse -Force ffmpeg-extract, ffmpeg.zip
+
+      - name: Run platform_utils smoke-test
+        run: python scripts/verify_platform_utils.py
+
+      - name: Build .exe with PyInstaller
+        run: pyinstaller pyinstaller.spec --clean --noconfirm
+
+      - name: Smoke-test the built .exe (import-only — full GUI needs a desktop)
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "dist/snatch.exe")) {
+            Write-Error "dist/snatch.exe not produced"
+            exit 1
+          }
+          $size = (Get-Item "dist/snatch.exe").Length / 1MB
+          Write-Host ("Built snatch.exe: {0:N1} MB" -f $size)
+
+      - name: Upload .exe as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: snatch-windows
+          path: dist/snatch.exe
+          retention-days: 30
+
+      - name: Attach to GitHub Release (tag pushes only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/snatch.exe
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

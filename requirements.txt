@@ -1,0 +1,5 @@
+# Runtime dependencies pinned for reproducible PyInstaller builds.
+# Bump these together and rebuild the .exe; do not float versions.
+Pillow==12.2.0
+tkinterdnd2==0.4.3
+yt-dlp==2026.3.17

@@ -1,4 +1,4 @@
-"""YT-DLP GUI Frontend package"""
+"""Snatch — a yt-dlp frontend package"""
 
 import shutil
 
@@ -9,3 +9,5 @@ except ImportError:
     HAS_DND = False
 
 HAS_MPV = shutil.which("mpv") is not None
+
+__version__ = "0.1.0"

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Snatch
+Comment=Download YouTube videos using yt-dlp
+Exec=python3 /mnt/Games/Scripts/Linux/Snatch/snatch.py
+Path=/mnt/Games/Scripts/Linux/Snatch
+Icon=/mnt/Games/Scripts/Linux/Snatch/icon.png
+StartupWMClass=Snatch
+Terminal=false
+Categories=Network;AudioVideo;

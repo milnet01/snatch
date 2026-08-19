@@ -1,10 +1,10 @@
-# YT-DLP GUI Frontend — Standards Document
+# Snatch — Standards Document
 
 ## 1. Project Overview
 
 A modular tkinter GUI frontend for [yt-dlp](https://github.com/yt-dlp/yt-dlp), providing video downloading, YouTube search with embedded playback, media file inspection, and download history management.
 
-**Entry point:** `ytdlp_gui.py` (thin launcher) or `python -m ytdlp_gui`
+**Entry point:** `snatch.py` (thin launcher) or `python -m snatch`
 
 ---
 
@@ -13,11 +13,11 @@ A modular tkinter GUI frontend for [yt-dlp](https://github.com/yt-dlp/yt-dlp), p
 ### 2.1 Package Structure
 
 ```
-ytdlp_gui.py                  # Thin launcher (imports __main__.main)
-ytdlp_gui/
+snatch.py                  # Thin launcher (imports __main__.main)
+snatch/
 ├── __init__.py                # Package init, feature detection (HAS_DND, HAS_MPV)
 ├── __main__.py                # CLI entry point, creates root Tk window
-├── app.py                     # YTDLPGui class — composes all mixins
+├── app.py                     # SnatchApp class — composes all mixins
 ├── theme.py                   # Theme definitions + style setup
 ├── widgets.py                 # Custom widgets (ToggleSwitch)
 ├── utils.py                   # Shared utilities (formatting, dialogs, treeview)
@@ -35,18 +35,18 @@ ytdlp_gui/
 
 ### 2.2 Mixin Composition
 
-The main class `YTDLPGui` (in `app.py`) composes functionality via mixin inheritance:
+The main class `SnatchApp` (in `app.py`) composes functionality via mixin inheritance:
 
 ```python
-class YTDLPGui(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
+class SnatchApp(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
                HistoryTabMixin, PlayerMixin, VersionMixin, DownloaderMixin):
 ```
 
-**MRO:** `YTDLPGui → DownloadTabMixin → SearchTabMixin → MediaInfoTabMixin → HistoryTabMixin → PlayerMixin → VersionMixin → DownloaderMixin → object`
+**MRO:** `SnatchApp → DownloadTabMixin → SearchTabMixin → MediaInfoTabMixin → HistoryTabMixin → PlayerMixin → VersionMixin → DownloaderMixin → object`
 
 **Rules for mixins:**
-- Mixins must not define `__init__` — all initialization happens in `YTDLPGui.__init__`
-- Mixins may access `self.*` attributes set by `YTDLPGui.__init__` or other mixins
+- Mixins must not define `__init__` — all initialization happens in `SnatchApp.__init__`
+- Mixins may access `self.*` attributes set by `SnatchApp.__init__` or other mixins
 - Each mixin should document its expected attributes/methods in a class docstring
 - Tab mixins expose a single `_create_*_tab(parent)` method called by `create_widgets()`
 
@@ -404,7 +404,7 @@ except ImportError:
 
 | Type | Convention | Example |
 |------|-----------|---------|
-| Classes | PascalCase | `YTDLPGui`, `ToggleSwitch` |
+| Classes | PascalCase | `SnatchApp`, `ToggleSwitch` |
 | Mixins | PascalCase + "Mixin" suffix | `PlayerMixin`, `DownloaderMixin` |
 | Public methods | snake_case | `fetch_formats()`, `cancel_download()` |
 | Private methods | `_` prefix | `_download_thread()`, `_apply_filters()` |
@@ -503,23 +503,23 @@ Priority order:
 ### 13.1 Compilation Check
 
 ```bash
-python -m py_compile ytdlp_gui/app.py
-python -m py_compile ytdlp_gui/theme.py
+python -m py_compile snatch/app.py
+python -m py_compile snatch/theme.py
 # ... etc for each module
 ```
 
 ### 13.2 Import Verification
 
 ```python
-from ytdlp_gui.app import YTDLPGui
-print([c.__name__ for c in YTDLPGui.__mro__])
-# ['YTDLPGui', 'DownloadTabMixin', 'SearchTabMixin', ...]
+from snatch.app import SnatchApp
+print([c.__name__ for c in SnatchApp.__mro__])
+# ['SnatchApp', 'DownloadTabMixin', 'SearchTabMixin', ...]
 ```
 
 ### 13.3 Runtime Verification
 
 ```bash
-python ytdlp_gui.py   # Launch the GUI
+python snatch.py   # Launch the GUI
 ```
 
 ---

@@ -9,6 +9,8 @@ import tkinter as tk
 from tkinter import messagebox
 import urllib.request
 
+from .platform_utils import find_ytdlp, is_windows
+
 
 class VersionMixin:
     """Mixin providing yt-dlp version check and update functionality.
@@ -25,7 +27,7 @@ class VersionMixin:
     def _check_version_thread(self):
         # Get current installed version
         try:
-            result = subprocess.run(["yt-dlp", "--version"], capture_output=True, text=True, timeout=10)
+            result = subprocess.run([find_ytdlp(), "--version"], capture_output=True, text=True, timeout=10)
             if result.returncode == 0:
                 self.current_version = result.stdout.strip()
                 self.root.after(0, lambda: self.version_var.set(f"v{self.current_version}"))
@@ -39,7 +41,7 @@ class VersionMixin:
         # Check latest version from GitHub
         try:
             url = "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest"
-            req = urllib.request.Request(url, headers={"User-Agent": "YT-DLP-GUI"})
+            req = urllib.request.Request(url, headers={"User-Agent": "Snatch"})
             with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode())
                 self.latest_version = data.get("tag_name", "").lstrip("v")
@@ -77,7 +79,21 @@ class VersionMixin:
             return (v1 > v2) - (v1 < v2)
 
     def _show_update_available(self):
-        """Show update available button and prompt user"""
+        """Show update available button and prompt user (Linux only)."""
+        if is_windows():
+            # Bundled yt-dlp.exe is shipped with each Snatch release — the user
+            # updates by downloading a new snatch.exe. Show a passive label
+            # only; don't prompt or wire the update button to run pkexec/curl.
+            self.update_btn.config(
+                text=f"v{self.latest_version} available — download new Snatch",
+                state=tk.DISABLED,
+            )
+            self.status_var.set(
+                f"yt-dlp {self.latest_version} is out — grab the latest "
+                f"snatch.exe from GitHub Releases to update."
+            )
+            return
+
         self.update_btn.config(text=f"Update to {self.latest_version}", state=tk.NORMAL)
         self.status_var.set(f"Update available: {self.current_version} -> {self.latest_version}")
 
@@ -89,7 +105,15 @@ class VersionMixin:
             self._do_update()
 
     def update_ytdlp(self):
-        """Update yt-dlp to latest version (called from button)"""
+        """Update yt-dlp to latest version (called from button)."""
+        if is_windows():
+            messagebox.showinfo(
+                "Update via Snatch download",
+                "On Windows, yt-dlp is bundled inside this app.\n\n"
+                "To update, download the latest snatch.exe from\n"
+                "https://github.com/milnet01/snatch/releases"
+            )
+            return
         if self.latest_version:
             if messagebox.askyesno("Update yt-dlp",
                                    f"Update yt-dlp to version {self.latest_version}?\n\n"
@@ -140,7 +164,7 @@ class VersionMixin:
                 # Verify the new version
                 new_version = None
                 try:
-                    ver_result = subprocess.run(["yt-dlp", "--version"], capture_output=True, text=True, timeout=10)
+                    ver_result = subprocess.run([find_ytdlp(), "--version"], capture_output=True, text=True, timeout=10)
                     if ver_result.returncode == 0:
                         new_version = ver_result.stdout.strip()
                 except Exception:

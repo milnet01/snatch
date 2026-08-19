@@ -2,12 +2,12 @@
 
 import os
 import json
-import subprocess
 import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime
 
 from ..utils import clear_treeview
+from ..platform_utils import open_path
 
 
 class HistoryTabMixin:
@@ -126,9 +126,9 @@ class HistoryTabMixin:
         path = str(item["values"][3]) if len(item["values"]) > 3 else ""
         resolved = self._safe_resolve_path(path)
         if resolved and os.path.isfile(resolved):
-            subprocess.Popen(["xdg-open", "--", resolved])
+            open_path(resolved)
         elif resolved and os.path.isdir(resolved):
-            subprocess.Popen(["xdg-open", "--", resolved])
+            open_path(resolved)
         else:
             messagebox.showwarning("Not Found", f"Path not found:\n{path}")
 
@@ -145,7 +145,7 @@ class HistoryTabMixin:
         if resolved and os.path.isfile(resolved):
             resolved = os.path.dirname(resolved)
         if resolved and os.path.isdir(resolved):
-            subprocess.Popen(["xdg-open", "--", resolved])
+            open_path(resolved)
         else:
             messagebox.showwarning("Not Found", f"Folder not found:\n{path}")
 

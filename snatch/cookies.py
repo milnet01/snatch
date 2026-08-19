@@ -93,7 +93,7 @@ def extract_browser_cookies(browser, cookies_out):
                 fd = os.open(cookies_out, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
                 with os.fdopen(fd, "w") as f:
                     f.write("# Netscape HTTP Cookie File\n")
-                    f.write("# Extracted from Firefox by YT-DLP GUI\n\n")
+                    f.write("# Extracted from Firefox by Snatch\n\n")
                     for host, name, value, path, expiry, secure, _httponly in rows:
                         domain_flag = "TRUE" if host.startswith(".") else "FALSE"
                         secure_flag = "TRUE" if secure else "FALSE"

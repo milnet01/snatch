@@ -14,6 +14,7 @@ from io import BytesIO
 
 from .utils import format_duration, format_filesize, clear_treeview
 from .cookies import extract_browser_cookies, get_cookie_args
+from .platform_utils import find_ytdlp, find_ffmpeg, is_windows
 
 try:
     from PIL import Image, ImageTk
@@ -58,8 +59,11 @@ class DownloaderMixin:
         return url.startswith("http://") or url.startswith("https://")
 
     def _get_base_cmd(self):
-        """Build the base yt-dlp command with JS runtime detection"""
-        cmd = ["yt-dlp", "--ignore-config", "--remote-components", "ejs:github"]
+        """Build the base yt-dlp command with JS runtime + ffmpeg detection."""
+        cmd = [find_ytdlp(), "--ignore-config", "--remote-components", "ejs:github"]
+        ffmpeg = find_ffmpeg()
+        if ffmpeg:
+            cmd.extend(["--ffmpeg-location", ffmpeg])
         self._ensure_runtime_cache()
         if self._cached_runtimes:
             cmd.extend(["--js-runtimes", ",".join(self._cached_runtimes)])
@@ -87,18 +91,27 @@ class DownloaderMixin:
             self._warn_no_jsruntime()
 
     def _warn_no_jsruntime(self):
-        """Show warning about missing JavaScript runtime"""
+        """Show warning about missing JavaScript runtime."""
         self.status_var.set("No JS runtime found - required for YouTube downloads")
-        messagebox.showwarning(
-            "JavaScript Runtime Required",
-            "No JavaScript runtime found.\n\n"
-            "YouTube requires Deno or Node.js to solve challenges.\n\n"
-            "Install Deno (recommended):\n"
-            "curl -fsSL https://deno.land/install.sh | sh\n\n"
-            "Or install Node.js:\n"
-            "sudo apt install nodejs\n\n"
-            "Then restart this app."
-        )
+        if is_windows():
+            body = (
+                "No JavaScript runtime found.\n\n"
+                "YouTube may require Node.js or Deno to solve challenges.\n\n"
+                "If YouTube downloads fail with a 'sig' or 'nsig' error, install\n"
+                "Node.js from https://nodejs.org/ (the LTS installer is fine),\n"
+                "then restart this app."
+            )
+        else:
+            body = (
+                "No JavaScript runtime found.\n\n"
+                "YouTube requires Deno or Node.js to solve challenges.\n\n"
+                "Install Deno (recommended):\n"
+                "curl -fsSL https://deno.land/install.sh | sh\n\n"
+                "Or install Node.js:\n"
+                "sudo apt install nodejs\n\n"
+                "Then restart this app."
+            )
+        messagebox.showwarning("JavaScript Runtime Required", body)
 
     # ── Format fetching ─────────────────────────────────────────────
 
@@ -198,7 +211,7 @@ class DownloaderMixin:
             if thumbnail_url and HAS_PIL and thumbnail_url.startswith("https://"):
                 try:
                     req = urllib.request.Request(thumbnail_url,
-                                                headers={"User-Agent": "YT-DLP-GUI"})
+                                                headers={"User-Agent": "Snatch"})
                     with urllib.request.urlopen(req, timeout=10) as resp:
                         img_data = resp.read()
                     img = Image.open(BytesIO(img_data))

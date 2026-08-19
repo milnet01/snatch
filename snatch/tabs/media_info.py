@@ -8,6 +8,7 @@ from tkinter import ttk, filedialog, messagebox
 
 from ..theme import get_theme
 from ..utils import zenity_file_dialog
+from ..platform_utils import find_ffprobe, is_windows
 
 
 class MediaInfoTabMixin:
@@ -97,7 +98,7 @@ class MediaInfoTabMixin:
         """Run ffprobe in a background thread"""
         try:
             cmd = [
-                "ffprobe",
+                find_ffprobe(),
                 "-hide_banner",
                 "-show_format",
                 "-show_streams",
@@ -114,8 +115,14 @@ class MediaInfoTabMixin:
             self.root.after(0, lambda: self._set_media_info_text(output))
 
         except FileNotFoundError:
+            install_hint = (
+                "Install ffmpeg from https://www.gyan.dev/ffmpeg/builds/ "
+                "and add it to your PATH."
+                if is_windows()
+                else "Install ffmpeg:\n  sudo apt install ffmpeg"
+            )
             self.root.after(0, lambda: self._set_media_info_text(
-                "ffprobe not found.\n\nInstall ffmpeg:\n  sudo apt install ffmpeg"))
+                f"ffprobe not found.\n\n{install_hint}"))
         except subprocess.TimeoutExpired:
             self.root.after(0, lambda: self._set_media_info_text("Analysis timed out."))
         except Exception as e:

@@ -8,6 +8,7 @@ import tempfile
 
 from .theme import get_theme
 from .utils import format_duration
+from .platform_utils import open_path, is_windows
 
 
 class PlayerMixin:
@@ -33,7 +34,7 @@ class PlayerMixin:
             return
         if not HAS_MPV:
             try:
-                subprocess.Popen(["xdg-open", "--", url])
+                open_path(url)
                 return
             except Exception:
                 messagebox.showerror("Error",
@@ -46,9 +47,9 @@ class PlayerMixin:
         runtime_dir = os.environ.get("XDG_RUNTIME_DIR", tempfile.gettempdir())
         # Validate the runtime dir is owned by us and not a symlink
         runtime_dir = os.path.realpath(runtime_dir)
-        if not os.path.isdir(runtime_dir) or os.stat(runtime_dir).st_uid != os.getuid():
+        if is_windows() or not os.path.isdir(runtime_dir) or os.stat(runtime_dir).st_uid != os.getuid():
             runtime_dir = tempfile.gettempdir()
-        self.mpv_socket_path = os.path.join(runtime_dir, f"ytdlp-gui-mpv-{os.getpid()}")
+        self.mpv_socket_path = os.path.join(runtime_dir, f"snatch-mpv-{os.getpid()}")
         if os.path.exists(self.mpv_socket_path):
             os.unlink(self.mpv_socket_path)
 
