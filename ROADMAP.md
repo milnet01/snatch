@@ -82,6 +82,44 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: in-session-2026-08-19.
   Lanes: packaging, ci.
 
+- 📋 [SNAT-0019] **build-linux still hangs on apt-get intermittently.**
+  The "Install Tk runtime and X libraries" step in build-linux
+  intermittently hangs. Observed 2026-08-19 on run 32299765938 (commit
+  ceb4cd4): 25 minutes with no progress, cancelled manually.
+
+  What is already ruled out, so it is not retried: ceb4cd4 INCLUDES the
+  workflow-level DEBIAN_FRONTEND=noninteractive + NEEDRESTART_MODE=a fix
+  from 881420e. That fix is real but partial -- it took static-checks from
+  780s+ (hanging) to 135s -- and it did not stop this. So needrestart was
+  not the whole cause, and the earlier claim that the class was fixed was
+  premature.
+
+  It is INTERMITTENT, not deterministic: run for f991184 passed build-linux
+  normally in between two hanging runs. That points at runner-side apt
+  contention (an unattended-upgrades lock, or a slow mirror) rather than
+  anything in this repo.
+
+  Not urgent because timeout-minutes: 30 bounds it -- the job fails in 30
+  minutes instead of GitHub's 6-hour default -- but it wastes a full CI
+  cycle each time and makes a red run ambiguous.
+
+  Worth trying, cheapest first:
+    - -o DPkg::Lock::Timeout=120 so apt waits for the lock instead of
+      blocking forever on it.
+    - Retry the step (2 attempts) rather than failing the run.
+    - Check which of these packages the ubuntu-22.04 runner image ALREADY
+      ships; if only libxcursor1 and friends are genuinely missing, the
+      step shrinks and so does the exposure.
+    - Last resort: drop apt entirely and vendor what PyInstaller needs.
+
+  Cannot be reproduced locally: act's container has no needrestart and no
+  unattended-upgrades, which is the same blind spot documented in
+  scripts/local-ci.sh and docs/building.md.
+  **Layman:** One of our automated build steps sometimes freezes and has to be killed. It is not consistent, so it has not been pinned down yet.
+  Kind: fix.
+  Source: in-session-2026-08-19.
+  Lanes: ci.
+
 ## Application
 
 - 📋 [SNAT-0006] **Write user data files with 0600 permissions.**
