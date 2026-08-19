@@ -10,4 +10,4 @@ except ImportError:
 
 HAS_MPV = shutil.which("mpv") is not None
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"

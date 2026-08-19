@@ -199,3 +199,34 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: package.
   Source: user-request-2026-08-19.
   Lanes: packaging, player.
+
+- ✅ [SNAT-0014] **Fix YouTube playback by pinning yt-dlp to a version that still works.**
+  Reported as "most videos wouldn't play except for one" on BOTH Windows
+  and Linux. The Linux half is what cracked it: mpv IS installed there,
+  so a missing player could not be the cause.
+
+  Measured on the five sampled GTA6 videos, using the app's own mpv
+  invocation:
+    yt-dlp 2026.03.17 (what we shipped)  1/5 play  <- matches the report
+    yt-dlp 2026.07.04 (latest STABLE)    1/5 play  <- stable does NOT fix it
+    yt-dlp 2026.08.18 (nightly)          5/5 play
+
+  The failure mode was 403 Forbidden on the DASH stream URLs, which is the
+  same error that killed the ffpyplayer prototype earlier the same day --
+  one root cause, not two.
+
+  Resolved (2026-08-19): scripts/fetch-binaries.sh now pulls yt-dlp from
+  the nightly channel, pinned to the exact tag 2026.08.18.122307. Pinning
+  to nightly is deliberate: YouTube breaks yt-dlp faster than the stable
+  channel ships, so a stable pin here means a player that does not play.
+  Bump the tag when playback or downloads start failing.
+
+  Two corrections recorded so they are not repeated. Bundling mpv
+  (SNAT-0013) would NOT have fixed this -- it was in progress when the
+  Linux report arrived, and would have shipped 32 MB to Windows with
+  playback still broken. And the JS runtime is not the fix either: the
+  nightly plays 5/5 with no runtime supplied.
+  **Layman:** Most videos would not play. The downloader tool inside Snatch was five months old and YouTube had changed; updating it fixed all of them.
+  Kind: fix.
+  Source: user-report-2026-08-19.
+  Lanes: downloader, player, packaging.

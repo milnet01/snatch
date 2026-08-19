@@ -8,7 +8,7 @@ import tempfile
 
 from .theme import get_theme
 from .utils import format_duration
-from .platform_utils import open_path, is_windows, is_macos
+from .platform_utils import open_path, is_windows, is_macos, find_mpv, find_ytdlp
 
 
 def _no_player_message():
@@ -51,19 +51,24 @@ class PlayerMixin:
 
     def _play_in_mpv(self, url, title=""):
         """Launch mpv embedded in the player frame"""
-        from . import HAS_MPV
         from tkinter import messagebox
 
         if not url or not self._is_valid_url(url):
             messagebox.showwarning("Warning", "Invalid URL for playback")
             return
-        if not HAS_MPV:
+
+        # find_mpv() is the single authority on whether there is a player. The
+        # old gate here read HAS_MPV, which is shutil.which("mpv") evaluated at
+        # import — blind to the copy bundled inside a packaged build, so a
+        # release shipping its own mpv would still have fallen back to a
+        # browser.
+        mpv_bin = find_mpv()
+        if not mpv_bin:
             try:
                 open_path(url)
-                return
             except Exception:
                 messagebox.showerror("Error", _no_player_message())
-                return
+            return
 
         self._stop_player()
 
@@ -79,7 +84,7 @@ class PlayerMixin:
         wid = str(self.player_frame.winfo_id())
 
         cmd = [
-            "mpv",
+            mpv_bin,
             f"--wid={wid}",
             f"--input-ipc-server={self.mpv_socket_path}",
             "--keep-open=yes",
@@ -87,6 +92,14 @@ class PlayerMixin:
             "--no-terminal",
             f"--volume={self.volume_var.get()}",
         ]
+
+        # mpv resolves YouTube links with its OWN yt-dlp through ytdl_hook,
+        # so it never sees the command this app builds. Without this it would
+        # look for yt-dlp on PATH and find nothing on a clean machine, even
+        # though the app ships one.
+        ytdlp_bin = find_ytdlp()
+        if ytdlp_bin and os.path.isfile(ytdlp_bin):
+            cmd.append(f"--script-opts=ytdl_hook-ytdl_path={ytdlp_bin}")
 
         # Pass cookies to mpv's yt-dlp
         cookies_file = self.cookies_file_var.get().strip()

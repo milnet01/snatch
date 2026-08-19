@@ -2,4 +2,8 @@
 # Bump these together and rebuild the .exe; do not float versions.
 Pillow==12.2.0
 tkinterdnd2==0.4.3
-yt-dlp==2026.3.17
+# yt-dlp is NOT imported as a library — the app shells out to the bundled
+# binary, whose version is pinned in scripts/fetch-binaries.sh (nightly
+# channel; the stable release does not play YouTube). Kept only so a
+# from-source run has a yt-dlp on PATH.
+yt-dlp==2026.7.4

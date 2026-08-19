@@ -117,6 +117,21 @@ def find_ffprobe():
     return "ffprobe"
 
 
+def find_mpv():
+    """Resolve mpv for the in-app player: bundled copy first, then PATH.
+
+    mpv is bundled as a DIRECTORY (bin/mpv/) rather than a lone binary,
+    because the Windows build needs its DLLs beside the executable. Returns
+    the path to the executable, or None when there is no mpv at all — in
+    which case the player falls back to opening the video in a browser.
+    """
+    if is_frozen():
+        candidate = resource_path("bin", "mpv", "mpv" + (".exe" if is_windows() else ""))
+        if os.path.isfile(candidate):
+            return candidate
+    return shutil.which("mpv")
+
+
 def find_jsruntime():
     """Resolve a bundled JavaScript runtime, or None.
 

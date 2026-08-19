@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-08-19
+
+### Fixed
+
+- **Videos play again** (SNAT-0014)
+  Most YouTube videos refused to play. The copy of yt-dlp inside Snatch was
+  five months old and YouTube had changed how it serves video since. Updating
+  it fixed every video we tested — 1 in 5 played before, 5 in 5 now.
+
+  Worth knowing: this is pinned to yt-dlp's *nightly* channel rather than its
+  stable releases. The current stable release does not fix the problem.
+  YouTube changes faster than the stable channel ships, so a stable pin would
+  mean a player that doesn't play.
+
+- **In-app player on Windows** (SNAT-0013, partial)
+  Windows builds now carry mpv, so the video player works without installing
+  anything. Previously the Play button quietly opened a browser.
+
+### Changed
+
+- **The window title shows the version**, e.g. "Snatch v1.0.1".
+
 ## [1.0.0] - 2026-08-19
 
 First public release. Snatch is a desktop app for downloading videos with
@@ -65,5 +87,6 @@ rather than something you clone and run from source.
 - **One pinned source for bundled ffmpeg and ffprobe** across all three
   platforms, so there is a single version to bump.
 
-[Unreleased]: https://github.com/milnet01/snatch/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/milnet01/snatch/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/milnet01/snatch/releases/tag/v1.0.1
 [1.0.0]: https://github.com/milnet01/snatch/releases/tag/v1.0.0

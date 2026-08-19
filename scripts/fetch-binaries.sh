@@ -8,9 +8,20 @@
 set -euo pipefail
 
 # ── Pinned versions ───────────────────────────────────────────────────
-# yt-dlp must match the version in requirements.txt. GitHub tags zero-pad the
-# month (2026.03.17); PyPI strips the zero (2026.3.17).
-YTDLP_VERSION="${YTDLP_VERSION:-2026.03.17}"
+# yt-dlp comes from the NIGHTLY channel, pinned to one tag.
+#
+# This is deliberate and was measured on 2026-08-19. YouTube playback through
+# mpv failed on 4 of 5 sampled videos with the stable release -- 403 Forbidden
+# on the DASH stream URLs -- and on 5 of 5 with the version pinned here
+# before. The current STABLE release (2026.07.04) does NOT fix it. The nightly
+# does: 5/5 play, with no other change. YouTube breaks yt-dlp faster than the
+# stable channel ships, so a stable pin here means a player that does not
+# play.
+#
+# Pinned to an exact nightly tag, so the build stays reproducible; bump it
+# when playback or downloads start failing.
+YTDLP_VERSION="${YTDLP_VERSION:-2026.08.18.122307}"
+YTDLP_REPO="${YTDLP_REPO:-yt-dlp/yt-dlp-nightly-builds}"
 # One source for all three platforms, so there is one pin to bump.
 FFMPEG_STATIC_TAG="${FFMPEG_STATIC_TAG:-b6.1.1}"
 # QuickJS is the JavaScript runtime yt-dlp needs to solve YouTube's nsig
@@ -18,6 +29,11 @@ FFMPEG_STATIC_TAG="${FFMPEG_STATIC_TAG:-b6.1.1}"
 # go missing. quickjs is ~2 MB against Deno's ~40 MB, and yt-dlp supports it
 # directly; it is enabled explicitly because only deno is enabled by default.
 QUICKJS_TAG="${QUICKJS_TAG:-v0.16.1}"
+# mpv powers the in-app video player. It is NOT one binary like the others:
+# the Windows build is an archive of mpv.exe plus a set of DLLs, so it is
+# unpacked into bin/mpv/ as a directory. The release tag is pinned; the asset
+# filename inside it carries a build hash and is resolved at fetch time.
+MPV_WIN_TAG="${MPV_WIN_TAG:-20260814}"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BIN_DIR="$REPO_ROOT/bin"
@@ -70,7 +86,7 @@ fetch() {
     chmod +x "$dest"
 }
 
-fetch "https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_VERSION}/${ytdlp_asset}" \
+fetch "https://github.com/${YTDLP_REPO}/releases/download/${YTDLP_VERSION}/${ytdlp_asset}" \
       "$BIN_DIR/yt-dlp${exe_suffix}"
 
 # NOTE: ffmpeg-static names its assets WITHOUT a file extension on every
@@ -87,6 +103,37 @@ done
 # so platform_utils._find_bundled_binary() has a single name to look for.
 fetch "https://github.com/quickjs-ng/quickjs/releases/download/${QUICKJS_TAG}/${qjs_asset}" \
       "$BIN_DIR/qjs${exe_suffix}"
+
+# mpv, Windows only for now. Linux and macOS keep using a system mpv; see
+# SNAT-0013 for why those two are harder (nested AppImage / .app bundle).
+if [ "$exe_suffix" = ".exe" ]; then
+    if [ ! -x "$BIN_DIR/mpv/mpv.exe" ]; then
+        echo "    resolving mpv asset for tag ${MPV_WIN_TAG}"
+        mpv_url="$(curl --fail --location --silent --show-error --max-time 60 \
+            "https://api.github.com/repos/shinchiro/mpv-winbuild-cmake/releases/tags/${MPV_WIN_TAG}" \
+            | python -c "
+import json,sys
+d = json.load(sys.stdin)
+for a in d['assets']:
+    n = a['name']
+    if n.startswith('mpv-x86_64-') and '-v3-' not in n and not n.startswith('mpv-dev'):
+        print(a['browser_download_url']); break
+else:
+    sys.exit('no mpv asset found in tag')
+")"
+        [ -n "$mpv_url" ] || { echo "could not resolve mpv asset" >&2; exit 1; }
+        echo "    downloading $(basename "$mpv_url")"
+        curl --fail --location --silent --show-error --retry 3 --max-time 600 \
+             -o "$BIN_DIR/mpv.7z" "$mpv_url"
+        mkdir -p "$BIN_DIR/mpv"
+        # 7z ships with the GitHub windows runner and with Git for Windows.
+        7z x -y -o"$BIN_DIR/mpv" "$BIN_DIR/mpv.7z" > /dev/null
+        rm -f "$BIN_DIR/mpv.7z"
+    else
+        echo "    cached: mpv/mpv.exe"
+    fi
+    [ -x "$BIN_DIR/mpv/mpv.exe" ] || { echo "mpv.exe not produced" >&2; exit 1; }
+fi
 
 echo "==> bin/ contents:"
 ls -lh "$BIN_DIR"

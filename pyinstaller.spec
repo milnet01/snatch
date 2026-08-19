@@ -44,6 +44,23 @@ if missing:
     print(f"[spec] WARNING: not bundling {', '.join(missing)} — "
           f"the build will fall back to PATH at runtime.")
 
+# mpv is a DIRECTORY, not a single binary: the Windows build is mpv.exe plus a
+# set of DLLs that must sit beside it. Everything under bin/mpv/ is bundled to
+# bin/mpv/ so the layout survives into the frozen app. Absent on platforms
+# where fetch-binaries.sh does not fetch it, which is fine — the app falls back
+# to a system mpv, and to opening a browser if there is none.
+MPV_DIR = os.path.join(BIN_DIR, "mpv")
+if os.path.isdir(MPV_DIR):
+    mpv_files = 0
+    for entry in sorted(os.listdir(MPV_DIR)):
+        full = os.path.join(MPV_DIR, entry)
+        if os.path.isfile(full):
+            binaries.append((full, "bin/mpv"))
+            mpv_files += 1
+    print(f"[spec] bundling mpv: {mpv_files} files from {MPV_DIR}")
+else:
+    print("[spec] no bin/mpv/ — in-app player will need a system mpv")
+
 # Data files (icons, etc.) bundled into the app.
 datas = [
     ("icon.png", "."),
@@ -106,8 +123,8 @@ if IS_MACOS:
         info_plist={
             "CFBundleName": "Snatch",
             "CFBundleDisplayName": "Snatch",
-            "CFBundleShortVersionString": "1.0.0",
-            "CFBundleVersion": "1.0.0",
+            "CFBundleShortVersionString": "1.0.1",
+            "CFBundleVersion": "1.0.1",
             "NSHighResolutionCapable": True,
             # Tk apps must not be treated as background-only.
             "LSBackgroundOnly": False,

@@ -9,7 +9,7 @@ from urllib.parse import quote
 
 from ..theme import get_theme
 from ..utils import format_duration, format_view_count, clear_treeview
-from .. import HAS_MPV
+from ..platform_utils import find_mpv
 
 
 class SearchTabMixin:
@@ -123,8 +123,7 @@ class SearchTabMixin:
         # Without mpv there is no in-app player and the click opens the
         # system browser instead. Say so on the button rather than looking
         # like playback that silently does something else.
-        from .. import HAS_MPV
-        play_label = "Play" if HAS_MPV else "Open in Browser"
+        play_label = "Play" if find_mpv() else "Open in Browser"
         ttk.Button(results_btn_frame, text=play_label,
                    command=self._play_search_result).pack(side=tk.LEFT, padx=(0, 5))
         ttk.Button(results_btn_frame, text="Download",
@@ -194,10 +193,12 @@ class SearchTabMixin:
         ttk.Label(seek_frame, textvariable=self.player_time_var,
                   style="Version.TLabel").pack(side=tk.RIGHT)
 
-        if not HAS_MPV:
-            self.player_status_label.config(
-                text="mpv not installed\n\nInstall with:\nsudo apt install mpv",
-                fg=theme.ACCENT)
+        # Same authority as the Play button and the player itself: a packaged
+        # build ships mpv, which shutil.which() cannot see.
+        if not find_mpv():
+            from ..player import _no_player_message
+            self.player_status_label.config(text=_no_player_message(),
+                                            fg=theme.ACCENT)
 
     def _on_seek_press(self):
         """Mark that the user is dragging the seek bar"""
