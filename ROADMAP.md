@@ -230,3 +230,32 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: fix.
   Source: user-report-2026-08-19.
   Lanes: downloader, player, packaging.
+
+- 📋 [SNAT-0015] **Add a Donate button pointing at the FUNDING.yml sources.**
+  The three sources already live in .github/FUNDING.yml and are the ones
+  to use:
+    github  : milnet01            -> https://github.com/sponsors/milnet01
+    patreon : AntsProjectsHub     -> https://patreon.com/AntsProjectsHub
+    custom  : https://paybru.co.za/tip/ants-projects-hub
+
+  Design notes for whoever picks this up.
+
+  FUNDING.yml is NOT shipped inside a packaged build -- it is a repo file
+  GitHub reads, and pyinstaller.spec bundles only icons and bin/. So the
+  app cannot read it at runtime as things stand. Two options: add it to
+  the spec's datas and parse it, or embed the URLs in code. If they are
+  embedded, say in a comment that FUNDING.yml is the source of truth, or
+  the two drift the first time a funding source changes.
+
+  Use platform_utils.open_path() rather than a hand-rolled opener; it is
+  already the cross-platform, injection-safe route and is what the History
+  and Download tabs use. STANDARDS.md section 5 requires https-only for
+  network URLs, which all three sources already are -- assert it rather
+  than assume it, since the custom entry is free text in a YAML file.
+
+  Placement is open. The header row next to the theme picker and version
+  label is the obvious spot; a menu entry is the less intrusive one.
+  **Layman:** A button in the app so people who like Snatch can support it, opening the same donation pages the GitHub page offers.
+  Kind: feature.
+  Source: user-request-2026-08-19.
+  Lanes: ui, packaging.
