@@ -120,7 +120,12 @@ class SearchTabMixin:
         results_btn_frame = ttk.Frame(content)
         results_btn_frame.grid(row=1, column=0, sticky="ew", pady=(4, 4))
 
-        ttk.Button(results_btn_frame, text="Play",
+        # Without mpv there is no in-app player and the click opens the
+        # system browser instead. Say so on the button rather than looking
+        # like playback that silently does something else.
+        from .. import HAS_MPV
+        play_label = "Play" if HAS_MPV else "Open in Browser"
+        ttk.Button(results_btn_frame, text=play_label,
                    command=self._play_search_result).pack(side=tk.LEFT, padx=(0, 5))
         ttk.Button(results_btn_frame, text="Download",
                    command=self._download_search_result,
@@ -267,7 +272,15 @@ class SearchTabMixin:
         try:
             cmd = self._get_base_cmd()
             cmd.extend(self._get_cookie_args())
-            cmd.extend(["-J", "--playlist-end", str(max_results),
+            # --flat-playlist lists the results without fully extracting every
+            # video. Measured 2026-08-19 on a 20-result search: 3.3s / 23 KB
+            # with it, ~40s / 11.5 MB without. The slow path made the UI look
+            # hung behind a "Searching..." label with no output for most of a
+            # minute. The cost is that entries carry no height/resolution, so
+            # that column stays blank; everything else the results table and
+            # the Play/Download buttons need (title, channel, duration,
+            # view_count, url) is present.
+            cmd.extend(["-J", "--flat-playlist", "--playlist-end", str(max_results),
                         "--", search_target])
 
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)

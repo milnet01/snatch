@@ -14,7 +14,7 @@ from io import BytesIO
 
 from .utils import format_duration, format_filesize, clear_treeview
 from .cookies import extract_browser_cookies, get_cookie_args
-from .platform_utils import find_ytdlp, find_ffmpeg, is_windows
+from .platform_utils import find_ytdlp, find_ffmpeg, find_jsruntime, is_windows
 
 try:
     from PIL import Image, ImageTk
@@ -43,11 +43,29 @@ class DownloaderMixin:
 
     @classmethod
     def _ensure_runtime_cache(cls):
-        """Populate the JS runtime cache if not already done"""
+        """Populate the JS runtime cache if not already done.
+
+        Entries are yt-dlp --js-runtimes values: a bare name for a runtime on
+        PATH, or "name:path" for the copy bundled inside a packaged build.
+        The bundled one is listed first so it wins when both exist, which
+        keeps a release behaving the same on every machine.
+        """
         if cls._cached_runtimes is None:
-            cls._cached_runtimes = [
+            runtimes = []
+            bundled = find_jsruntime()
+            if bundled:
+                name, path = bundled
+                runtimes.append(f"{name}:{path}")
+            runtimes.extend(
                 r for r in ("deno", "node", "quickjs", "bun") if shutil.which(r)
-            ]
+            )
+            cls._cached_runtimes = runtimes
+
+    @classmethod
+    def _has_any_runtime(cls):
+        """True when any JS runtime is available, bundled or on PATH."""
+        cls._ensure_runtime_cache()
+        return bool(cls._cached_runtimes)
 
     @staticmethod
     def _is_valid_url(url):
@@ -85,9 +103,14 @@ class DownloaderMixin:
         return result
 
     def check_nodejs(self):
-        """Check if a JavaScript runtime is installed (required for YouTube)"""
-        self._ensure_runtime_cache()
-        if not any(r in self._cached_runtimes for r in ("deno", "node")):
+        """Warn only if NO JavaScript runtime is available at all.
+
+        A packaged build bundles QuickJS, so this should never fire there. It
+        previously fired whenever deno/node were absent, which meant every
+        release nagged the user to install Node.js even though a working
+        runtime was shipped inside the app.
+        """
+        if not self._has_any_runtime():
             self._warn_no_jsruntime()
 
     def _warn_no_jsruntime(self):
@@ -96,15 +119,18 @@ class DownloaderMixin:
         if is_windows():
             body = (
                 "No JavaScript runtime found.\n\n"
-                "YouTube may require Node.js or Deno to solve challenges.\n\n"
-                "If YouTube downloads fail with a 'sig' or 'nsig' error, install\n"
-                "Node.js from https://nodejs.org/ (the LTS installer is fine),\n"
-                "then restart this app."
+                "YouTube needs one to solve download challenges.\n\n"
+                "Downloaded releases of Snatch include one, so if you are\n"
+                "seeing this you are running from source. Install Node.js\n"
+                "from https://nodejs.org/ (the LTS installer is fine), then\n"
+                "restart this app."
             )
         else:
             body = (
                 "No JavaScript runtime found.\n\n"
-                "YouTube requires Deno or Node.js to solve challenges.\n\n"
+                "YouTube needs one to solve download challenges. Downloaded\n"
+                "releases of Snatch include one, so if you are seeing this\n"
+                "you are running from source.\n\n"
                 "Install Deno (recommended):\n"
                 "curl -fsSL https://deno.land/install.sh | sh\n\n"
                 "Or install Node.js:\n"

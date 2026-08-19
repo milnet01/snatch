@@ -8,7 +8,32 @@ import tempfile
 
 from .theme import get_theme
 from .utils import format_duration
-from .platform_utils import open_path, is_windows
+from .platform_utils import open_path, is_windows, is_macos
+
+
+def _no_player_message():
+    """Explain how to get in-app playback, in terms of THIS platform.
+
+    The embedded player shells out to mpv, which is not bundled. Snatch falls
+    back to opening the video in the default browser. The advice here used to
+    be "sudo apt install mpv" on every platform, which is wrong on Windows and
+    macOS -- exactly the machines least likely to have mpv already.
+    """
+    if is_windows():
+        return ("No in-app player.\n\n"
+                "Snatch opened the video in your browser instead.\n\n"
+                "For playback inside Snatch, install mpv from\n"
+                "https://mpv.io/installation/ and restart the app.")
+    if is_macos():
+        return ("No in-app player.\n\n"
+                "Snatch opened the video in your browser instead.\n\n"
+                "For playback inside Snatch:\nbrew install mpv\n"
+                "then restart the app.")
+    return ("No in-app player.\n\n"
+            "Snatch opened the video in your browser instead.\n\n"
+            "For playback inside Snatch, install mpv:\n"
+            "sudo zypper install mpv   (or apt/dnf/pacman)\n"
+            "then restart the app.")
 
 
 class PlayerMixin:
@@ -37,9 +62,7 @@ class PlayerMixin:
                 open_path(url)
                 return
             except Exception:
-                messagebox.showerror("Error",
-                                     "No player available.\n\n"
-                                     "Install mpv:\nsudo apt install mpv")
+                messagebox.showerror("Error", _no_player_message())
                 return
 
         self._stop_player()
@@ -81,8 +104,7 @@ class PlayerMixin:
             self.mpv_process = subprocess.Popen(
                 cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except FileNotFoundError:
-            self.player_status_label.config(
-                text="mpv not found\n\nInstall: sudo apt install mpv")
+            self.player_status_label.config(text=_no_player_message())
             self.player_status_label.place(relx=0.5, rely=0.5, anchor="center")
             return
 

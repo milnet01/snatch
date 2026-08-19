@@ -50,6 +50,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: user-request-2026-08-19.
   Lanes: packaging, ci.
   Resolved (2026-08-19): built by scripts/build-macos.sh, green on its first ever execution (GitHub run 32276726723). Produces Snatch.app, ad-hoc signed so an arm64 bundle will launch, packaged into Snatch-<arch>.dmg. NOT verified beyond the build: nobody has run the app on a Mac. It is unsigned and un-notarised, so Gatekeeper blocks the first double-click; README documents the right-click to Open workaround.
+  Decision (2026-08-19, user): code signing is DEFERRED, not pending. An Apple Developer account is ~$99/yr and is not worth it until these projects earn an income. So the unsigned bundle plus the README's right-click to Open instructions is the intended shipping state, not a gap to close. Do not re-raise signing as a defect; revisit only if the project starts making money.
 
 - 📋 [SNAT-0005] **Publish the first release, v1.0.0.**
   Tag `v1.0.0` and attach the Windows .exe, the Linux AppImage and the
@@ -106,3 +107,94 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: test.
   Source: in-session-2026-08-19.
   Lanes: packaging, test.
+
+- ✅ [SNAT-0010] **Bundle a JavaScript runtime so YouTube works out of the box.**
+  Reported by the user with a screenshot of Snatch's own "JavaScript
+  Runtime Required" dialog on Windows. yt-dlp needs a JS runtime to solve
+  YouTube's nsig challenges; without one, extraction is deprecated and
+  formats go missing. The app bundled yt-dlp and ffmpeg but no runtime, so
+  every release told the user to go install Node.js -- which contradicts
+  the whole point of a self-contained download.
+
+  Resolved (2026-08-19): bundle QuickJS (quickjs-ng v0.16.1, ~2 MB against
+  Deno's ~40 MB) on all three platforms, and pass it to yt-dlp explicitly
+  as --js-runtimes quickjs:<path>, since only deno is enabled by default.
+  Verified: with the bundled binary yt-dlp exits 0 and the runtime warning
+  disappears; without it the warning fires. Detection previously used
+  shutil.which() only, so it could never have seen a bundled copy --
+  _ensure_runtime_cache now lists the bundled runtime first so a release
+  behaves the same on every machine. The dialog now fires only when there
+  is no runtime at all, and says a downloaded release already includes one.
+  **Layman:** YouTube downloads needed a separate program installed. Now it comes inside Snatch, so there is nothing extra to install.
+  Kind: fix.
+  Source: user-report-2026-08-19.
+  Lanes: packaging, downloader.
+
+- ✅ [SNAT-0011] **Make YouTube search return in seconds instead of most of a minute.**
+  Reported as "when I try and search nothing happens", with the UI stuck
+  on a "Searching......" label. The search was not failing: it ran
+  yt-dlp -J, which FULLY EXTRACTS every result. Measured 2026-08-19 on a
+  20-result search: ~40 s and 11.5 MB of JSON, with the UI showing no
+  output until the very end.
+
+  Resolved (2026-08-19): pass --flat-playlist, which lists results without
+  extracting each video -- 3.3 s and 23 KB for the same search, and it
+  emits none of the per-video JS-runtime warnings. Cost: flat entries
+  carry no height/resolution, so that column in the results table is now
+  blank. Everything else the table and the Play/Download buttons read
+  (title, channel, duration, view_count, url) is present and verified.
+  **Layman:** Searching looked like it did nothing. It was working, just very slowly -- now results come back almost immediately.
+  Kind: perf.
+  Source: user-report-2026-08-19.
+  Lanes: search.
+
+- ✅ [SNAT-0012] **Stop the Play button pretending to play when there is no player.**
+  Reported as "tried to play multiple videos but they wouldn't play except
+  for one" on Windows. Root cause: the embedded player shells out to mpv,
+  which is neither bundled nor installed there -- confirmed on the test
+  machine, where mpv, yt-dlp, ffmpeg, node and deno are all absent from
+  PATH. With HAS_MPV false the code silently calls open_path(), so the
+  video opens in a browser and nothing ever plays inside Snatch.
+
+  Two earlier hypotheses were wrong and are recorded so nobody retries
+  them: it is NOT the missing JS runtime (all five sampled GTA6 videos
+  resolve 5/5 without one), and it is NOT a bad URL (full extraction
+  leaves entry["url"] empty and the code correctly falls back to
+  webpage_url).
+
+  Resolved (2026-08-19): the button reads "Open in Browser" when no
+  player is available, and the message explaining how to get in-app
+  playback is now written for the platform it is shown on -- it said
+  "sudo apt install mpv" on every platform, including Windows and macOS,
+  the two least likely to have mpv already.
+  **Layman:** On Windows the Play button quietly opened a web browser instead of playing in the app. Now it says so.
+  Kind: fix.
+  Source: user-report-2026-08-19.
+  Lanes: player, ux.
+
+- 📋 [SNAT-0013] **Bundle mpv so the in-app player works with nothing installed.**
+  Chosen by the user 2026-08-19, deferred out of v1.0.0 as too large to
+  block a release on. Scope and known costs, measured that day:
+
+    Windows -- shinchiro build, 26 MB .7z, ships mpv.exe PLUS a set of
+      DLLs, so this is a directory to bundle rather than one binary.
+    Linux   -- pkgforge static AppImage, 42 MB. Bundling an AppImage
+      inside our AppImage works but needs APPIMAGE_EXTRACT_AND_RUN.
+    macOS   -- no plain binary exists; a .dmg containing a .app with
+      frameworks. Hardest of the three and may not be worth it.
+
+  Adds ~40 MB to every download (95 -> ~135 MB). Neither the Windows nor
+  the macOS path can be tested locally, so expect several CI round trips.
+
+  Also required, and easy to miss: bundled mpv must be told where the
+  bundled yt-dlp is (--script-opts=ytdl_hook-ytdl_path=...) because mpv
+  uses its OWN yt-dlp via ytdl_hook and never sees the app's command
+  line -- which is also why bundling QuickJS alone did not fix playback.
+
+  Rejected alternative: writing our own player. That means codecs, A/V
+  sync and hardware acceleration; months of work for something worse than
+  mpv, which is why the app shells out to mpv in the first place.
+  **Layman:** Make the video player work inside the app on every system without the user installing anything.
+  Kind: package.
+  Source: user-request-2026-08-19.
+  Lanes: packaging, player.

@@ -19,6 +19,7 @@ permissions:
 jobs:
   static-checks:
     runs-on: ubuntu-22.04
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,6 +41,7 @@ jobs:
   build-linux:
     needs: static-checks
     runs-on: ubuntu-22.04
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -50,7 +52,16 @@ jobs:
           python-version: "3.12"
           cache: "pip"
 
-      - name: Install Tk runtime, X libraries and FUSE
+      - name: Install Tk runtime and X libraries
+        env:
+          # A GitHub runner has needrestart installed; an apt-get install that
+          # touches a library can drop into its interactive "restart which
+          # services?" prompt and hang until the job times out. Observed
+          # 2026-08-19: this step sat for 7 minutes against 17 seconds locally.
+          # act's container image has no needrestart, so the local run cannot
+          # reproduce it.
+          DEBIAN_FRONTEND: noninteractive
+          NEEDRESTART_MODE: a
         run: |
           sudo apt-get update -qq
           # libx* are runtime dependencies of tkinterdnd2's libtkdnd shared
@@ -59,8 +70,12 @@ jobs:
           # user machine that lacks them. Caught 2026-08-19 by running this
           # job locally under act, which logged:
           #   Library not found: could not resolve 'libXcursor.so.1'
-          sudo apt-get install -y -qq \
-            python3-tk tk-dev libfuse2 desktop-file-utils \
+          #
+          # libfuse2 is deliberately NOT installed: build-linux.sh sets
+          # APPIMAGE_EXTRACT_AND_RUN=1, so appimagetool unpacks itself instead
+          # of mounting, and CI never executes the AppImage it produces.
+          sudo apt-get install -y -qq --no-install-recommends \
+            python3-tk tk-dev desktop-file-utils \
             libxcursor1 libxrandr2 libxinerama1 libxi6 libxss1
 
       - name: Install build dependencies
@@ -86,6 +101,7 @@ jobs:
   build-windows:
     needs: static-checks
     runs-on: windows-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -120,6 +136,7 @@ jobs:
   build-macos:
     needs: static-checks
     runs-on: macos-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4

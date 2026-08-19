@@ -31,7 +31,10 @@ EXE_SUFFIX = ".exe" if IS_WINDOWS else ""
 BIN_DIR = "bin"
 binaries = []
 missing = []
-for stem in ("yt-dlp", "ffmpeg", "ffprobe"):
+# Keep this list in step with scripts/fetch-binaries.sh — a binary fetched
+# there but missing here is silently left out of the build. "qjs" is the
+# QuickJS JavaScript runtime yt-dlp needs for YouTube.
+for stem in ("yt-dlp", "ffmpeg", "ffprobe", "qjs"):
     path = os.path.join(BIN_DIR, stem + EXE_SUFFIX)
     if os.path.isfile(path):
         binaries.append((path, "bin"))

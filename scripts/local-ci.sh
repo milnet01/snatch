@@ -114,6 +114,14 @@ cat <<'REPORT'
               pushing and reading the CI result — a green local run is NOT
               evidence about them.
    NOT RUN  : release  (fires on a v* tag only)
+
+   CAVEAT   : even build-linux is not an exact mirror. act runs
+              catthehacker/ubuntu, not GitHub's runner image, so the two
+              differ in installed packages. A real case, 2026-08-19: apt-get
+              hung for 7 minutes on GitHub against 17 seconds here, because
+              the runner has needrestart and this container does not. Green
+              here means the BUILD is sound, not that the runner environment
+              is.
 REPORT
 
 printf '\n'

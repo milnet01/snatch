@@ -5,7 +5,7 @@ import json
 import tkinter as tk
 from tkinter import ttk, messagebox
 
-from . import HAS_DND
+from . import HAS_DND, __version__
 from .platform_utils import app_data_dir
 from .theme import THEMES, get_theme, set_theme, setup_styles
 from .player import PlayerMixin
@@ -22,7 +22,7 @@ class SnatchApp(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
 
     def __init__(self, root):
         self.root = root
-        self.root.title("Snatch")
+        self.root.title(f"Snatch v{__version__}")
         self.root.resizable(True, True)
         self.root.minsize(1000, 750)
 
@@ -38,7 +38,7 @@ class SnatchApp(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
         self.latest_version = None
         self.browser_var = tk.StringVar(value="none")
         self.merge_audio_var = tk.IntVar(value=1)
-        self._base_title = "Snatch"
+        self._base_title = f"Snatch v{__version__}"
 
         # Paths - use the project root (parent of snatch package)
         self.script_dir = app_data_dir()

@@ -30,6 +30,26 @@ rather than something you clone and run from source.
 - **Seven-theme picker**: Dark, Nord, Monokai, YouTube, Dracula, Gruvbox
   and Solarized.
 
+### Fixed
+
+- **YouTube works without installing anything else** (SNAT-0010)
+  Snatch now includes the small JavaScript engine yt-dlp needs to unscramble
+  YouTube downloads. Previously it told you to go and install Node.js, which
+  rather defeated the point of a one-file download.
+- **The Play button no longer pretends to play** (SNAT-0012)
+  On Windows there is no in-app player unless you install mpv, and Snatch was
+  quietly opening the video in a browser instead. The button now says "Open in
+  Browser" when that is what it will do, and the advice on how to get in-app
+  playback is written for the system you are actually on — it used to say
+  "sudo apt install mpv" on Windows and Mac.
+- **The window title now shows the version**
+  It said just "Snatch"; it now reads "Snatch v1.0.0".
+- **Search returns in seconds, not most of a minute** (SNAT-0011)
+  Searching looked like it did nothing. It was working — it just fetched full
+  details for every result before showing any of them. A 20-result search went
+  from about 40 seconds to a little over 3. The Resolution column in search
+  results is blank as a result; everything else is unchanged.
+
 ### Changed
 
 - **Renamed from YT-DLP GUI to Snatch** (SNAT-0002)

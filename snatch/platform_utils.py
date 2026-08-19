@@ -117,6 +117,21 @@ def find_ffprobe():
     return "ffprobe"
 
 
+def find_jsruntime():
+    """Resolve a bundled JavaScript runtime, or None.
+
+    yt-dlp needs one to solve YouTube's nsig challenges; without it,
+    extraction is deprecated and some formats go missing. The packaged builds
+    bundle QuickJS, so a user who downloaded a release never has to install
+    Node.js or Deno. Returns (name, path) for --js-runtimes NAME:PATH, or None
+    when running from source with nothing bundled.
+    """
+    bundled = _find_bundled_binary("qjs")
+    if bundled:
+        return ("quickjs", bundled)
+    return None
+
+
 def open_path(target):
     """Open a file, folder, or URL in the OS default handler.
 

@@ -37,6 +37,13 @@ tool on a Linux machine can execute those two jobs, and the script says so in
 its own output rather than implying a pass. They are covered by pushing and
 reading the CI result.
 
+**And even the Linux job is not an exact mirror.** `act` runs
+`catthehacker/ubuntu`, not GitHub's runner image; the two carry different
+packages. On 2026-08-19 an `apt-get install` that took 17 seconds locally hung
+for 7 minutes on GitHub, because the runner ships `needrestart` and the
+container does not. A green local run says the build is sound. It does not say
+the runner environment is.
+
 Artifact-upload steps are skipped under act (`if: ${{ !env.ACT }}`) because
 there is no artifact service outside GitHub; without the guard they fail every
 local run and hide the real build result.
