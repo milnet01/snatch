@@ -157,6 +157,9 @@ jobs:
     needs: [build-linux, build-windows, build-macos]
     runs-on: ubuntu-22.04
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Download all build artifacts
         uses: actions/download-artifact@v4
         with:
@@ -164,6 +167,25 @@ jobs:
 
       - name: List what will be attached
         run: find artifacts -type f -print
+
+      # Release notes come from the hand-written CHANGELOG section, not from
+      # the commit log. Generating notes from commits describes what was done
+      # to the code rather than what changed for the user, and it would
+      # duplicate a changelog we already maintain.
+      - name: Extract release notes for this tag
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="$version" '
+            $0 ~ "^## \\[" v "\\]" { inside = 1; next }
+            inside && /^## \[/        { exit }
+            inside                     { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "::error::CHANGELOG.md has no '## [$version]' section — refusing to publish a release with no notes"
+            exit 1
+          fi
+          echo "--- release notes ---"
+          cat release-notes.md
 
       - name: Attach to GitHub Release
         uses: softprops/action-gh-release@v2
@@ -173,6 +195,6 @@ jobs:
             artifacts/snatch-windows/snatch.exe
             artifacts/snatch-macos/Snatch-*.dmg
           fail_on_unmatched_files: true
-          generate_release_notes: true
+          body_path: release-notes.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

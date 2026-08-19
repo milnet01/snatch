@@ -67,8 +67,13 @@ fetch() {
 fetch "https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_VERSION}/${ytdlp_asset}" \
       "$BIN_DIR/yt-dlp${exe_suffix}"
 
+# NOTE: ffmpeg-static names its assets WITHOUT a file extension on every
+# platform — the Windows asset is "ffmpeg-win32-x64", not
+# "ffmpeg-win32-x64.exe". So exe_suffix belongs on the DESTINATION filename
+# (which platform_utils does expect to end in .exe) and never on the URL.
+# Appending it to both 404'd the Windows build on 2026-08-19.
 for stem in ffmpeg ffprobe; do
-    fetch "https://github.com/eugeneware/ffmpeg-static/releases/download/${FFMPEG_STATIC_TAG}/${stem}-${ffmpeg_slug}${exe_suffix}" \
+    fetch "https://github.com/eugeneware/ffmpeg-static/releases/download/${FFMPEG_STATIC_TAG}/${stem}-${ffmpeg_slug}" \
           "$BIN_DIR/${stem}${exe_suffix}"
 done
 
