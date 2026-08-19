@@ -28,7 +28,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: user-request-2026-08-19.
   Lanes: packaging, docs.
 
-- 📋 [SNAT-0003] **Ship a self-contained Linux AppImage.**
+- ✅ [SNAT-0003] **Ship a self-contained Linux AppImage.**
   One file a user downloads, marks executable and runs, with no Python
   or tkinter install required. Built in CI so it is reproducible, on a
   base old enough that the glibc it links against is widely available.
@@ -37,8 +37,9 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: package.
   Source: user-request-2026-08-19.
   Lanes: packaging, ci.
+  Resolved (2026-08-19): built by scripts/build-linux.sh and verified twice — natively on this machine and inside the CI container under act, then green on GitHub run 32276726723. The AppImage launches, reaches the Tk main loop and creates its XDG data directory 0700; all three bundled binaries execute. Two defects found and fixed on the way: PyInstaller could not resolve libXcursor.so.1 (so tkinterdnd2's drag-and-drop would have failed on a user machine), and appimagetool hangs indefinitely fetching its own runtime, so the script now passes --runtime-file.
 
-- 📋 [SNAT-0004] **Ship a self-contained macOS application.**
+- ✅ [SNAT-0004] **Ship a self-contained macOS application.**
   A `.dmg` containing `Snatch.app`, built by PyInstaller on a macOS
   runner. Unsigned and un-notarised, so Gatekeeper will block a
   double-click until the user right-clicks and chooses Open; the README
@@ -48,6 +49,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: package.
   Source: user-request-2026-08-19.
   Lanes: packaging, ci.
+  Resolved (2026-08-19): built by scripts/build-macos.sh, green on its first ever execution (GitHub run 32276726723). Produces Snatch.app, ad-hoc signed so an arm64 bundle will launch, packaged into Snatch-<arch>.dmg. NOT verified beyond the build: nobody has run the app on a Mac. It is unsigned and un-notarised, so Gatekeeper blocks the first double-click; README documents the right-click to Open workaround.
 
 - 📋 [SNAT-0005] **Publish the first release, v1.0.0.**
   Tag `v1.0.0` and attach the Windows .exe, the Linux AppImage and the
