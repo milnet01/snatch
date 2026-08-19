@@ -52,7 +52,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Resolved (2026-08-19): built by scripts/build-macos.sh, green on its first ever execution (GitHub run 32276726723). Produces Snatch.app, ad-hoc signed so an arm64 bundle will launch, packaged into Snatch-<arch>.dmg. NOT verified beyond the build: nobody has run the app on a Mac. It is unsigned and un-notarised, so Gatekeeper blocks the first double-click; README documents the right-click to Open workaround.
   Decision (2026-08-19, user): code signing is DEFERRED, not pending. An Apple Developer account is ~$99/yr and is not worth it until these projects earn an income. So the unsigned bundle plus the README's right-click to Open instructions is the intended shipping state, not a gap to close. Do not re-raise signing as a defect; revisit only if the project starts making money.
 
-- 📋 [SNAT-0005] **Publish the first release, v1.0.0.**
+- ✅ [SNAT-0005] **Publish the first release, v1.0.0.**
   Tag `v1.0.0` and attach the Windows .exe, the Linux AppImage and the
   macOS .dmg to a single GitHub Release. Blocked on SNAT-0003 and
   SNAT-0004 producing artefacts CI has actually built.
@@ -60,6 +60,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: release.
   Source: user-request-2026-08-19.
   Lanes: release, ci.
+  Resolved (2026-08-19): published at https://github.com/milnet01/snatch/releases/tag/v1.0.0 — not a draft, not a prerelease, with all three artefacts attached: snatch.exe (93 MB), Snatch-x86_64.AppImage (92 MB), Snatch-arm64.dmg (86 MB). Release notes came from the CHANGELOG [1.0.0] section rather than generated from the commit log. The release job needs all three builds to succeed, so a partial set cannot be published; this was its first ever execution and it passed unchanged.
 
 - 📋 [SNAT-0008] **Upgrade act past CVE-2026-34041 and CVE-2026-34042.**
   scripts/local-ci.sh drives `act`, and act 0.2.84 on this machine prints
