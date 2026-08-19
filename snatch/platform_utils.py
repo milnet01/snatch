@@ -77,14 +77,24 @@ def resource_path(*parts):
 def _find_bundled_binary(name):
     """Return the path to a bundled binary if present, else None.
 
-    Looks in <_MEIPASS>/bin/<name>(.exe) when frozen.
+    Frozen: <_MEIPASS>/bin/<name>(.exe), the copy inside the packaged app.
+
+    From source: the repo's own bin/ directory, which scripts/fetch-binaries.sh
+    fills with the SAME pinned binaries a release ships. Without this a source
+    run silently used whatever was on PATH, which is how a developer ended up
+    on a yt-dlp that cannot play YouTube while the packaged build was fine --
+    the pinned version is the fix, and a source run was not getting it. Absent
+    until a build or fetch has run, in which case the PATH fallback applies as
+    before.
     """
-    if not is_frozen():
-        return None
-    candidate = resource_path("bin", name + (".exe" if is_windows() else ""))
-    if os.path.isfile(candidate):
-        return candidate
-    return None
+    suffix = ".exe" if is_windows() else ""
+    if is_frozen():
+        candidate = resource_path("bin", name + suffix)
+        return candidate if os.path.isfile(candidate) else None
+    repo_bin = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "bin", name + suffix)
+    return repo_bin if os.path.isfile(repo_bin) else None
 
 
 def find_ytdlp():

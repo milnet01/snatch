@@ -259,3 +259,38 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: feature.
   Source: user-request-2026-08-19.
   Lanes: ui, packaging.
+
+- 📋 [SNAT-0016] **Let a packaged build fetch a newer yt-dlp into its own data directory.**
+  Asked by the user 2026-08-19: can the Windows build download the latest
+  yt-dlp? Today, no -- on any platform. A packaged build's yt-dlp sits in
+  the PyInstaller extraction directory, which is read-only and deleted on
+  exit, so it cannot replace itself. SNAT-0016's sibling fix made the app
+  say so instead of failing confusingly.
+
+  Why this matters rather than being a nicety: YouTube breaks yt-dlp
+  faster than we cut releases. That is not hypothetical -- it is exactly
+  what SNAT-0014 was. Without this, every such break needs a new Snatch
+  release on three platforms, and users are stuck until then.
+
+  Shape of the fix. app_data_dir() is already writable and already
+  platform-correct (next to the .exe on Windows, ~/Library/Application
+  Support on macOS, XDG data dir under an AppImage). Download the release
+  asset for the platform into <app_data_dir>/bin/, and have find_ytdlp()
+  prefer that copy over the bundled one when it exists. The bundled copy
+  stays as the floor, so a failed or half-written download can never leave
+  the app with no yt-dlp.
+
+  Things not to get wrong:
+    - Verify the download RUNS (--version) before preferring it; a
+      truncated file must not replace a working bundled binary.
+    - Download to a temp name and rename, so a crash mid-write leaves the
+      previous state intact.
+    - 0700 on the directory, executable bit on the binary.
+    - HTTPS only, per STANDARDS.md section 5.
+    - Offer a way back to the bundled copy when a fetched one misbehaves.
+    - Which channel? SNAT-0014 pins NIGHTLY because stable does not play
+      YouTube. A self-update that pulls stable would be a downgrade.
+  **Layman:** Let the app update its downloader by itself, so when YouTube changes you do not have to wait for a new version of Snatch.
+  Kind: feature.
+  Source: user-request-2026-08-19.
+  Lanes: downloader, packaging.

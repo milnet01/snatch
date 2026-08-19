@@ -9,7 +9,7 @@ import tkinter as tk
 from tkinter import messagebox
 import urllib.request
 
-from .platform_utils import find_ytdlp, is_windows
+from .platform_utils import find_ytdlp, is_windows, is_frozen
 
 
 class VersionMixin:
@@ -105,12 +105,22 @@ class VersionMixin:
             self._do_update()
 
     def update_ytdlp(self):
-        """Update yt-dlp to latest version (called from button)."""
-        if is_windows():
+        """Update yt-dlp to latest version (called from button).
+
+        A PACKAGED build cannot do this. Its yt-dlp lives inside the bundle,
+        in a read-only temp directory that is deleted on exit, and
+        find_ytdlp() prefers that copy — so updating the system one changes
+        nothing the app will ever use. Gating this on is_windows() meant the
+        Linux AppImage ran the update, kept using its bundled copy, and then
+        warned "the update completed but the version did not change".
+        """
+        if is_frozen():
+            asset = "snatch.exe" if is_windows() else "the latest release"
             messagebox.showinfo(
-                "Update via Snatch download",
-                "On Windows, yt-dlp is bundled inside this app.\n\n"
-                "To update, download the latest snatch.exe from\n"
+                "Update Snatch instead",
+                "yt-dlp is bundled inside this copy of Snatch, so it cannot\n"
+                "be updated on its own.\n\n"
+                f"To get a newer yt-dlp, download {asset} from\n"
                 "https://github.com/milnet01/snatch/releases"
             )
             return
