@@ -16,6 +16,16 @@ on:
 permissions:
   contents: write
 
+env:
+  # A GitHub runner ships needrestart, whose interactive "restart which
+  # services?" prompt can hang an apt-get install until the job times out.
+  # Set once here rather than per step: this was fixed in build-linux on
+  # 2026-08-19 and the identical pattern in static-checks was missed, which
+  # hung that job for 13 minutes until its timeout. Workflow scope means a
+  # future apt step cannot reintroduce it.
+  DEBIAN_FRONTEND: noninteractive
+  NEEDRESTART_MODE: a
+
 jobs:
   static-checks:
     runs-on: ubuntu-22.04
@@ -53,15 +63,6 @@ jobs:
           cache: "pip"
 
       - name: Install Tk runtime and X libraries
-        env:
-          # A GitHub runner has needrestart installed; an apt-get install that
-          # touches a library can drop into its interactive "restart which
-          # services?" prompt and hang until the job times out. Observed
-          # 2026-08-19: this step sat for 7 minutes against 17 seconds locally.
-          # act's container image has no needrestart, so the local run cannot
-          # reproduce it.
-          DEBIAN_FRONTEND: noninteractive
-          NEEDRESTART_MODE: a
         run: |
           sudo apt-get update -qq
           # libx* are runtime dependencies of tkinterdnd2's libtkdnd shared
