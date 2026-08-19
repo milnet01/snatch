@@ -21,6 +21,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   YouTube changes faster than the stable channel ships, so a stable pin would
   mean a player that doesn't play.
 
+- **Video plays inside the app again on Linux** (SNAT-0018)
+  On a Wayland desktop the video opened in its own separate window instead of
+  playing inside Snatch. mpv is now told to use XWayland, where embedding
+  works. Windows was never affected.
+
+- **Fullscreen** — double-click the video, use the Fullscreen button, or press
+  Escape to come back. There was previously no way to do this.
+
 - **In-app player on Windows** (SNAT-0013, partial)
   Windows builds now carry mpv, so the video player works without installing
   anything. Previously the Play button quietly opened a browser.

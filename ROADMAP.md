@@ -300,3 +300,36 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: feature.
   Source: user-request-2026-08-19.
   Lanes: downloader, packaging.
+
+- ✅ [SNAT-0018] **Embed the player on Wayland instead of opening a separate window.**
+  Reported by the user: Windows plays inside the app, Linux opens a
+  separate window. Not a regression -- a platform difference nobody had
+  isolated.
+
+  Cause: the session is Wayland (XDG_SESSION_TYPE=wayland). tkinter runs
+  under XWayland, so player_frame.winfo_id() is an X11 window id, but mpv
+  sees WAYLAND_DISPLAY and picks its Wayland backend, which cannot embed
+  into an X11 window -- so it opens its own. Windows has no such split.
+
+  Resolved (2026-08-19): WAYLAND_DISPLAY is dropped from mpv's child
+  environment only, so mpv falls back to X11 through XWayland where --wid
+  works. Guarded on DISPLAY being present, so a pure-Wayland box with no
+  XWayland is left alone rather than handed a broken environment; X11
+  sessions are unaffected.
+
+  Measured, since "it looks embedded" is not evidence: with the parent
+  environment mpv created 0 X11 windows (it went to Wayland). With the fix
+  it created 1, geometry 620x380 -- exactly the Tk frame's size, which is
+  the signature of a reparented window.
+
+  Also added, because there was none: fullscreen via a button, a
+  double-click on the video area, and Escape to leave. Known limitation --
+  an embedded surface cannot go fullscreen independently of the window
+  that owns it, so this makes the WINDOW fullscreen and the video grows
+  with it; the rest of the UI stays on screen. True video-only fullscreen
+  would mean detaching the player into its own window, which is a
+  different design.
+  **Layman:** On Linux the video opened in its own window instead of inside the app. It now plays inside, and there is a fullscreen button.
+  Kind: fix.
+  Source: user-report-2026-08-19.
+  Lanes: player, ui.

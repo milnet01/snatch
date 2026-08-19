@@ -36,6 +36,28 @@ def _no_player_message():
             "then restart the app.")
 
 
+def _embedding_env():
+    """Environment for the mpv child so --wid embedding actually works.
+
+    On a Wayland session tkinter still runs under XWayland, so
+    player_frame.winfo_id() is an X11 window id. mpv, seeing WAYLAND_DISPLAY,
+    picks its Wayland backend instead -- which cannot embed into an X11 window
+    -- and opens a SEPARATE window rather than playing inside the app.
+    Reported on KDE Plasma Wayland 2026-08-19; Windows was unaffected because
+    it has no such split.
+
+    Dropping WAYLAND_DISPLAY for the child makes mpv fall back to X11 through
+    XWayland, where --wid works. Only done when there is a DISPLAY to fall
+    back to, so a pure-Wayland box with no XWayland is left alone rather than
+    handed a broken environment.
+    """
+    env = os.environ.copy()
+    if not is_windows() and not is_macos():
+        if env.get("WAYLAND_DISPLAY") and env.get("DISPLAY"):
+            env.pop("WAYLAND_DISPLAY", None)
+    return env
+
+
 class PlayerMixin:
     """Mixin providing embedded mpv player functionality.
     Expects the host class to have: root, player_frame, player_status_label,
@@ -115,13 +137,36 @@ class PlayerMixin:
 
         try:
             self.mpv_process = subprocess.Popen(
-                cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                env=_embedding_env())
         except FileNotFoundError:
             self.player_status_label.config(text=_no_player_message())
             self.player_status_label.place(relx=0.5, rely=0.5, anchor="center")
             return
 
         self.root.after(1000, self._update_player_state)
+
+    def _toggle_fullscreen(self):
+        """Toggle the window between fullscreen and normal.
+
+        The video is embedded in a Tk frame via --wid, so it cannot go
+        fullscreen independently of the window that owns it -- mpv's own
+        fullscreen is not available to an embedded surface. Making the window
+        fullscreen grows the player frame with it (it packs with expand=True),
+        and the embedded video follows the frame.
+
+        Escape leaves fullscreen, which is what every player does and what a
+        user will try first when the title bar is gone.
+        """
+        self._fullscreen = not getattr(self, "_fullscreen", False)
+        self.root.attributes("-fullscreen", self._fullscreen)
+        if hasattr(self, "fullscreen_btn"):
+            self.fullscreen_btn.config(
+                text="Exit Full" if self._fullscreen else "Fullscreen")
+        if self._fullscreen:
+            self.root.bind("<Escape>", lambda e: self._toggle_fullscreen())
+        else:
+            self.root.unbind("<Escape>")
 
     def _mpv_command(self, command):
         """Send a command to mpv via IPC socket and return response"""

@@ -144,6 +144,9 @@ class SearchTabMixin:
         self.player_frame = tk.Frame(player_outer, bg=theme.PLAYER_BG, width=480, height=270)
         self.player_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 8))
         self.player_frame.pack_propagate(False)
+        # Double-click the video area to toggle fullscreen, the convention
+        # every other player uses.
+        self.player_frame.bind("<Double-Button-1>", lambda e: self._toggle_fullscreen())
 
         self.player_status_label = tk.Label(self.player_frame,
                                             text="No video loaded",
@@ -160,7 +163,11 @@ class SearchTabMixin:
         self.play_pause_btn.pack(side=tk.LEFT, padx=(0, 3))
 
         ttk.Button(controls_frame, text="Stop", width=5,
-                   command=self._stop_player).pack(side=tk.LEFT, padx=(0, 8))
+                   command=self._stop_player).pack(side=tk.LEFT, padx=(0, 3))
+
+        self.fullscreen_btn = ttk.Button(controls_frame, text="Fullscreen", width=10,
+                                          command=self._toggle_fullscreen)
+        self.fullscreen_btn.pack(side=tk.LEFT, padx=(0, 8))
 
         ttk.Label(controls_frame, text="Vol:").pack(side=tk.LEFT, padx=(0, 4))
         self.volume_var = tk.IntVar(value=80)
