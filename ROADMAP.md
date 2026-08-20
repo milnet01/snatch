@@ -199,6 +199,124 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: in-session-2026-08-20.
   Lanes: packaging, macos.
 
+- 📋 [SNAT-0026] **Every launch unpacks ~100 MB to a temp directory before anything appears.**
+  Measured 2026-08-20 on this machine (NVMe, warm page cache), on the
+  v1.0.1 AppImage, three runs: 0.97s, 0.97s, 0.96s from exec to the point
+  Python gives up on the display. That is unpack plus import, BEFORE any
+  window is drawn, and before Tk initialises. A cold cache or a spinning
+  disk is worse.
+
+  Where it goes. The AppImage's own squashfs extraction is 0.06s -- fast
+  and not the problem. Inside it sits a single 101 MB PyInstaller
+  ONE-FILE binary, and one-file means the embedded archive is
+  decompressed to /tmp/_MEIxxxx on every start, used, and deleted.
+  Roughly a second of that ~0.97s is paying for a 100 MB decompress that
+  produces exactly the same bytes it produced last time.
+
+  The key point: an AppImage is ALREADY a single-file distribution. It
+  mounts a squashfs and runs from it. Wrapping a PyInstaller one-file
+  archive inside one is double-packing -- paying the extraction cost
+  twice over for a property the outer format already provides. Building
+  --onedir inside the AppImage would let it mount and execute in place,
+  removing essentially all of that second.
+
+  Same argument for macOS: a .app is a directory bundle by nature, so
+  one-file buys nothing there either.
+
+  Windows is the exception and should KEEP one-file. A single portable
+  snatch.exe is the point on that platform, and app_data_dir() is built
+  around it. Note this is also the cause of the stale-_MEI confusion in
+  the 2026-08-19 Windows testing, so if one-file stays there, the
+  mitigation is documentation rather than a build change.
+
+  Pairs with SNAT-0027: less to unpack is the other half of this, and the
+  two multiply.
+  **Layman:** Snatch takes about a second to start because it unpacks itself from scratch every single time you open it.
+  Kind: perf.
+  Source: in-session-2026-08-20.
+  Lanes: packaging, performance.
+
+- 📋 [SNAT-0027] **ffmpeg and ffprobe are 153 MB of near-duplicate binary.**
+  Measured in bin/ on 2026-08-20: ffmpeg 77 MB, ffprobe 76 MB, yt-dlp
+  3.0 MB, qjs 2.5 MB. So 153 MB of a ~158 MB payload is those two, and
+  they come from the same static build (eugeneware/ffmpeg-static b6.1.1)
+  with different entry points -- the great majority of those bytes are
+  the same codec and container code linked twice.
+
+  What it costs, in order of who feels it:
+  - Every launch, via SNAT-0026: the one-file archive decompressed on
+  start is mostly these two files.
+  - Every download: 92 MB AppImage, 138 MB snatch.exe, 88 MB dmg.
+  - Every CI run, on three runners.
+
+  Worth trying, cheapest first:
+  - Check whether ffprobe is needed at all. yt-dlp is given
+  --ffmpeg-location and can use ffmpeg for muxing; the Media Info tab
+  is the one place that genuinely calls ffprobe (tabs/media_info.py).
+  If that tab can read what it needs from ffmpeg, one 76 MB file goes.
+  - Look for a smaller static build. b6.1.1 is a full-feature build
+  with every codec; a downloader front-end needs a fraction of them.
+  BtBN and John Van Sickle publish leaner variants.
+  - Last resort, and only if the above fail: accept the size and let
+  SNAT-0026 recover the launch time instead.
+
+  Do NOT solve this by dropping to a system ffmpeg. Bundling is
+  deliberate -- it is why a downloaded release works with nothing
+  installed -- and SNAT-0028's distro packages are the place where
+  depending on the system copy is the right answer.
+  **Layman:** Two of the bundled tools are almost the same program shipped twice, and together they are most of the download.
+  Kind: perf.
+  Source: in-session-2026-08-20.
+  Lanes: packaging, performance.
+
+- 📋 [SNAT-0028] **Publish Snatch on the openSUSE Build Service for as many distros as it will build for.**
+  Asked by the user 2026-08-20. The account already has home:milnet on
+  build.opensuse.org with two subprojects (ants-terminal, finbreak), so
+  the pattern and the credentials exist -- this is home:milnet:snatch
+  alongside them.
+
+  Why it is worth doing beyond reach: OBS builds one source package for
+  many targets at once. openSUSE Tumbleweed and Leap, Fedora, RHEL
+  derivatives, Debian, Ubuntu and Arch are all reachable from one spec,
+  and the user's own machine is Tumbleweed, so the first target is also
+  the one that can be tested immediately.
+
+  The real prize is size and updates. A native package does NOT bundle
+  ffmpeg, mpv or Python -- it declares them as dependencies, so the
+  package is the ~180 KB of Snatch's own code instead of 92 MB, it
+  unpacks nothing at startup (SNAT-0026 stops applying entirely), and it
+  updates through the user's package manager like everything else.
+
+  The tension to decide before starting, because it shapes the spec:
+  SNAT-0014 pins yt-dlp to the NIGHTLY channel because stable does not
+  play YouTube, and no distro ships a nightly yt-dlp -- most are months
+  behind. So a package depending on the distro's yt-dlp is a package
+  that cannot play YouTube on the day it lands. SNAT-0016 is the way
+  out: the packaged app fetches its own yt-dlp into app_data_dir()/bin
+  and prefers it. That has to be verified working from a distro package,
+  where the app itself is read-only and installed system-wide, before
+  this is worth publishing.
+
+  Other things not to get wrong:
+  - Needs python3-tkinter as a hard dependency. It is a separate
+  package on most distros and the app cannot start without it.
+  - mpv and ffmpeg become Recommends or Requires rather than bundled
+  content; the in-app player already degrades gracefully without mpv
+  (SNAT-0012).
+  - The desktop file and icon become real installed files rather than
+  AppImage internals.
+  - Needs a source tarball per release, which the GitHub release does
+  not currently produce in a form OBS can consume directly.
+  - OBS can watch a git repo and rebuild on a tag; worth wiring so
+  this does not become a manual step per release.
+
+  Does NOT replace the AppImage. That stays for distros OBS does not
+  cover and for users who want no installation at all.
+  **Layman:** Put Snatch in the normal software installers for Linux, so people can install and update it the way they install everything else.
+  Kind: package.
+  Source: user-request-2026-08-20.
+  Lanes: packaging, distribution.
+
 ## Application
 
 - 📋 [SNAT-0006] **Write user data files with 0600 permissions.**
@@ -558,6 +676,32 @@ and application work. IDs are allocated from `.roadmap-counter`.
   underneath it.
 
   Needs a `test` job in ci.yml, or the suite exists and nothing runs it.
+  Correction (2026-08-20, same day): this bullet's "no automated tests at
+  all" overstates it, and the overstatement is worth fixing rather than
+  leaving as rhetoric.
+
+  scripts/verify_platform_utils.py exists and runs in ALL THREE build
+  scripts (build-linux.sh:20, build-windows.sh:20, build-macos.sh:22)
+  plus local-ci.sh:68. It carries two real asserts -- app_data_dir()
+  exists, and find_ytdlp() did not fall through to the bare literal --
+  so a failure does fail the build. That is a genuine gate, and it runs
+  on Windows and macOS where nothing else does.
+
+  What the bullet gets right is unchanged: two asserts over one module is
+  not a test suite for 3,865 lines, and neither assert would have caught
+  either version.py bug. The accurate claim is "one two-assert smoke
+  check on one module, run at build time", not "nothing".
+
+  This also revises the starting point. The item is no longer "introduce
+  testing", it is "there is a place tests already run from -- grow it and
+  give it a real runner". That is a cheaper first step than the bullet
+  implies, and verify_platform_utils.py is where the binary-resolution
+  tests it asks for should probably live.
+
+  Found by measuring for SNAT-0026 and noticing the file in scripts/. The
+  original bullet was written from a `wc -l snatch/*.py` that also missed
+  snatch/tabs/ entirely -- the same glob, the same blind spot, and the
+  reason its line count read 2,712 rather than 3,865.
   **Layman:** Nothing automatically checks that Snatch still works after a change, so a mistake can reach users unnoticed.
   Kind: test.
   Source: in-session-2026-08-20.
@@ -649,3 +793,42 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: enhancement.
   Source: in-session-2026-08-20.
   Lanes: downloader.
+
+- 📋 [SNAT-0029] **Pillow is imported at startup for a feature most launches never use.**
+  Measured 2026-08-20 with `python3 -X importtime -c "import snatch.app"`:
+  134 ms total, of which PIL.Image accounts for 77 ms -- 57% of the app's
+  entire import cost. PIL._imaging alone, the C extension, is 56 ms.
+
+  It is imported at the top of snatch/downloader.py:20 and used in exactly
+  one place, downloader.py:237, to decode a thumbnail after formats have
+  been fetched for a URL. So every launch pays for it, and a launch that
+  goes to the Search, Media Info or History tab -- or that opens and
+  closes without pasting a URL -- never touches it.
+
+  Moving the import inside the thumbnail branch cuts app import time
+  roughly in half. HAS_PIL is the only complication: it is used as a
+  module-level flag at the call site, so the pattern needs to become a
+  cached check rather than an import-time constant. That is a small,
+  contained change and the flag has one reader.
+
+  Worth doing even though SNAT-0026 dwarfs it (~970 ms of unpack against
+  77 ms here). They are independent: SNAT-0026 is a packaging change,
+  this is a source change, and a distro package (SNAT-0028) has no unpack
+  cost at all -- so on the platform where startup is otherwise instant,
+  this becomes the largest remaining item.
+
+  Also worth a look while in there: urllib.request costs 15 ms at import
+  in snatch/version.py and is only ever used inside worker threads.
+
+  NOT worth chasing, measured and ruled out the same day: 4x shutil.which
+  for JS runtime detection is 0.2 ms and already cached at class level;
+  inserting 200 history rows into the Treeview is 1.6 ms; Tk() itself is
+  51 ms and is not ours to optimise. The format filter already reads
+  pre-computed video_only / audio_only booleans rather than re-parsing,
+  the download loop already throttles UI updates to 150 ms, history is
+  cached in memory, and search already uses --flat-playlist (SNAT-0011).
+  The hot paths are in good shape -- the cost is in packaging.
+  **Layman:** Snatch loads its image library every time it opens, even though it is only needed to show a video's thumbnail.
+  Kind: perf.
+  Source: in-session-2026-08-20.
+  Lanes: application, performance.
