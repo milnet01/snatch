@@ -1397,6 +1397,44 @@ and application work. IDs are allocated from `.roadmap-counter`.
   with --cookies-from-browser against whichever browser is installed, and
   compare the video-format count to the 38 above. Not run here because it
   reads the user's live browser cookie store.
+  Method note (2026-08-20), reusable for any Windows-build verification.
+  scripts/local-ci.sh cannot run the Windows job and CI only BUILDS the
+  .exe, so nothing yet proved runtime behaviour on Windows. This is how
+  it was done, in case it is wanted again.
+
+  1. Get the artefact CI already built rather than building one:
+     `gh run download <run-id> -n snatch-windows -D <dir>`. Prove it is
+     the code under test with `git diff <run-sha> HEAD -- snatch/
+     scripts/` -- empty means the .exe is HEAD.
+  2. `scp` it to wintest (192.168.0.102, cmd.exe default shell). 145 MB
+     moves in about 3 seconds over the LAN. Send PowerShell as a .ps1
+     and run it with `powershell -NoProfile -ExecutionPolicy Bypass
+     -File`; quoting a PS one-liner through cmd.exe is not worth it.
+  3. To reach the bundled yt-dlp / qjs / ffmpeg WITHOUT driving the GUI:
+     Start-Process the .exe, sleep ~12 s, copy `%TEMP%\_MEI*\bin\*` out,
+     then Stop-Process. PyInstaller deletes the _MEI directory on exit,
+     so the copy has to happen while it runs. The GUI does start over
+     SSH -- tkinter builds its window in the non-interactive station
+     without complaint -- which is what makes this work at all.
+  4. Then drive the bundled yt-dlp directly with the app's own flags.
+     `-v` prints `[debug] JS runtimes:` and `[debug] [youtube] [jsc] JS
+     Challenge Providers:`, which is the fastest read on whether a
+     runtime is live.
+
+  Two traps. `rmdir /s /q` on the test directory FAILS silently while the
+  app still holds snatch.exe -- kill the process, wait, then delete, and
+  check afterwards rather than trusting the echo. And a frozen Windows
+  build puts app_data_dir() next to the .exe, so config.json,
+  history.json and cookies.txt sit in the same folder the user keeps the
+  executable in; that is where to look for evidence of a real run.
+
+  One finding worth carrying: `--remote-components ejs:github`, which
+  _get_base_cmd always passes, lets yt-dlp fetch a challenge solver
+  instead of needing a local runtime. The control run with NO
+  --js-runtimes at all still returned 181 formats / 37 video. So "no JS
+  runtime" does not reliably mean "no video formats", and a diagnosis
+  that reasons from the runtime alone can reach the wrong answer. Treat
+  that as an observation from one video on one day, not a rule.
   **Layman:** Snatch was telling yt-dlp about its bundled helper program in a way yt-dlp could not read, so the helper was never used and YouTube quietly withheld all the picture qualities.
   Kind: fix.
   Source: in-session-2026-08-20.
