@@ -808,6 +808,30 @@ and application work. IDs are allocated from `.roadmap-counter`.
   startup or produce an error dialog for a user with no network.
   - Compare against the app's own version, not yt-dlp's. Those are two
   unrelated version lines and version.py already holds the other one.
+  Superseded (2026-08-20) by SNAT-0038. Do not build this one.
+
+  This bullet deliberately scoped the feature to NOTIFY ONLY, on the
+  grounds that downloading and swapping a running executable is a
+  materially harder job on three platforms. The user asked the same day
+  for the full thing -- offer, cumulative changelog, install, relaunch --
+  and named /mnt/Games/Scripts/Linux/finbreak as a working reference.
+  That decision stands and SNAT-0038 carries it.
+
+  The caution was not wrong, it was just answerable: finbreak has shipped
+  exactly this since v0.1.0 and its hard-won parts are readable rather
+  than theoretical -- the AppImage FUSE-mount swap, the Windows locked
+  .exe helper, the inert-when-unsupported branch, HTTPS on redirects, and
+  an anti-rollback gap still open over there.
+
+  The one part of this bullet's reasoning SNAT-0038 keeps: macOS stays
+  out. Unsigned (SNAT-0004), never run by anyone (SNAT-0025), and no
+  reference implementation to copy.
+
+  The other part it keeps is the small stuff this bullet got right and
+  which is easy to lose in a bigger feature: do not nag, fail silently
+  when offline, and compare against the APP's version rather than
+  yt-dlp's -- version.py holds the other version line and the two are
+  unrelated.
   **Layman:** Snatch can now update its downloader, but it cannot tell you when Snatch itself has a new version.
   Kind: feature.
   Source: in-session-2026-08-20.
@@ -1020,3 +1044,143 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: security.
   Source: in-session-2026-08-20.
   Lanes: security, process.
+
+- 📋 [SNAT-0038] **Full in-app auto-update: offer, show notes since your version, install, relaunch.**
+  Asked by the user 2026-08-20, superseding SNAT-0021's notify-only
+  scope. Check GitHub for a newer release, show the accumulated changelog
+  for EVERY version between the installed one and the latest, and on
+  accept download it, close, install, and reopen.
+
+  The user named /mnt/Games/Scripts/Linux/finbreak as the reference, and
+  it is a good one: field-proven since v0.1.0, ~1,150 lines across six
+  modules with 1,799 lines of feature test. Read it before designing
+  anything. Its shape, and why each part is the way it is:
+
+  - Platform seam (services/update_installer.py). detect_installer()
+  returns AppImageInstaller on Linux, WindowsInstaller on a frozen
+  .exe, else None so the feature goes INERT rather than half-working
+  off an unsupported package. Snatch needs the same None branch for a
+  source run and for a future distro package (SNAT-0028), where the
+  package manager owns updates and an in-app updater must not fire.
+  - Linux installs by swapping $APPIMAGE in place, spawning a detached
+  fresh copy, and exiting -- a plain in-place re-exec cannot replace a
+  busy FUSE mount.
+  - Windows cannot replace a running .exe at all; the OS locks it. It
+  spawns a detached PowerShell helper that waits for the image to be
+  free, moves the verified new .exe over the old, and relaunches.
+  - Accumulated notes is FIBR-0152, and it is exactly what the user
+  asked for. /releases/latest returns ONE body, so a user three
+  versions behind saw only the newest. It fetches /releases?per_page=30
+  and concatenates the bodies between installed and offered. Notes
+  failing to load does not cancel the offer -- the offer stands with
+  poorer notes.
+  - The dialog is non-blocking, offers Later / Skip this version /
+  Update now, and STAYS OPEN during the download showing progress.
+
+  Signing is not optional here, and this is the part to decide first.
+  finbreak verifies every download against an Ed25519 public key
+  committed to the repo, with the private half generated off-tree and
+  never committed; before keygen ran, the constant held 32 zero bytes so
+  verification FAILED CLOSED and a test asserted it. Snatch has no
+  signing at all today (SNAT-0036) and its releases carry no checksums
+  (SNAT-0031). An auto-updater without that is a channel that downloads
+  code from the network and executes it as the user -- strictly worse
+  than having no updater. SNAT-0036 is therefore a hard prerequisite,
+  not a nice-to-have alongside.
+
+  Two more finbreak lessons worth taking for free, both filed there
+  AFTER shipping:
+  - FIBR-0167: enforce HTTPS on REDIRECTS, not just the initial URL,
+  or the transport can be silently downgraded mid-request.
+  - FIBR-0169 is still OPEN there: anti-rollback. A correctly signed
+  OLD version is a valid signature, so a downgrade attack to a
+  version with a known hole passes verification. Bind the offered
+  version into what is signed. Knowing this in advance is worth more
+  than the rest of the list.
+
+  Scope Linux and Windows first, matching finbreak. macOS is deliberately
+  excluded for now: the build is unsigned (SNAT-0004), has never been run
+  by anyone (SNAT-0025), finbreak has no .app implementation to copy, and
+  silently replacing an unsigned bundle on a platform nobody has tested
+  is the worst possible place to debut this. detect_installer() returning
+  None there is the correct interim behaviour.
+
+  Depends on SNAT-0036 (signing/checksums). Supersedes SNAT-0021.
+  **Layman:** Snatch offers a new version, shows everything that changed since the one you have, and if you accept it updates and reopens itself.
+  Kind: feature.
+  Source: user-request-2026-08-20.
+  Lanes: application, packaging, security.
+
+- 📋 [SNAT-0039] **Queued downloads ignore your format choice and run strictly one at a time.**
+  Two problems in one eight-line method, downloader.py:743.
+
+  The correctness one first, because it is the one users would notice
+  and it is not an optimisation at all: _process_next_queue_item sets
+  `format_spec = "best"` as a literal before calling _start_download.
+  So every queued item ignores preferred_resolution and preferred_ext --
+  the two settings the app persists in config.json specifically to
+  remember what you want, and which the non-queue path honours through
+  _auto_select_preferred. Queue a 1080p-preferring session and you get
+  whatever yt-dlp calls best, silently.
+
+  The throughput one: the queue is strictly serial. _download_complete
+  advances queue_index and starts the next, one at a time. For a queue of
+  ten videos on a connection that is not saturated by one download --
+  which is most connections, since YouTube throttles per stream -- two or
+  three at once would finish the batch materially faster. This is the
+  real throughput lever for this app, and much more promising than
+  fragment concurrency (SNAT-0040, measured and inconclusive).
+
+  Things not to get wrong:
+  - Concurrency needs a cap and it should be small. Unbounded parallel
+  downloads is a good way to get rate-limited by the site.
+  - self.download_process is a single handle and _reset_ui / cancel /
+  the 150ms progress throttle all assume one active download. That
+  assumption is the actual work; the parallelism is the easy part.
+  - Fix the format bug FIRST and separately. It is a two-line change
+  with a clear right answer, and it should not wait behind a
+  refactor.
+
+  Related: SNAT-0023 persists the queue across restarts.
+  **Layman:** Anything you add to the queue is downloaded at whatever quality yt-dlp picks, not the one you chose — and they run one after another rather than together.
+  Kind: fix.
+  Source: in-session-2026-08-20.
+  Lanes: downloader, performance.
+
+- 📋 [SNAT-0040] **Expose yt-dlp fragment concurrency as a setting -- measured, and the default is not obvious.**
+  _get_base_cmd passes no -N / --concurrent-fragments, so yt-dlp uses
+  its default of 1 and fetches DASH fragments one after another.
+
+  Measured 2026-08-20 rather than assumed, and the measurement is why
+  this bullet is not "just turn it on". Three pairs, Big Buck Bunny at
+  720p (68 MB) through the repo's pinned yt-dlp:
+
+    -N 1 : 5.27s, 4.83s, 4.25s   (mean ~4.78)
+    -N 8 : 3.82s, 3.76s, 4.53s   (mean ~4.04)
+
+  So roughly 1.2x on average, and the third pair REVERSED -- N=8 was
+  slower than N=1. On this connection the result is inside the noise, and
+  the widely repeated "3-5x faster" is not what this machine shows.
+
+  That does not make it worthless. Fragment concurrency helps most where
+  per-connection throughput is the limit -- a high-latency link, or a
+  site throttling a single stream -- and this machine on a fast
+  connection is close to the worst case for demonstrating it. It means
+  the honest move is a setting with a conservative default, not a silent
+  change to how everyone's downloads run.
+
+  Suggested: a small dropdown next to the existing speed-limit control,
+  default 1 (current behaviour, no change for anyone), and a note in the
+  README about when raising it helps. If someone on a slow connection
+  measures a real gain, revisit the default then -- with their numbers.
+
+  Do NOT combine with --limit-rate without checking: the two interact,
+  and the app already exposes a rate limit.
+
+  For batch throughput see SNAT-0039 --
+  running queued downloads in parallel is the bigger and better-evidenced
+  win.
+  **Layman:** There is a yt-dlp option that can fetch a video in several pieces at once. On a fast connection it made little difference here, so it should be a setting rather than something we force on.
+  Kind: perf.
+  Source: in-session-2026-08-20.
+  Lanes: downloader, performance.
