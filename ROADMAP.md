@@ -1347,6 +1347,56 @@ and application work. IDs are allocated from `.roadmap-counter`.
   no-op there. The audio-only report from Windows is therefore still
   unexplained unless that machine had a second runtime on PATH -- worth
   asking the reporter.
+  Follow-up (2026-08-20): the reporting machine has NO second runtime, so
+  this item cannot be the cause of the Windows report.
+
+  Asked whether wintest had node/deno/bun installed, since that is the
+  only configuration in which the comma defect fires. It does not, on
+  three independent checks: the registry PATH (HKLM Session Manager
+  Environment + HKCU Environment) holds only OpenSSH, system32, Wbem,
+  PowerShell v1.0 and dotnet, with the user half a single WindowsApps
+  entry; none of node.exe / deno.exe / bun.exe / qjs.exe / quickjs.exe
+  exists in any common install location (Program Files\nodejs, APPDATA\
+  npm, nvm, .deno\bin, .bun\bin, chocolatey, scoop shims, WinGet Links);
+  and no uninstall-registry entry matches node|deno|bun|quickjs. The SSH
+  session's PATH equals the registry PATH, so the earlier `where` check
+  was not a false negative from a thinner environment.
+
+  wintest IS the reporting machine. Its install sits at
+  C:\Users\aants\OneDrive\Desktop\Snatch\ -- snatch.exe dated 2026-08-19
+  22:40, and history.json holding two downloads consistent with the symptom: 15:55 format "48x27 mhtml" -- a storyboard track, which nobody picks deliberately -- and 15:58 "audio only mp4", both for https://www.youtube.com/watch?v=OGaukFyC0Qw. Read that as strong circumstantial evidence, not as a record of the reported fetch: history.json logs completed DOWNLOADS only, never fetches, so a fetch that showed audio-only and was abandoned leaves no trace at all. For the same reason it does not contradict SNAT-0042's "same video (oi2QgPH61JM)" framing -- a fetch of that video on this box would be invisible here.
+
+  That build and the fixed build are the same tool for this purpose.
+  Extracted both _MEIPASS bin/ directories: identical yt-dlp
+  (2026.08.18.122307 either side) and identical qjs.exe (SHA256 prefix
+  55A1B69CD4FDB6B0 either side). With one runtime in the list the old
+  join was a no-op, so the two builds also emit the same command. The
+  only behavioural difference between them is SNAT-0042.
+
+  The symptom does not reproduce. Same machine, same binaries, the app's
+  own flags, against the reported URL:
+    --js-runtimes quickjs:<bundled>  -> 182 formats, 38 video, 101 audio,
+                                        4 storyboard
+    no --js-runtimes at all          -> 181 formats, 37 video
+  and the debug line reads "JS Challenge Providers: bun (unavailable),
+  deno (unavailable), node (unavailable), quickjs".
+
+  What this does NOT establish is what the user's session actually sent.
+  No config.json exists beside their exe, and browser_var defaults to
+  "none" -- but _save_config runs only on a clean window close or a theme
+  change, and history.json was written twice while config.json never was,
+  so that app was never closed cleanly. Its absence is therefore evidence
+  of a kill, not evidence that no browser was selected. A cookie source
+  picked in the dropdown that session would have left no trace. So
+  SNAT-0042's account -- cookies causing YouTube to withhold video
+  formats -- remains fully available for the Windows half and is the
+  leading explanation; it is simply not yet demonstrated ON Windows, and
+  it is a different video from the one that demonstrated it on Linux.
+
+  Next step if it is worth closing: probe the reported URL on that box
+  with --cookies-from-browser against whichever browser is installed, and
+  compare the video-format count to the 38 above. Not run here because it
+  reads the user's live browser cookie store.
   **Layman:** Snatch was telling yt-dlp about its bundled helper program in a way yt-dlp could not read, so the helper was never used and YouTube quietly withheld all the picture qualities.
   Kind: fix.
   Source: in-session-2026-08-20.
