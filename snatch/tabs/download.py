@@ -5,7 +5,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
 from ..theme import get_theme
-from ..widgets import ToggleSwitch
+from ..widgets import ToggleSwitch, attach_context_menu
 from ..utils import zenity_file_dialog
 from ..platform_utils import open_path
 
@@ -26,6 +26,7 @@ class DownloadTabMixin:
         self.url_entry = ttk.Entry(url_frame, textvariable=self.url_var, font=("Helvetica", 10))
         self.url_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
         self.url_entry.bind("<Return>", lambda e: self.fetch_formats())
+        attach_context_menu(self.url_entry)
 
         paste_btn = ttk.Button(url_frame, text="Paste", command=self.paste_url,
                                style="Small.TButton")
@@ -99,6 +100,7 @@ class DownloadTabMixin:
         cookies_row.pack(fill=tk.X)
         ttk.Label(cookies_row, text="Cookies file:").pack(side=tk.LEFT, padx=(0, 6))
         cookies_entry = ttk.Entry(cookies_row, textvariable=self.cookies_file_var, font=("Helvetica", 9))
+        attach_context_menu(cookies_entry)
         cookies_entry.pack(side=tk.LEFT, padx=(0, 5), fill=tk.X, expand=True)
         ttk.Button(cookies_row, text="Browse...", command=self.browse_cookies_file,
                    style="Small.TButton").pack(side=tk.LEFT)
@@ -106,6 +108,7 @@ class DownloadTabMixin:
         save_frame = ttk.LabelFrame(right_col, text="Save Location", padding="8")
         save_frame.pack(fill=tk.X)
         save_entry = ttk.Entry(save_frame, textvariable=self.save_path_var, font=("Helvetica", 10))
+        attach_context_menu(save_entry)
         save_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8))
         ttk.Button(save_frame, text="Browse...", command=self.browse_folder).pack(side=tk.RIGHT)
 

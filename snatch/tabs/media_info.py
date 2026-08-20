@@ -22,6 +22,7 @@ class MediaInfoTabMixin:
 
         file_entry = ttk.Entry(file_frame, textvariable=self.media_file_var, font=("Helvetica", 10))
         file_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
+        attach_context_menu(file_entry)
 
         ttk.Button(file_frame, text="Browse...",
                    command=self.browse_media_file).pack(side=tk.LEFT, padx=(0, 5))
@@ -52,6 +53,8 @@ class MediaInfoTabMixin:
         )
         text_scroll.config(command=self.media_info_text.yview)
         self.media_info_text.config(yscrollcommand=text_scroll.set)
+        # Read-only report — copy out, never paste in.
+        attach_context_menu(self.media_info_text, editable=False)
 
         self.media_info_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         text_scroll.pack(side=tk.RIGHT, fill=tk.Y)

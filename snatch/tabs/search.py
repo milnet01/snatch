@@ -31,6 +31,7 @@ class SearchTabMixin:
                                       font=("Helvetica", 10))
         self.search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
         self.search_entry.bind("<Return>", lambda e: self._perform_search())
+        attach_context_menu(self.search_entry)
 
         ttk.Label(search_bar, text="Channel:").pack(side=tk.LEFT, padx=(0, 4))
         self.search_channel_var = tk.StringVar()
@@ -39,6 +40,7 @@ class SearchTabMixin:
                                               font=("Helvetica", 10), width=20)
         self.search_channel_entry.pack(side=tk.LEFT, padx=(0, 10))
         self.search_channel_entry.bind("<Return>", lambda e: self._perform_search())
+        attach_context_menu(self.search_channel_entry)
 
         ttk.Button(search_bar, text="Search",
                    command=self._perform_search).pack(side=tk.LEFT, padx=(0, 5))
