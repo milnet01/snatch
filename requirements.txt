@@ -1,6 +1,6 @@
 # Runtime dependencies pinned for reproducible PyInstaller builds.
 # Bump these together and rebuild the .exe; do not float versions.
-Pillow==12.2.0
+Pillow==12.3.0
 tkinterdnd2==0.4.3
 # yt-dlp is NOT imported as a library — the app shells out to the bundled
 # binary, whose version is pinned in scripts/fetch-binaries.sh (nightly
