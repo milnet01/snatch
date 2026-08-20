@@ -1292,12 +1292,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
                                              "JS runtimes: node-24.18.1,
                                              quickjs-ng-0.16.1"
 
-  The blast radius is every build, not this machine. The comma path is
-  taken whenever find_jsruntime() finds a bundled runtime, which is
-  exactly what a packaged Windows, Linux or macOS build always has. So
-  every released artifact has been solving no JS challenge at all, and the
-  Windows "audio streams only" report is the same defect seen from the
-  other side. quickjs alone was verified to solve the challenge, so the
+  The blast radius is every build on a machine that ALSO has a JS runtime on PATH -- not every build, and the distinction was missed when this was first written. The comma path is taken whenever find_jsruntime() finds a bundled runtime, which is what a packaged build always has -- but joining a ONE-element list is a no-op, so the flag only breaks once a second runtime is enumerated beside the bundled one. Where the bundled quickjs is the only runtime present, the old code emitted exactly the flag the fix emits, and those builds were never broken. Measured on Windows 2026-08-20; see the verification note below. The Windows "audio streams only" report is therefore NOT explained by this defect unless that machine had deno, node, quickjs or bun on PATH. quickjs alone was verified to solve the challenge, so the
   bundled runtime was always capable -- it was simply never enabled.
 
   Two secondary corrections came with it. The docstring claimed the
@@ -1311,9 +1306,47 @@ and application work. IDs are allocated from `.roadmap-counter`.
   come back without video, and it is the only thing standing if YouTube
   withholds formats for some reason other than this one.
 
-  Not verified here: the Windows and macOS builds, where the bundled
-  quickjs is the only runtime. Proven locally that quickjs alone solves
-  the challenge, which is the same code path those builds take.
+  Windows verified 2026-08-20 -- see the note below. macOS is still unverified for want of Mac hardware (SNAT-0025); it takes the same single-bundled-runtime branch Windows does, which is the branch the join never altered.
+  Windows verification (2026-08-20). Artifact: snatch-windows from CI
+  run 32378831477, commit 85b7bd9; `git diff 85b7bd9 HEAD -- snatch/
+  scripts/` is empty, so the .exe is HEAD's code. Box: wintest
+  192.168.0.102, Windows 10 19045, no deno/node/quickjs/bun on PATH.
+  Bundled binaries lifted out of the running _MEIPASS: bin/qjs.exe
+  2148722 bytes, bin/yt-dlp.exe 17798916. `qjs -e` self-test passes.
+
+  Ran the bundled yt-dlp with the app's own flags (--ignore-config
+  --remote-components ejs:github --ffmpeg-location <bundled>) against
+  https://www.youtube.com/watch?v=oi2QgPH61JM, anonymous, no cookies:
+
+    --js-runtimes quickjs:C:\...\bin\qjs.exe (the fix)
+          -> "JS runtimes: quickjs-ng-0.16.1"   53 formats, 37 video
+    --js-runtimes "quickjs:C:\...\qjs.exe,node" (the old comma form)
+          -> "JS runtimes: none" + the deprecation warning
+                                                53 formats, 37 video
+    no --js-runtimes at all (control)
+          -> "JS runtimes: none" + the same warning
+                                                53 formats, 37 video
+
+  Two things this settles and one it does not. It settles the risk the
+  Windows branch was flagged for: a RUNTIME:PATH value whose path carries
+  a drive colon parses correctly -- yt-dlp splits on the first colon, so
+  `quickjs:C:\...` enables the runtime rather than reporting none. And it
+  reproduces the comma defect on Windows, so the mechanism is not
+  Linux-specific.
+
+  What it does NOT show is a format difference. All three forms returned
+  the same 53/37 for this video anonymously, so this box could not
+  reproduce the audio-only symptom in either direction and the format
+  half of the fix is unproven on Windows. The likely reason is
+  --remote-components ejs:github, which lets yt-dlp fetch a solver
+  instead of needing a local runtime; the original 4-format measurement
+  was taken with cookies on, and no YouTube cookies were available here.
+
+  Consequence for the record: on a Windows box with no other runtime the
+  old and new code emit the byte-identical command, so this fix is a
+  no-op there. The audio-only report from Windows is therefore still
+  unexplained unless that machine had a second runtime on PATH -- worth
+  asking the reporter.
   **Layman:** Snatch was telling yt-dlp about its bundled helper program in a way yt-dlp could not read, so the helper was never used and YouTube quietly withheld all the picture qualities.
   Kind: fix.
   Source: in-session-2026-08-20.
