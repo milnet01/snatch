@@ -317,6 +317,83 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: user-request-2026-08-20.
   Lanes: packaging, distribution.
 
+- 📋 [SNAT-0035] **Harden the CI workflow: unpinned actions, repo-wide write, persisted credentials.**
+  zizmor --persona=auditor on .github/workflows/ci.yml, 2026-08-20.
+  Three distinct issues, worst first.
+
+  1. unpinned-uses, 13 occurrences. Every `uses:` names a mutable tag
+  (actions/checkout@v4, actions/setup-python@v5,
+  actions/upload-artifact@v4, softprops/action-gh-release and so on).
+  A tag is a pointer its owner can move. Whoever controls one of those
+  repos can change what our workflow executes without a commit here,
+  and that code runs in a job holding a token that can write to this
+  repository and publish releases. Fix: pin each to a full commit SHA
+  with the version as a trailing comment. `pinact run` does this
+  mechanically. Note this is the same class SNAT-0009 already tracks
+  for the appimagetool runtime, and the same class as SNAT-0031 for
+  binaries -- three instances of one habit.
+
+  2. excessive-permissions at line 17. `permissions: contents: write` is
+  set at WORKFLOW scope, so all five jobs get it -- including
+  static-checks and the three builds, which only read. Only `release`
+  needs to write. Fix: `contents: read` at the top and a job-level
+  `permissions: contents: write` on release alone. This shrinks what a
+  compromised action from issue 1 can reach, which is why the two are
+  one item.
+
+  3. artipacked, 5 occurrences. actions/checkout persists the credential
+  in .git/config by default, and these jobs upload build artifacts.
+  Fix: `persist-credentials: false` on every checkout; no step here
+  needs the token afterwards.
+
+  None is exploited or exploitable today, and no evidence suggests
+  otherwise -- this is a public repo whose workflow currently has more
+  authority than any job in it uses. Worth doing because the release job
+  can publish artifacts under the project's name, which is the thing an
+  attacker would actually want.
+
+  Worth adding zizmor to static-checks afterwards so this cannot silently
+  regress; the tool is already installed on the dev machine.
+  **Layman:** Our automated build has more power over the project than it needs, and trusts outside code that could change under us.
+  Kind: security.
+  Source: in-session-2026-08-20.
+  Lanes: security, ci, supply-chain.
+
+- 📋 [SNAT-0036] **Releases publish no checksums, so a download cannot be verified.**
+  v1.0.1 attaches exactly three assets -- Snatch-arm64.dmg,
+  Snatch-x86_64.AppImage, snatch.exe -- and nothing else. No
+  SHA256SUMS file, no signature, no attestation.
+
+  So a user who downloads a 138 MB snatch.exe has no way to tell it is
+  ours, and neither do we if a report comes in. That matters more than
+  usual for this project on two counts: the macOS build is deliberately
+  unsigned (SNAT-0004), so Gatekeeper is explicitly bypassed by a
+  README-documented workaround, and the Windows .exe is unsigned too --
+  checksums are the only integrity signal on offer for either.
+
+  Cheapest useful version: have the release job emit a SHA256SUMS file
+  over the three artifacts and attach it, then document the one-line
+  verify command per platform in the README next to the download links.
+  That costs a few lines in ci.yml and is worth doing regardless of what
+  follows.
+
+  Better, and not much harder now that it is a public repo: GitHub's
+  build attestations (actions/attest-build-provenance) sign artifacts
+  with the workflow identity and need no key management. Worth choosing
+  between the two rather than doing both.
+
+  Deliberately NOT proposing paid code signing -- SNAT-0004 settled that
+  for macOS on cost grounds and that decision stands. Checksums and
+  attestation are the free part of what signing would have given, and
+  they are not a substitute for it.
+
+  This is SNAT-0031's question turned around: that one is about verifying
+  what we consume, this is about letting others verify what we ship.
+  **Layman:** Someone downloading Snatch has no way to check the file they got is the one we published.
+  Kind: security.
+  Source: in-session-2026-08-20.
+  Lanes: security, release, supply-chain.
+
 ## Application
 
 - 📋 [SNAT-0006] **Write user data files with 0600 permissions.**
@@ -832,3 +909,114 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: perf.
   Source: in-session-2026-08-20.
   Lanes: application, performance.
+
+- 📋 [SNAT-0030] **Shipped Pillow has 12 known advisories, and it decodes images from the internet.**
+  pip-audit against requirements.txt on 2026-08-20 reports 12 advisories
+  against Pillow 12.2.0, every one of them fixed in 12.3.0:
+  PYSEC-2026-2253/2254/2255/2256, 3451/3452/3453/3454, 3493/3494/3495/3496.
+
+  This is the one finding on the roadmap with a live attack path rather
+  than a hardening argument. downloader.py:237-244 takes the thumbnail
+  URL out of yt-dlp's JSON for whatever URL the user pasted, fetches it,
+  and hands the bytes to PIL.Image.open. So the input to a decoder with
+  12 open advisories is an image chosen by whoever controls the site
+  being downloaded from. For a tool whose entire purpose is pasting links
+  from arbitrary sites, that is not a remote scenario.
+
+  Pillow is bundled into all three released artifacts, so v1.0.0 and
+  v1.0.1 both carry it.
+
+  The fix is one line -- Pillow==12.3.0 in requirements.txt -- plus a
+  rebuild. Verify with pip-audit afterwards rather than assuming.
+
+  Not assessed here: which of the 12 are reachable through the specific
+  call path above, or their individual severities. That triage is worth
+  less than the upgrade, because the upgrade closes all 12 regardless
+  and costs a version bump.
+
+  The systemic half is SNAT-0037: nothing was watching, and these have
+  been public for some time.
+  **Layman:** The image library Snatch ships has 12 published security problems, and it is what opens picture previews downloaded from the web.
+  Kind: security.
+  Source: in-session-2026-08-20.
+  Lanes: security, dependencies.
+
+- 📋 [SNAT-0031] **Five bundled binaries are downloaded and executed with no integrity check.**
+  scripts/fetch-binaries.sh's fetch() curls a URL, moves the result into
+  bin/, and chmod +x it. There is no hash comparison, no signature check,
+  and no checksum file anywhere in the repo -- grepping for
+  sha256/shasum/checksum/gpg across scripts/ and the workflow returns
+  nothing but an unrelated comment in build-macos.sh.
+
+  Five third-party executables arrive this way and are bundled into a
+  release users run: yt-dlp (yt-dlp/yt-dlp-nightly-builds), ffmpeg and
+  ffprobe (eugeneware/ffmpeg-static), qjs (quickjs-ng/quickjs) and mpv
+  (Windows). Around 158 MB of code executing with the user's privileges.
+
+  What HTTPS does and does not buy: it proves the bytes came from
+  github.com unmodified in transit. It says nothing about whether the
+  release asset behind a pinned tag is still the artifact that was
+  reviewed. A GitHub release asset can be replaced in place, and an
+  account compromise on any of those four upstreams reaches every Snatch
+  user through our own signed-by-nobody release. Pinning the TAG, which
+  this project does carefully, does not pin the CONTENT.
+
+  SNAT-0016 extended the same gap to runtime, and this session introduced
+  that half: the self-update downloads a yt-dlp release asset onto the
+  user's machine, chmods it 0700 and executes it. It verifies the file
+  RUNS (--version) before promoting it, which catches corruption and a
+  truncated download -- it does not catch a substituted binary, because a
+  malicious one would answer --version perfectly well.
+
+  Shape of the fix:
+  - Record the expected SHA-256 of each asset next to its version pin in
+  fetch-binaries.sh, and verify after download, before chmod +x.
+  - Same for the runtime path in version.py. A nightly's hash is not
+  known ahead of time, so that one needs either GitHub's attestation
+  API or a hash fetched from a second source -- decide which, and if
+  neither is workable, say so in the code rather than leaving it
+  silently unverified.
+  - Bumping a pin then means updating a hash, which is the point: it
+  makes an upstream content change visible instead of automatic.
+
+  Pairs with SNAT-0036, which is the same question asked about what WE
+  publish rather than what we consume.
+  **Layman:** Snatch downloads its helper programs from the internet and runs them without checking they are the files we expect.
+  Kind: security.
+  Source: in-session-2026-08-20.
+  Lanes: security, packaging, supply-chain.
+
+- 📋 [SNAT-0037] **Nothing watches for vulnerabilities, and nobody can report one privately.**
+  Two gaps in one item, because they are the same gap from opposite
+  directions: nothing tells us about a vulnerability, and nobody can tell
+  us either.
+
+  No monitoring. There is no .github/dependabot.yml, and CI runs no
+  dependency audit. That is how SNAT-0030 happened -- twelve public
+  Pillow advisories, all fixed upstream in 12.3.0, shipped in two
+  releases, and found only because a person ran pip-audit by hand today.
+  Nothing would have surfaced the thirteenth either.
+
+  No reporting path. There is no SECURITY.md at the repo root or in
+  .github/. The repo is public and distributes unsigned executables for
+  three platforms, so a researcher who finds something has the choice of
+  a public issue -- which discloses it to everyone at once -- or saying
+  nothing.
+
+  Shape of the fix, all cheap:
+  - dependabot.yml covering pip and github-actions. The second also
+  keeps SNAT-0035's SHA pins current, which is the standard objection
+  to pinning and its standard answer.
+  - pip-audit as a step in static-checks so a new advisory fails a build
+  rather than waiting for someone to think of it.
+  - SECURITY.md naming what is in scope, which versions are supported,
+  and how to make contact. GitHub private vulnerability reporting is a
+  repo setting and needs no email address published.
+
+  Worth being honest about scope: this is a small project and a
+  vulnerability report may never arrive. The monitoring half is what
+  earns its keep -- it has already missed something real once.
+  **Layman:** We have no early warning when a part we use turns out to be unsafe, and a person who spots a problem has nowhere private to tell us.
+  Kind: security.
+  Source: in-session-2026-08-20.
+  Lanes: security, process.
