@@ -47,8 +47,11 @@ class DownloaderMixin:
 
         Entries are yt-dlp --js-runtimes values: a bare name for a runtime on
         PATH, or "name:path" for the copy bundled inside a packaged build.
-        The bundled one is listed first so it wins when both exist, which
-        keeps a release behaving the same on every machine.
+
+        Order carries no meaning here. --js-runtimes only ENABLES a runtime;
+        yt-dlp picks by its own priority (deno > node > quickjs > bun) among
+        the ones enabled and available. Each entry is passed as its own flag
+        by _get_base_cmd.
         """
         if cls._cached_runtimes is None:
             runtimes = []
@@ -83,8 +86,12 @@ class DownloaderMixin:
         if ffmpeg:
             cmd.extend(["--ffmpeg-location", ffmpeg])
         self._ensure_runtime_cache()
-        if self._cached_runtimes:
-            cmd.extend(["--js-runtimes", ",".join(self._cached_runtimes)])
+        # One flag per runtime. --js-runtimes takes a single RUNTIME[:PATH]
+        # and is repeatable; a comma-joined list is read as ONE runtime with
+        # a nonsense path, which leaves yt-dlp with no JS runtime at all and
+        # silently drops every format behind YouTube's n challenge.
+        for runtime in self._cached_runtimes:
+            cmd.extend(["--js-runtimes", runtime])
         return cmd
 
     def _get_cookie_args(self):
