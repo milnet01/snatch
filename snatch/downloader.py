@@ -169,15 +169,34 @@ class DownloaderMixin:
         thread.daemon = True
         thread.start()
 
+    def _probe_formats(self, url, cookie_args):
+        """Dump one URL's metadata as JSON with the given cookie arguments.
+
+        --ignore-no-formats-error is what keeps a probe alive: -J still runs
+        yt-dlp's default format selection, so a video the site answers with
+        audio-only streams aborts the whole dump with "Requested format is
+        not available" and the user sees no formats at all rather than the
+        audio ones that do exist.
+        """
+        cmd = self._get_base_cmd()
+        cmd.extend(cookie_args)
+        cmd.extend(["-J", "--no-warnings", "--ignore-no-formats-error", "--", url])
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+
+    @staticmethod
+    def _has_video_format(data):
+        """True if a -J payload offers at least one format carrying video."""
+        return any(fmt.get("vcodec", "none") != "none"
+                   for fmt in (data.get("formats") or []))
+
     def _fetch_formats_thread(self, url):
         try:
-            cmd = self._get_base_cmd()
-            cmd.extend(self._get_cookie_args())
-            cmd.extend(["-J", "--no-warnings", "--", url])
+            self.cookie_fallback_used = False
+            cookie_args = self._get_cookie_args()
 
             self.root.after(0, lambda: self.status_var.set("Fetching formats..."))
 
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            result = self._probe_formats(url, cookie_args)
 
             if result.returncode != 0:
                 error_msg = result.stderr
@@ -219,6 +238,26 @@ class DownloaderMixin:
                 return
 
             data = json.loads(result.stdout)
+
+            # YouTube answers some cookied requests with audio-only streams,
+            # which reads as "this video has no video". The cookies are worth
+            # nothing here, so probe once more without them and keep whichever
+            # answer actually carries video.
+            if (cookie_args and "entries" not in data
+                    and data.get("_type") != "playlist"
+                    and not self._has_video_format(data)):
+                self.root.after(0, lambda: self.status_var.set(
+                    "No video formats with cookies — retrying without them..."))
+                try:
+                    retry = self._probe_formats(url, [])
+                    if retry.returncode == 0:
+                        retry_data = json.loads(retry.stdout)
+                        if self._has_video_format(retry_data):
+                            del data
+                            data = retry_data
+                            self.cookie_fallback_used = True
+                except (subprocess.TimeoutExpired, json.JSONDecodeError):
+                    pass  # Keep the cookied answer; it is all we have.
 
             title = data.get("title", "")
             uploader = data.get("uploader", data.get("channel", ""))
@@ -342,7 +381,10 @@ class DownloaderMixin:
         self._populate_filter_options()
         self._apply_filters()
         self._auto_select_preferred()
-        self.status_var.set(f"Found {len(self.formats)} formats. Video-only formats will auto-merge with best audio.")
+        note = " Cookies returned audio only, so they were skipped." if self.cookie_fallback_used else ""
+        self.status_var.set(
+            f"Found {len(self.formats)} formats. "
+            f"Video-only formats will auto-merge with best audio.{note}")
 
     def _show_error(self, message):
         self._stop_indeterminate()
