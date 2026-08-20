@@ -61,6 +61,55 @@ def _ensure_dir(path):
     return path
 
 
+_USER_BIN_DIR = None
+
+
+def _is_writable_dir(path):
+    """True when a file can actually be created in `path`.
+
+    os.access(W_OK) is not enough: it answers from the permission bits, and
+    on Windows a directory can report writable and still refuse the write.
+    Probing costs one create+unlink, which is why user_bin_dir() caches.
+    """
+    probe = os.path.join(path, ".snatch-write-probe")
+    try:
+        with open(probe, "w"):
+            pass
+        os.unlink(probe)
+        return True
+    except OSError:
+        return False
+
+
+def user_bin_dir():
+    """Writable directory for binaries the app has fetched for itself.
+
+    Sits inside app_data_dir(), so it survives an upgrade. The bundled copy
+    lives in PyInstaller's extraction directory, which is read-only and
+    deleted on exit -- that is precisely why a packaged build could not
+    update its own yt-dlp before (SNAT-0016).
+
+    Windows falls back to %LOCALAPPDATA%\\Snatch\\bin when the directory
+    holding the .exe cannot be written to. app_data_dir() deliberately puts
+    user data next to the .exe so the app stays portable, which is right on a
+    USB stick and wrong under C:\\Program Files, where writing needs admin
+    rights. ONLY this directory falls back: config.json and history.json stay
+    where app_data_dir() puts them, because moving them would strand the
+    settings of someone who already has them.
+
+    Cached -- find_ytdlp() runs on every subprocess call and the Windows
+    writability probe is a real filesystem write.
+    """
+    global _USER_BIN_DIR
+    if _USER_BIN_DIR is None:
+        candidate = _ensure_dir(os.path.join(app_data_dir(), "bin"))
+        if not _is_writable_dir(candidate) and is_windows():
+            base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+            candidate = _ensure_dir(os.path.join(base, "Snatch", "bin"))
+        _USER_BIN_DIR = candidate
+    return _USER_BIN_DIR
+
+
 def resource_path(*parts):
     """Locate a bundled read-only resource (icon, binary, data file).
 
@@ -97,8 +146,36 @@ def _find_bundled_binary(name):
     return repo_bin if os.path.isfile(repo_bin) else None
 
 
+def _find_updated_binary(name):
+    """Return a self-updated copy of `name` from user_bin_dir(), else None.
+
+    Only yt-dlp is ever written here (SNAT-0016). It is the one bundled tool
+    that goes stale on somebody else's schedule -- YouTube changes and yt-dlp
+    has to chase it, faster than we cut releases. ffmpeg, mpv and QuickJS are
+    stable and large, so they stay bundled and ship with a release.
+
+    A file that is not executable is ignored rather than returned, so a
+    half-written or wrongly-permissioned download falls through to the
+    bundled copy instead of breaking the app.
+    """
+    suffix = ".exe" if is_windows() else ""
+    candidate = os.path.join(user_bin_dir(), name + suffix)
+    if not os.path.isfile(candidate):
+        return None
+    if not is_windows() and not os.access(candidate, os.X_OK):
+        return None
+    return candidate
+
+
 def find_ytdlp():
-    """Resolve the yt-dlp binary. Bundled copy wins; otherwise falls back to PATH."""
+    """Resolve yt-dlp: self-updated copy, then bundled, then PATH.
+
+    The bundled copy stays as the floor, so a failed or half-written download
+    can never leave the app with no yt-dlp at all.
+    """
+    updated = _find_updated_binary("yt-dlp")
+    if updated:
+        return updated
     bundled = _find_bundled_binary("yt-dlp")
     if bundled:
         return bundled
@@ -106,6 +183,15 @@ def find_ytdlp():
     if on_path:
         return on_path
     return "yt-dlp"  # last-resort literal — subprocess will surface FileNotFoundError
+
+
+def updated_ytdlp_path():
+    """Path of the self-updated yt-dlp if one is in use, else None.
+
+    Lets the UI offer a way back to the bundled copy without reaching into
+    this module's private lookup (SNAT-0016).
+    """
+    return _find_updated_binary("yt-dlp")
 
 
 def find_ffmpeg():

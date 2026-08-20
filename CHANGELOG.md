@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Snatch can now update its own downloader (SNAT-0016)**
+  When YouTube changes something, yt-dlp — the tool Snatch uses to
+  fetch videos — has to be updated to keep up. Until now that meant
+  waiting for a whole new version of Snatch on all three platforms.
+
+  Snatch now checks on startup and offers to fetch a newer yt-dlp for
+  itself. It saves it inside Snatch's own folder, so it survives
+  restarts and works in the packaged Windows, Linux and macOS builds
+  alike. Nothing downloads without you saying yes.
+
+  The copy that shipped with Snatch is always kept. A download that
+  arrives broken is thrown away rather than installed, and if a newer
+  one ever misbehaves the button offers "Revert to bundled yt-dlp" to
+  put things back.
+
+### Fixed
+
+- **Updating no longer asks for your password or touches system files**
+  The old path installed yt-dlp system-wide via a password prompt.
+  The new one writes only inside Snatch's own folder, so nothing
+  outside the app is changed and no admin rights are needed.
+
+- **The update button no longer offers a version that cannot play YouTube**
+  It checked yt-dlp's *stable* releases and offered to install one.
+  Stable is the channel that does not play YouTube — the exact problem
+  fixed in 1.0.1 — so taking that offer would have broken playback.
+  It now tracks the same nightly channel Snatch bundles.
+
 ## [1.0.1] - 2026-08-20
 
 ### Fixed

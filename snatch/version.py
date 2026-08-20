@@ -7,9 +7,42 @@ import subprocess
 import threading
 import tkinter as tk
 from tkinter import messagebox
+import tempfile
 import urllib.request
 
-from .platform_utils import find_ytdlp, is_windows, is_frozen
+from .platform_utils import (find_ytdlp, is_windows, is_macos, is_frozen,
+                             user_bin_dir, updated_ytdlp_path)
+
+# yt-dlp's NIGHTLY channel, matching scripts/fetch-binaries.sh.
+#
+# The stable channel does NOT play YouTube (SNAT-0014): 1 in 5 videos played
+# on the then-current stable, 5 in 5 on the nightly. So a self-update that
+# pulled stable would be a downgrade wearing an upgrade's clothes -- and this
+# module used to do exactly that, downloading yt-dlp/yt-dlp's latest release.
+#
+# Keep the repo and the asset names in step with fetch-binaries.sh, which
+# pins the copy each release bundles. The two cannot share a definition
+# across a shell script and a Python module, so they are kept honest by this
+# comment and by the version check running against the same repo it downloads
+# from.
+YTDLP_NIGHTLY_REPO = "yt-dlp/yt-dlp-nightly-builds"
+YTDLP_RELEASE_API = (
+    f"https://api.github.com/repos/{YTDLP_NIGHTLY_REPO}/releases/latest")
+YTDLP_DOWNLOAD_TIMEOUT = 180
+YTDLP_PROBE_TIMEOUT = 30
+YTDLP_CHUNK_BYTES = 256 * 1024
+# yt-dlp's own binaries run ~30 MB. The cap only has to stop a redirect to
+# something enormous from filling the user's disk.
+YTDLP_MAX_BYTES = 128 * 1024 * 1024
+
+
+def _ytdlp_asset_name():
+    """Release asset for this platform, mirroring scripts/fetch-binaries.sh."""
+    if is_windows():
+        return "yt-dlp.exe"
+    if is_macos():
+        return "yt-dlp_macos"
+    return "yt-dlp"
 
 
 class VersionMixin:
@@ -40,8 +73,8 @@ class VersionMixin:
 
         # Check latest version from GitHub
         try:
-            url = "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest"
-            req = urllib.request.Request(url, headers={"User-Agent": "Snatch"})
+            req = urllib.request.Request(YTDLP_RELEASE_API,
+                                         headers={"User-Agent": "Snatch"})
             with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode())
                 self.latest_version = data.get("tag_name", "").lstrip("v")
@@ -51,8 +84,7 @@ class VersionMixin:
                     if self._version_compare(self.latest_version, self.current_version) > 0:
                         self.root.after(0, self._show_update_available)
                     else:
-                        self.root.after(0, lambda: self.update_btn.config(
-                            text="Up to date", state=tk.DISABLED))
+                        self.root.after(0, self._refresh_idle_button)
         except Exception:
             self.root.after(0, lambda: self.update_btn.config(
                 text="Check failed", state=tk.DISABLED))
@@ -79,56 +111,78 @@ class VersionMixin:
             return (v1 > v2) - (v1 < v2)
 
     def _show_update_available(self):
-        """Show update available button and prompt user (Linux only)."""
-        if is_windows():
-            # Bundled yt-dlp.exe is shipped with each Snatch release — the user
-            # updates by downloading a new snatch.exe. Show a passive label
-            # only; don't prompt or wire the update button to run pkexec/curl.
-            self.update_btn.config(
-                text=f"v{self.latest_version} available — download new Snatch",
-                state=tk.DISABLED,
-            )
-            self.status_var.set(
-                f"yt-dlp {self.latest_version} is out — grab the latest "
-                f"snatch.exe from GitHub Releases to update."
-            )
-            return
+        """Offer the newer nightly. Every platform can take it now (SNAT-0016).
 
-        self.update_btn.config(text=f"Update to {self.latest_version}", state=tk.NORMAL)
-        self.status_var.set(f"Update available: {self.current_version} -> {self.latest_version}")
+        This used to show Windows a passive "download a new Snatch" label,
+        because a packaged build could not replace its own bundled yt-dlp.
+        It can: the download goes to user_bin_dir(), which is writable and
+        outlives the process.
+        """
+        self.update_btn.config(text=f"Update to {self.latest_version}",
+                               state=tk.NORMAL)
+        self.status_var.set(
+            f"Update available: {self.current_version} -> {self.latest_version}")
+        self._prompt_update()
 
-        if messagebox.askyesno("Update Available",
-                               f"A new version of yt-dlp is available!\n\n"
-                               f"Current: {self.current_version}\n"
-                               f"Latest: {self.latest_version}\n\n"
-                               f"Would you like to update now?"):
-            self._do_update()
+    def _refresh_idle_button(self):
+        """Set the button for the nothing-to-update case.
+
+        Offers the way back to the bundled copy whenever a fetched one is in
+        use -- the escape hatch for a nightly that misbehaves. Packaged
+        builds only: from source there is no separate bundled copy to revert
+        to, because fetch-binaries.sh fills the very directory a fetched copy
+        lands in.
+        """
+        if is_frozen() and updated_ytdlp_path():
+            self.update_btn.config(text="Revert to bundled yt-dlp",
+                                   state=tk.NORMAL)
+        else:
+            self.update_btn.config(text="Up to date", state=tk.DISABLED)
 
     def update_ytdlp(self):
-        """Update yt-dlp to latest version (called from button).
+        """Button action: fetch the newer nightly, or go back to the bundled copy.
 
-        A PACKAGED build cannot do this. Its yt-dlp lives inside the bundle,
-        in a read-only temp directory that is deleted on exit, and
-        find_ytdlp() prefers that copy — so updating the system one changes
-        nothing the app will ever use. Gating this on is_windows() meant the
-        Linux AppImage ran the update, kept using its bundled copy, and then
-        warned "the update completed but the version did not change".
+        One button with two jobs, because which one is available is never
+        ambiguous -- there is either something newer to fetch, or a fetched
+        copy in use, and _refresh_idle_button() has already said which.
         """
-        if is_frozen():
-            asset = "snatch.exe" if is_windows() else "the latest release"
-            messagebox.showinfo(
-                "Update Snatch instead",
-                "yt-dlp is bundled inside this copy of Snatch, so it cannot\n"
-                "be updated on its own.\n\n"
-                f"To get a newer yt-dlp, download {asset} from\n"
-                "https://github.com/milnet01/snatch/releases"
-            )
+        newer = (self.latest_version and self.current_version and
+                 self._version_compare(self.latest_version,
+                                       self.current_version) > 0)
+        if newer:
+            self._prompt_update()
+        elif is_frozen() and updated_ytdlp_path():
+            self._prompt_revert()
+
+    def _prompt_update(self):
+        if not self.latest_version:
             return
-        if self.latest_version:
-            if messagebox.askyesno("Update yt-dlp",
-                                   f"Update yt-dlp to version {self.latest_version}?\n\n"
-                                   f"You may be prompted for your password."):
-                self._do_update()
+        if messagebox.askyesno(
+                "Update yt-dlp",
+                f"Download yt-dlp {self.latest_version}?\n\n"
+                f"It is saved inside Snatch's own folder. The copy that came\n"
+                f"with Snatch is kept, so you can go back to it at any time."):
+            self._do_update()
+
+    def _prompt_revert(self):
+        """Delete the fetched copy so find_ytdlp() falls back to the bundle."""
+        path = updated_ytdlp_path()
+        if not path:
+            return
+        if not messagebox.askyesno(
+                "Revert yt-dlp",
+                "Go back to the copy of yt-dlp that came with Snatch?\n\n"
+                "Use this if a downloaded version stops working. You can\n"
+                "download the newest one again afterwards."):
+            return
+        try:
+            os.unlink(path)
+        except OSError as e:
+            messagebox.showerror(
+                "Error", f"Could not remove the downloaded yt-dlp:\n{e}")
+            return
+        self.status_var.set("Reverted to the yt-dlp that came with Snatch")
+        self.check_version()
 
     def _do_update(self):
         """Perform the actual update"""
@@ -138,58 +192,87 @@ class VersionMixin:
         thread.daemon = True
         thread.start()
 
-    def _update_ytdlp_thread(self):
+    @staticmethod
+    def _probe_version(path):
+        """Run a candidate binary and return the version it reports, else None.
+
+        This is what makes promoting a download safe. A truncated file, an
+        HTML error page saved under a binary's name, or a build for the wrong
+        architecture all fail here, and the caller keeps the working copy.
+        """
         try:
-            # Download to a temp file first, then move into place
-            import tempfile
-            tmp_fd, tmp_path = tempfile.mkstemp(prefix="yt-dlp-update-")
-            os.close(tmp_fd)
+            result = subprocess.run([path, "--version"], capture_output=True,
+                                    text=True, timeout=YTDLP_PROBE_TIMEOUT)
+        except (OSError, subprocess.SubprocessError):
+            return None
+        if result.returncode != 0:
+            return None
+        return result.stdout.strip() or None
 
-            try:
-                # Download without elevated privileges
-                download_cmd = [
-                    "curl", "-L", "--fail", "--proto", "=https",
-                    "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp",
-                    "-o", tmp_path
-                ]
-                result = subprocess.run(download_cmd, capture_output=True, text=True, timeout=120)
-                if result.returncode != 0:
-                    self.root.after(0, lambda: self._update_failed(
-                        "Download failed. Try running manually in terminal:\n\n"
-                        "sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp\n"
-                        "sudo chmod a+rx /usr/local/bin/yt-dlp"
-                    ))
-                    return
+    def _update_ytdlp_thread(self):
+        """Download the current nightly yt-dlp into user_bin_dir().
 
-                # Use pkexec only for the install step (no shell)
-                install_cmd = ["pkexec", "install", "-m", "755", tmp_path, "/usr/local/bin/yt-dlp"]
-                result = subprocess.run(install_cmd, capture_output=True, text=True, timeout=30)
-            finally:
+        Written under a temp name in the SAME directory and renamed into
+        place only once the downloaded file has reported a version, so a
+        truncated download or a crash mid-write leaves the previous state
+        intact. os.replace is atomic within one filesystem, which is why the
+        temp file cannot live in /tmp.
+
+        Replaces a curl + pkexec install into /usr/local/bin, which asked for
+        a password, wrote outside the app, and pulled the stable channel that
+        SNAT-0014 established does not play YouTube.
+        """
+        target_dir = user_bin_dir()
+        asset = _ytdlp_asset_name()
+        final_path = os.path.join(
+            target_dir, "yt-dlp" + (".exe" if is_windows() else ""))
+        url = (f"https://github.com/{YTDLP_NIGHTLY_REPO}/releases/download/"
+               f"{self.latest_version}/{asset}")
+        tmp_path = None
+        try:
+            # STANDARDS.md section 5: network fetches are HTTPS-only. The URL is
+            # built from constants above, so this asserts the constants rather
+            # than sanitising user input.
+            if not url.startswith("https://"):
+                raise ValueError("refusing a download that is not HTTPS")
+
+            req = urllib.request.Request(url, headers={"User-Agent": "Snatch"})
+            fd, tmp_path = tempfile.mkstemp(prefix=".yt-dlp-new-", dir=target_dir)
+            written = 0
+            with os.fdopen(fd, "wb") as out:
+                with urllib.request.urlopen(
+                        req, timeout=YTDLP_DOWNLOAD_TIMEOUT) as resp:
+                    while True:
+                        chunk = resp.read(YTDLP_CHUNK_BYTES)
+                        if not chunk:
+                            break
+                        written += len(chunk)
+                        if written > YTDLP_MAX_BYTES:
+                            raise ValueError("download far larger than expected")
+                        out.write(chunk)
+            if not written:
+                raise ValueError("the download was empty")
+
+            os.chmod(tmp_path, 0o700)
+            new_version = self._probe_version(tmp_path)
+            if not new_version:
+                raise ValueError(
+                    "the downloaded file does not run, so it was discarded")
+
+            os.replace(tmp_path, final_path)
+            tmp_path = None
+            self.root.after(0, lambda: self._update_complete(new_version))
+        except Exception as e:
+            detail = str(e) or e.__class__.__name__
+            self.root.after(0, lambda: self._update_failed(
+                f"Could not update yt-dlp.\n\n{detail}\n\n"
+                f"Snatch is still using the copy it had before."))
+        finally:
+            if tmp_path:
                 try:
                     os.unlink(tmp_path)
                 except OSError:
                     pass
-
-            if result.returncode == 0:
-                # Verify the new version
-                new_version = None
-                try:
-                    ver_result = subprocess.run([find_ytdlp(), "--version"], capture_output=True, text=True, timeout=10)
-                    if ver_result.returncode == 0:
-                        new_version = ver_result.stdout.strip()
-                except Exception:
-                    pass
-                self.root.after(0, lambda: self._update_complete(new_version))
-            else:
-                self.root.after(0, lambda: self._update_failed(
-                    "Update failed. Try running manually in terminal:\n\n"
-                    "sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp\n"
-                    "sudo chmod a+rx /usr/local/bin/yt-dlp"
-                ))
-        except subprocess.TimeoutExpired:
-            self.root.after(0, lambda: self._update_failed("Update timed out"))
-        except Exception as e:
-            self.root.after(0, lambda: self._update_failed(f"Update error: {e}"))
 
     def _update_complete(self, new_version):
         """Handle successful update - verify and update display"""
@@ -201,7 +284,7 @@ class VersionMixin:
 
         # Check if we're now up to date
         if new_version and self.latest_version and self._version_compare(self.latest_version, new_version) <= 0:
-            self.update_btn.config(text="Up to date", state=tk.DISABLED)
+            self._refresh_idle_button()
             self.status_var.set(f"Updated from {old_version} to {new_version}")
             messagebox.showinfo("Success", f"yt-dlp updated successfully!\n\n{old_version} -> {new_version}")
         elif new_version and new_version != old_version:
@@ -214,10 +297,9 @@ class VersionMixin:
             self.update_btn.config(text=f"Update to {self.latest_version}", state=tk.NORMAL)
             self.status_var.set("Update may not have applied")
             messagebox.showwarning("Update Warning",
-                                   "The update completed but the version did not change.\n\n"
-                                   "Try updating manually in terminal:\n"
-                                   "sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp "
-                                   "-o /usr/local/bin/yt-dlp && sudo chmod a+rx /usr/local/bin/yt-dlp")
+                                   "The download finished but the version did not change.\n\n"
+                                   "Snatch is still working — this usually means the\n"
+                                   "newest yt-dlp is the one you already had.")
 
     def _update_failed(self, message):
         """Handle failed update"""

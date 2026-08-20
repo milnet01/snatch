@@ -52,17 +52,30 @@ local run and hide the real build result.
 
 | Component | Pinned in | Current |
 |---|---|---|
-| yt-dlp (Python library) | `requirements.txt` | 2026.3.17 |
-| yt-dlp (bundled binary) | `scripts/fetch-binaries.sh` | 2026.03.17 |
+| yt-dlp (bundled binary) | `scripts/fetch-binaries.sh` | nightly `2026.08.18.122307` |
+| yt-dlp (Python library) | `requirements.txt` | 2026.7.4 |
 | ffmpeg + ffprobe | `scripts/fetch-binaries.sh` | ffmpeg-static `b6.1.1` |
+| QuickJS | `scripts/fetch-binaries.sh` | `v0.16.1` |
 | PyInstaller | `.github/workflows/ci.yml` | 6.11.1 |
 
-The two yt-dlp versions must be bumped together. They are spelled differently
-on purpose: GitHub tags zero-pad the month (`2026.03.17`), PyPI does not
-(`2026.3.17`).
+**The two yt-dlp pins are deliberately different versions, and do NOT move
+together.** The bundled binary is the one the app actually runs, and it comes
+from the NIGHTLY channel because stable does not play YouTube (SNAT-0014).
+The `requirements.txt` entry is not imported as a library at all — the header
+of that file explains why it is there — so it tracks stable and lags. Bumping
+one because the other moved is the mistake this note exists to prevent.
 
 One source (`eugeneware/ffmpeg-static`) provides ffmpeg and ffprobe for all
 three platforms, so there is a single pin to move.
+
+### The bundled yt-dlp is a floor, not the last word
+
+Since SNAT-0016 a packaged build can fetch a newer nightly for itself, into
+`app_data_dir()/bin/` (see below), and `find_ytdlp()` prefers that copy. The
+bundled binary stays as the fallback, so a failed or half-written download can
+never leave the app with no yt-dlp. `snatch/version.py` holds the channel
+constants, and they must name the same repo `fetch-binaries.sh` does — a
+self-update that pulled stable would be a downgrade.
 
 ## Where user data goes
 
@@ -74,6 +87,14 @@ platform for a reason:
 | Windows | next to `snatch.exe` | Keeps the app portable — move the .exe and settings follow. |
 | macOS | `~/Library/Application Support/Snatch` | Writing inside a `.app` bundle breaks on upgrade and on a read-only mount. |
 | Linux | `$XDG_DATA_HOME/snatch` | An AppImage's `sys.executable` is a temp directory that is deleted on exit. |
+
+`user_bin_dir()` adds a `bin/` subdirectory to that location, holding binaries
+the app has fetched for itself. Windows is the one case that can fall back
+elsewhere: keeping user data next to the .exe is right for a USB stick and
+wrong under `C:\Program Files`, where writing needs admin rights, so an
+unwritable directory sends *only* `bin/` to `%LOCALAPPDATA%\Snatch\bin`.
+Config and history stay put, because moving them would strand the settings of
+someone who already has them.
 
 ## Releasing
 
