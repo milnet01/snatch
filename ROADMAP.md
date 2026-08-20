@@ -325,7 +325,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: user-request-2026-08-19.
   Lanes: ui, packaging.
 
-- 📋 [SNAT-0016] **Let a packaged build fetch a newer yt-dlp into its own data directory.**
+- ✅ [SNAT-0016] **Let a packaged build fetch a newer yt-dlp into its own data directory.**
   Asked by the user 2026-08-19: can the Windows build download the latest
   yt-dlp? Today, no -- on any platform. A packaged build's yt-dlp sits in
   the PyInstaller extraction directory, which is read-only and deleted on
@@ -355,6 +355,51 @@ and application work. IDs are allocated from `.roadmap-counter`.
     - Offer a way back to the bundled copy when a fetched one misbehaves.
     - Which channel? SNAT-0014 pins NIGHTLY because stable does not play
       YouTube. A self-update that pulls stable would be a downgrade.
+  Resolved (2026-08-20): 5a733ad. Built to the shape this bullet
+  describes. user_bin_dir() adds a writable bin/ inside app_data_dir();
+  find_ytdlp() prefers a copy there and falls back to the bundled binary,
+  which stays as the floor.
+
+  Every item on this bullet's "things not to get wrong" list is covered:
+  --version probe before promoting, temp name + os.replace in the SAME
+  directory so the rename is atomic, 0700 on the file and the directory,
+  HTTPS-only, revert-to-bundled offered whenever a fetched copy is in use,
+  and the nightly channel -- not stable.
+
+  Scope was narrowed to yt-dlp alone by user decision 2026-08-20. It is
+  the only bundled tool that goes stale on someone else's schedule; mpv
+  alone is 26 MB to re-download for a problem that does not occur. The
+  trigger is check-on-startup-and-ask, also user-chosen: automatic was
+  rejected as downloads nobody asked for, manual-only as no hint when
+  YouTube breaks.
+
+  One thing this bullet did not anticipate, found while building.
+  app_data_dir() is described here as "already writable" and on Windows it
+  is not always: it returns the directory holding the .exe, which needs
+  admin rights under C:\Program Files. Only bin/ falls back, to
+  %LOCALAPPDATA%\Snatch\bin -- config.json and history.json stay where
+  they are, because moving them would strand an existing user's settings.
+
+  Two live bugs fixed on the way, both worse than the missing feature.
+  The version check AND the download both used yt-dlp/yt-dlp's latest
+  release -- the STABLE channel that SNAT-0014 established does not play
+  YouTube -- so pressing Update would have moved a working setup onto a
+  broken one. And the install shelled out to curl plus a pkexec write into
+  /usr/local/bin, asking for a password to change a file outside the app;
+  staying inside Snatch's own directory removed the privileged step rather
+  than guarding it.
+
+  Verified end to end on Linux from source: the check resolved nightly
+  2026.08.19.233000 against the bundled 2026.08.18.122307, downloaded it,
+  probed it, landed it 0700 with no temp file left behind, find_ytdlp()
+  then preferred it, a junk file was refused by the probe, and deleting it
+  fell back to the bundled copy. local-ci.sh full run green; CI run
+  32350687160 green on all four jobs.
+
+  NOT verified: the Windows %LOCALAPPDATA% fallback and the macOS asset
+  name (yt-dlp_macos) are exercised by no test here -- act cannot run
+  those jobs. Both are one real run away from being confirmed, and the
+  Windows box at 192.168.0.102 can settle the first.
   **Layman:** Let the app update its downloader by itself, so when YouTube changes you do not have to wait for a new version of Snatch.
   Kind: feature.
   Source: user-request-2026-08-19.
