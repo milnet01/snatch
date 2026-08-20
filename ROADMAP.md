@@ -141,6 +141,64 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: in-session-2026-08-19.
   Lanes: ci.
 
+- 📋 [SNAT-0024] **CI builds three artifacts and never starts one.**
+  build-linux, build-windows and build-macos each produce a file and
+  upload it. Nothing anywhere launches the thing that was produced. A
+  bundle that builds cleanly and then dies on startup -- a missing shared
+  library, a bad PyInstaller hidden import, a broken entry point -- is
+  green in CI and broken for the user.
+
+  This class of failure is not hypothetical here. SNAT-0010 and SNAT-0013
+  were both "the build was fine, the thing it produced could not do its
+  job", and the libXcursor finding during the SNAT-0018 work was caught
+  only because someone ran the job under act and read the log.
+
+  A smoke test does not need to drive the GUI. Starting the app, letting
+  it initialise, and exiting cleanly would catch the whole class. Options,
+  cheapest first:
+  - A --version or --selftest flag that constructs nothing GUI-shaped,
+  prints, and exits 0. Cheap, and useful to a user diagnosing a
+  problem too.
+  - xvfb-run on Linux to start the real GUI headless and close it. The
+  Windows and macOS runners have a desktop session and need no
+  equivalent.
+
+  Pairs with SNAT-0020, which covers the logic underneath; this one
+  covers the packaging, which is where this project's failures have
+  actually been.
+  **Layman:** Our automated builds check that the app can be packaged, not that the packaged app actually opens.
+  Kind: test.
+  Source: in-session-2026-08-20.
+  Lanes: ci, packaging.
+
+- 📋 [SNAT-0025] **Nobody has ever run the macOS build.**
+  SNAT-0004 shipped a macOS .app and .dmg and SNAT-0005 published it;
+  v1.0.1 attaches Snatch-arm64.dmg today. No human has ever launched it.
+  SNAT-0007 did exactly this job for Windows and found real problems, and
+  the Mac has had no equivalent.
+
+  What makes it more than routine caution rather than less:
+  - The build is arm64 only. An Intel Mac has nothing to run.
+  - It is deliberately unsigned (SNAT-0004), so first launch needs the
+  Gatekeeper workaround the README describes -- and that workaround
+  has never been performed by anyone either.
+  - yt-dlp's macOS asset is a different file (yt-dlp_macos) from the
+  other two platforms, and SNAT-0016's self-update names it in
+  snatch/version.py with no test and no run behind it.
+  - mpv is NOT bundled for macOS, so in-app playback falls back to a
+  browser there.
+
+  This is an investigate item, not a fix: the deliverable is knowing
+  whether it works. It needs Mac hardware, which this project does not
+  have -- so the honest options are to find someone with a Mac, add a
+  smoke test on CI's macos runner (SNAT-0024, which would at least prove
+  it starts), or say plainly in the README that the Mac build is
+  untested. The last is free and should probably happen regardless.
+  **Layman:** We ship a Mac version that no one has ever opened. It might not work at all.
+  Kind: investigate.
+  Source: in-session-2026-08-20.
+  Lanes: packaging, macos.
+
 ## Application
 
 - 📋 [SNAT-0006] **Write user data files with 0600 permissions.**
@@ -155,6 +213,35 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: security.
   Source: in-session-2026-08-19.
   Lanes: security, config.
+  Progress (2026-08-20): diagnosed, still open, and the obvious fix is
+  already in the code and does nothing.
+
+  All three write sites DO request 0600 today, and have since 40b5c9e:
+  app.py:147 and tabs/history.py:72 both use
+  os.open(path, O_WRONLY|O_CREAT|O_TRUNC, 0o600), and cookies.py does the
+  same at :93 plus explicit chmods at :72 and :77.
+
+  The files on disk are still wrong. Measured today in the project root:
+  config.json 664, cookies.txt 664, history.json 644.
+
+  Why: the mode argument to os.open applies ONLY when the call creates
+  the file. These files already existed, so O_TRUNC reuses the existing
+  inode and its existing permissions, and the 0o600 is silently ignored.
+  Every one of these users' files was created before the mode argument
+  was added, and no amount of re-saving will ever narrow them.
+
+  So this item cannot be closed by auditing the write sites -- they
+  already pass. It needs an explicit os.chmod(path, 0o600) after opening
+  an EXISTING file, or a one-time tightening pass over app_data_dir() at
+  startup. The second is better: it also catches a file a user copied in
+  from an old install, which is exactly how the current ones got here.
+
+  Worth calling out because this is the shape of bug that gets marked
+  fixed while staying broken -- the code review passes, the code looks
+  right, and the permissions never change. A test asserting the mode of
+  an existing file after a save would have caught it (SNAT-0020).
+
+  cookies.txt is the one that matters: it carries session tokens.
 
 - ✅ [SNAT-0007] **Verify the GUI renders on Windows from a real desktop session.**
   The 2026-08-19 test reached the Tk main loop over SSH, but SSH runs in
@@ -437,3 +524,128 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: fix.
   Source: user-report-2026-08-19.
   Lanes: player, ui.
+
+- 📋 [SNAT-0020] **The app has no automated tests at all.**
+  3,865 lines of Python across four platforms' worth of behaviour, and
+  the only Python check in CI is `python -m compileall`, which proves the
+  files parse and nothing more.
+
+  This is not theoretical. On 2026-08-20, while building SNAT-0016, two
+  live bugs were found in snatch/version.py that had shipped through both
+  v1.0.0 and v1.0.1: the update path downloaded from yt-dlp's STABLE
+  channel, which SNAT-0014 had already established does not play YouTube,
+  so pressing Update would have moved a working install onto a broken one;
+  and it shelled out to pkexec to write into /usr/local/bin, asking for a
+  password to modify a file outside the app. Neither was caught by
+  anything. They were found by a person reading the file for an unrelated
+  reason.
+
+  What is worth testing first, in value order -- this does NOT need to be
+  a suite covering everything:
+  - The pure logic that already has no GUI in it: _version_compare,
+  _is_valid_url, _safe_resolve_path, format filtering and sorting.
+  These are the cheapest tests in the codebase and cover the parts
+  where a silent wrong answer is most likely.
+  - Binary resolution: find_ytdlp / user_bin_dir / _find_updated_binary,
+  including the Windows LOCALAPPDATA fallback. The ad-hoc scripts
+  written during SNAT-0016 already do exactly this and were thrown
+  away afterwards; they should have been committed.
+  - The self-update promotion rule, which is the one place a bad file
+  can replace a working binary.
+
+  Deliberately out of scope for a first pass: driving the tkinter GUI.
+  That is a large, flaky category of test and the value is in the logic
+  underneath it.
+
+  Needs a `test` job in ci.yml, or the suite exists and nothing runs it.
+  **Layman:** Nothing automatically checks that Snatch still works after a change, so a mistake can reach users unnoticed.
+  Kind: test.
+  Source: in-session-2026-08-20.
+  Lanes: testing, ci.
+
+- 📋 [SNAT-0021] **Nothing tells the user a newer Snatch exists.**
+  SNAT-0016 gave the app a way to keep yt-dlp current. Snatch itself
+  still has no way to say "there is a 1.1.0" -- a user who downloaded
+  v1.0.0 has no signal that anything newer was ever published, short of
+  visiting the releases page on a hunch.
+
+  This is the cheap half of the problem SNAT-0016 solved, and most of the
+  parts already exist: version.py already queries a GitHub releases API,
+  parses a tag and compares versions, and the app already knows its own
+  version because SNAT-0018 put it in the window title.
+
+  Scope this as NOTIFY, not self-replace. Downloading and swapping the
+  running executable is a materially harder and riskier job on all three
+  platforms -- and on macOS an unsigned replacement is worse than no
+  replacement (SNAT-0004). Checking github.com/milnet01/snatch's latest
+  release and showing a dismissible "v1.1.0 is available" with a link is
+  the whole feature.
+
+  Things not to get wrong:
+  - Do not nag. Once per launch at most, and remember a dismissal.
+  - Fail silently when offline. A version check must never block
+  startup or produce an error dialog for a user with no network.
+  - Compare against the app's own version, not yt-dlp's. Those are two
+  unrelated version lines and version.py already holds the other one.
+  **Layman:** Snatch can now update its downloader, but it cannot tell you when Snatch itself has a new version.
+  Kind: feature.
+  Source: in-session-2026-08-20.
+  Lanes: application.
+
+- 📋 [SNAT-0022] **Failures vanish -- there is no log and 11 handlers swallow errors silently.**
+  The app imports no logging module anywhere. Alongside that there are
+  11 handlers whose body is `pass`, and 15 `except Exception` clauses
+  across five modules.
+
+  Some of those are correct -- ignoring an OSError while unlinking a temp
+  file is right. Others silently discard the reason a real feature did
+  not work: a thumbnail that never appears, a config that never saves, a
+  cookie extraction that quietly returns nothing. From the user's side
+  these are indistinguishable from the app deciding not to bother.
+
+  The cost lands on the user, and it landed on this project already: the
+  Windows "binary missing" report on 2026-08-19 turned out to be a stale
+  _MEI extraction directory, and finding that took a round trip to real
+  hardware because there was no log to read.
+
+  Shape of the fix:
+  - A rotating log file in app_data_dir(), written 0600 like every other
+  user data file, capped so it cannot grow without bound.
+  - A way to open it from the GUI, so a bug report can carry it.
+  - Then walk the 11 silent handlers and split them: keep the ones that
+  are genuinely ignorable and say so in a comment, log the rest.
+
+  Not a rewrite of the error handling. The point is that a failure
+  leaves a trace somewhere, not that every failure becomes a dialog.
+  **Layman:** When something goes wrong, Snatch often says nothing and keeps no record, so there is nothing to send when reporting a problem.
+  Kind: fix.
+  Source: in-session-2026-08-20.
+  Lanes: application.
+
+- 📋 [SNAT-0023] **The download queue is lost when the app closes.**
+  self.download_queue is a plain list built at startup (app.py:70) and
+  reset on close (app.py:327). It is never written anywhere. Every other
+  preference the app holds is persisted -- _save_config writes twelve
+  keys including window geometry and the last tab you were on -- so the
+  queue is the one piece of user intent that is thrown away.
+
+  The case that hurts: queueing a long playlist, closing the laptop, and
+  finding an empty queue. The work of re-adding it is exactly the work
+  the queue existed to save.
+
+  Already in place: entries carry a status field ("Done", "Failed") and
+  _refresh_queue_tree rebuilds the view from the list, so restoring is
+  repopulating that list rather than new UI.
+
+  Things not to get wrong:
+  - The queue holds URLs the user pasted. Persist it 0600 like config
+  and history, not world-readable.
+  - Restore items as pending, never mid-download -- a partially written
+  file from a killed process must not be treated as resumable without
+  checking.
+  - Offer to clear it. A stale queue from three weeks ago that starts
+  downloading on launch is worse than losing it.
+  **Layman:** If you queue up a batch of videos and close Snatch, the queue is gone when you reopen it.
+  Kind: enhancement.
+  Source: in-session-2026-08-20.
+  Lanes: downloader.
