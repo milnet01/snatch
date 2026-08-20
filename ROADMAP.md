@@ -934,7 +934,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: in-session-2026-08-20.
   Lanes: application, performance.
 
-- 📋 [SNAT-0030] **Shipped Pillow has 12 known advisories, and it decodes images from the internet.**
+- ✅ [SNAT-0030] **Shipped Pillow has 12 known advisories, and it decodes images from the internet.**
   pip-audit against requirements.txt on 2026-08-20 reports 12 advisories
   against Pillow 12.2.0, every one of them fixed in 12.3.0:
   PYSEC-2026-2253/2254/2255/2256, 3451/3452/3453/3454, 3493/3494/3495/3496.
@@ -960,6 +960,14 @@ and application work. IDs are allocated from `.roadmap-counter`.
 
   The systemic half is SNAT-0037: nothing was watching, and these have
   been public for some time.
+  Resolved (2026-08-20): requirements.txt now pins Pillow==12.3.0.
+  Verified rather than assumed -- `pip-audit -r requirements.txt`
+  reported the 12 advisories before the bump and "No known
+  vulnerabilities found" after it. A full scripts/local-ci.sh run is
+  green, so the Linux AppImage builds against 12.3.0; the Windows and
+  macOS wheels are unexercised locally and are covered by the push.
+  The systemic half -- nothing was watching for this -- is still
+  SNAT-0037.
   **Layman:** The image library Snatch ships has 12 published security problems, and it is what opens picture previews downloaded from the web.
   Kind: security.
   Source: in-session-2026-08-20.
@@ -1142,6 +1150,23 @@ and application work. IDs are allocated from `.roadmap-counter`.
   refactor.
 
   Related: SNAT-0023 persists the queue across restarts.
+  Progress (2026-08-20): the CORRECTNESS half is fixed and shipped; this
+  bullet stays open for the throughput half only.
+
+  _process_next_queue_item no longer hardcodes format_spec = "best". A
+  stored format_id is meaningless to a different video, so the saved
+  preference is re-expressed as a selector yt-dlp resolves per item:
+  bestvideo[height<=H][ext=E]+bestaudio, degrading through looser
+  candidates to plain "best" so an unusual preference never leaves a queue
+  item with nothing to download. merge is set alongside it, since the
+  leading candidates pair a video-only stream with audio. An ext that is
+  not alphanumeric is dropped rather than pasted into the selector, and no
+  stored preference keeps the old ("best", False) behaviour exactly.
+
+  Still open: the queue is strictly serial. As this bullet's body already
+  says, the work there is that self.download_process is a single handle
+  which _reset_ui, cancel and the 150ms progress throttle all assume --
+  the parallelism itself is the easy part.
   **Layman:** Anything you add to the queue is downloaded at whatever quality yt-dlp picks, not the one you chose — and they run one after another rather than together.
   Kind: fix.
   Source: in-session-2026-08-20.
@@ -1184,3 +1209,112 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: perf.
   Source: in-session-2026-08-20.
   Lanes: downloader, performance.
+
+- ✅ [SNAT-0041] **Right-click Cut/Copy/Paste is available on every text field.**
+  Requested by the user 2026-08-20: pasting a URL required either the
+  Paste button next to the URL bar or Ctrl+V, and right-click did nothing
+  anywhere in the app.
+
+  widgets.attach_context_menu(widget, editable=True) builds a tk.Menu as a
+  CHILD of the widget it serves. That is the whole cleanup story: a theme
+  switch destroys main_frame and calls create_widgets again, so the menu
+  dies with its widget and is rebuilt in the new theme's colours. No trace
+  callbacks, nothing to release on close.
+
+  Right-click is Button-3 except on macOS, where Tk reports it as
+  Button-2. The binding is chosen per platform rather than bound to both,
+  because Button-2 on X11 is middle-click paste of the primary selection
+  and covering it would take a working paste away from Linux users.
+
+  Attached to: the URL, cookies-file and save-path entries (download tab),
+  the search and channel entries (search tab), and the media-file entry
+  (media info tab). The media-info report is state=DISABLED, so it gets
+  Copy and Select All with editable=False.
+
+  Unexercised: the macOS Button-2 binding, since nobody has ever run the
+  macOS build (SNAT-0025).
+  **Layman:** You can now right-click any box in Snatch to paste a link, copy text or select everything.
+  Kind: feature.
+  Source: user-request-2026-08-20.
+  Lanes: ui.
+
+- ✅ [SNAT-0042] **A cookied fetch that returns audio only killed the whole format list.**
+  Reported twice on 2026-08-20 for the same video (oi2QgPH61JM): on Linux
+  Fetch Formats raised "ERROR: [youtube] oi2QgPH61JM: Requested format is
+  not available", and on Windows the format list held audio streams only.
+
+  One cause, reproduced at the command line. With
+  --cookies-from-browser firefox YouTube answers that video with 4
+  formats, every one of them audio. With no cookies it answers with 53, of
+  which 37 carry video.
+
+  Two defects follow.
+
+  -J is not a pure metadata dump -- yt-dlp still runs its default format
+  selection, and an audio-only answer cannot satisfy it. So the whole dump
+  aborts and the user sees NO formats, not even the audio ones that do
+  exist. _probe_formats passes --ignore-no-formats-error, which turns the
+  Linux error dialog into a list.
+
+  And cookies that yield no video are worth nothing for that fetch. A
+  single video whose cookied probe carries no video format is probed once
+  more with no cookie arguments; whichever answer has video is the one
+  kept, and the status line says the cookies were skipped. A playlist
+  payload is excluded. A retry that times out or returns junk leaves the
+  cookied answer standing, so the fallback can never make things worse.
+
+  Not addressed here: WHY cookies cause YouTube to withhold video
+  formats. The retry routes around it rather than fixing it, and if that
+  behaviour ever spreads to the un-cookied path there is nothing left to
+  fall back to.
+  **Layman:** When Snatch's saved cookies made YouTube hand back sound-only versions of a video, Snatch either showed an error or listed no picture qualities at all; it now retries without the cookies.
+  Kind: fix.
+  Source: user-report-2026-08-20.
+  Lanes: downloader.
+
+- ✅ [SNAT-0043] **Every build has been running with NO JavaScript runtime: --js-runtimes is not comma-separated.**
+  Root cause of the SNAT-0042 reports, found by reading yt-dlp's own
+  --help after the user asked whether a permanent fix existed.
+
+  `--js-runtimes` takes ONE `RUNTIME[:PATH]` and is repeatable -- "This
+  option can be used multiple times to enable multiple runtimes". It is
+  not a comma-separated list. _get_base_cmd joined the list with commas,
+  so yt-dlp parsed `quickjs:/path/to/qjs,node` as the single runtime
+  quickjs at the nonexistent path "/path/to/qjs,node", found it
+  unavailable, and reported `JS runtimes: none`.
+
+  Measured on this machine with the app's own binary and command builder,
+  same video, cookies on:
+    --js-runtimes "quickjs:<path>,node"   ->  4 formats,  0 video
+    --js-runtimes quickjs:<path>          -> 37 formats, 25 video
+    --js-runtimes node                    -> 37 formats, 25 video
+    one flag each (the fix)               -> 37 formats, 25 video,
+                                             "JS runtimes: node-24.18.1,
+                                             quickjs-ng-0.16.1"
+
+  The blast radius is every build, not this machine. The comma path is
+  taken whenever find_jsruntime() finds a bundled runtime, which is
+  exactly what a packaged Windows, Linux or macOS build always has. So
+  every released artifact has been solving no JS challenge at all, and the
+  Windows "audio streams only" report is the same defect seen from the
+  other side. quickjs alone was verified to solve the challenge, so the
+  bundled runtime was always capable -- it was simply never enabled.
+
+  Two secondary corrections came with it. The docstring claimed the
+  bundled runtime "is listed first so it wins"; order carries no meaning,
+  since yt-dlp picks by its own priority (deno > node > quickjs > bun)
+  among whatever is enabled and available. And _has_any_runtime was
+  therefore answering about a list that yt-dlp never accepted.
+
+  SNAT-0042's retry-without-cookies stays as a net rather than being
+  reverted: it costs one extra probe only when a cookied fetch really does
+  come back without video, and it is the only thing standing if YouTube
+  withholds formats for some reason other than this one.
+
+  Not verified here: the Windows and macOS builds, where the bundled
+  quickjs is the only runtime. Proven locally that quickjs alone solves
+  the challenge, which is the same code path those builds take.
+  **Layman:** Snatch was telling yt-dlp about its bundled helper program in a way yt-dlp could not read, so the helper was never used and YouTube quietly withheld all the picture qualities.
+  Kind: fix.
+  Source: in-session-2026-08-20.
+  Lanes: downloader, packaging.

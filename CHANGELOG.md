@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Right-click to paste, copy or cut in any box (SNAT-0041)**
+  Every text box in Snatch — the URL bar, the search boxes, the
+  cookies and save-location fields — now has a right-click menu with
+  Cut, Copy, Paste and Select All. Pasting a link no longer means
+  reaching for the Paste button or Ctrl+V.
+
+  The media information panel is read-only, so it offers Copy and
+  Select All only.
+
 - **Snatch can now update its own downloader (SNAT-0016)**
   When YouTube changes something, yt-dlp — the tool Snatch uses to
   fetch videos — has to be updated to keep up. Until now that meant
@@ -26,6 +35,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Snatch was never using its bundled JavaScript helper, so YouTube hid most video qualities (SNAT-0043)**
+  YouTube makes downloaders solve a small puzzle before it will hand
+  over the picture qualities, and Snatch ships a helper program to
+  solve it. Snatch had been naming that helper in a way yt-dlp could
+  not read, so it was never used — on every release, on every platform.
+  The result was videos that appeared to have sound-only versions, or
+  that failed outright with "Requested format is not available".
+
+  Snatch now names it correctly. On the reported video that is the
+  difference between 4 sound-only entries and 37 with 25 picture
+  qualities.
+
+- **Queued downloads now use the quality you chose (SNAT-0039)**
+  Anything added to the queue was downloaded at whatever quality
+  yt-dlp picked, ignoring the resolution and format Snatch had saved
+  from your last choice. Queued items now follow that preference, and
+  fall back to the best available if it cannot be matched.
+
+- **A video that YouTube served as sound-only no longer empties the format list (SNAT-0042)**
+  For some videos, the saved cookies made YouTube hand back only
+  sound-only versions. Snatch then showed either "Requested format is
+  not available" and nothing else, or a list with no picture qualities
+  in it at all.
+
+  Snatch now tries again without the cookies and keeps whichever answer
+  actually has picture in it, telling you in the status line when it
+  has skipped them. On the reported video that is the difference
+  between 4 sound-only entries and 53 with 37 picture qualities.
+
 - **Updating no longer asks for your password or touches system files**
   The old path installed yt-dlp system-wide via a password prompt.
   The new one writes only inside Snatch's own folder, so nothing
@@ -36,6 +74,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   Stable is the channel that does not play YouTube — the exact problem
   fixed in 1.0.1 — so taking that offer would have broken playback.
   It now tracks the same nightly channel Snatch bundles.
+
+### Security
+
+- **Updated the bundled image library to close 12 known advisories (SNAT-0030)**
+  Snatch ships Pillow, which is what opens the picture previews it
+  fetches from whatever site you are downloading from. The version in
+  v1.0.0 and v1.0.1 had 12 published security advisories against it;
+  all 12 are fixed in the version now bundled. Confirmed with
+  pip-audit, which reports none remaining.
 
 ## [1.0.1] - 2026-08-20
 
