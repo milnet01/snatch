@@ -44,8 +44,7 @@ jobs:
 
       - name: Shell lint
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq shellcheck
+          scripts/apt-install.sh shellcheck
           shellcheck scripts/*.sh
 
   build-linux:
@@ -64,7 +63,6 @@ jobs:
 
       - name: Install Tk runtime and X libraries
         run: |
-          sudo apt-get update -qq
           # libx* are runtime dependencies of tkinterdnd2's libtkdnd shared
           # object. Without them installed at build time PyInstaller cannot
           # resolve them, does not bundle them, and drag-and-drop fails on a
@@ -75,7 +73,7 @@ jobs:
           # libfuse2 is deliberately NOT installed: build-linux.sh sets
           # APPIMAGE_EXTRACT_AND_RUN=1, so appimagetool unpacks itself instead
           # of mounting, and CI never executes the AppImage it produces.
-          sudo apt-get install -y -qq --no-install-recommends \
+          scripts/apt-install.sh \
             python3-tk tk-dev desktop-file-utils \
             libxcursor1 libxrandr2 libxinerama1 libxi6 libxss1
 
