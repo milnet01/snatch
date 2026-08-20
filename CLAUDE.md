@@ -69,3 +69,8 @@ platform builds, change the script — never the workflow step that calls it.
 - Verify changes: `python3 -m py_compile snatch/<file>.py`
 - Pre-push gate: `scripts/local-ci.sh` (`--lint` for docs-only)
 - Roadmap: `ROADMAP.md`, ants-v1 format, store-backed (project `snatch`)
+- **Never predict the next roadmap ID.** `append`/`append_batch` allocate with
+  gaps — a batch jumped SNAT-0031 to SNAT-0035 on 2026-08-20, and 0032-0034
+  were never issued. To make two new bullets cite each other, write the batch,
+  read the returned `ids`, then patch the references with `roadmap_log
+  op:amend_body`. Guessing put wrong cross-references in two pushed commits.
