@@ -446,6 +446,42 @@ class DownloaderMixin:
                     self.format_tree.see(item_id)
                     return
 
+    def _preferred_format_spec(self):
+        """Build a yt-dlp format selector from the saved resolution/ext preference.
+
+        A queue item is a different video, so a stored format_id means nothing
+        to it — the preference has to be re-expressed as a selector yt-dlp
+        resolves per video. Returns (format_spec, merge), falling back to
+        ("best", False) when nothing usable is stored.
+        """
+        height = None
+        if self.preferred_resolution and "x" in self.preferred_resolution:
+            try:
+                height = int(self.preferred_resolution.split("x")[1])
+            except ValueError:
+                height = None
+
+        ext = self.preferred_ext
+        if not ext or not ext.isalnum():
+            ext = None
+
+        if height is None and ext is None:
+            return "best", False
+
+        h_filter = f"[height<={height}]" if height else ""
+        e_filter = f"[ext={ext}]" if ext else ""
+
+        # Widest match first, degrading to plain "best" so an unusual
+        # preference never leaves a queue item with nothing to download.
+        candidates = [
+            f"bestvideo{h_filter}{e_filter}+bestaudio",
+            f"best{h_filter}{e_filter}",
+            f"bestvideo{h_filter}+bestaudio",
+            f"best{h_filter}",
+            "best",
+        ]
+        return "/".join(dict.fromkeys(candidates)), True
+
     # ── Download ────────────────────────────────────────────────────
 
     def download_selected(self):
@@ -756,8 +792,8 @@ class DownloaderMixin:
         self.status_var.set(f"Downloading {self.queue_index + 1} of {total}...")
         self.url_var.set(entry["url"])
 
-        format_spec = "best"
-        self._start_download(format_spec, queue_mode=True)
+        format_spec, merge = self._preferred_format_spec()
+        self._start_download(format_spec, merge=merge, queue_mode=True)
 
     # ── Playlist ────────────────────────────────────────────────────
 
