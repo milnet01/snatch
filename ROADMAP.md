@@ -82,7 +82,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: in-session-2026-08-19.
   Lanes: packaging, ci.
 
-- 📋 [SNAT-0019] **build-linux still hangs on apt-get intermittently.**
+- ✅ [SNAT-0019] **build-linux still hangs on apt-get intermittently.**
   The "Install Tk runtime and X libraries" step in build-linux
   intermittently hangs. Observed 2026-08-19 on run 32299765938 (commit
   ceb4cd4): 25 minutes with no progress, cancelled manually.
@@ -115,6 +115,27 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Cannot be reproduced locally: act's container has no needrestart and no
   unattended-upgrades, which is the same blind spot documented in
   scripts/local-ci.sh and docs/building.md.
+  Resolved (2026-08-20): a1cf34c. Cause was never pinned down, so all
+  three plausible ones are bounded rather than guessed between:
+  DPkg::Lock::Timeout=120 makes apt wait for a held lock instead of
+  blocking on it, Acquire::Retries=3 + Acquire::http::Timeout=30 make a
+  stalled mirror fail and retry, and timeout(1) at 300s per attempt kills
+  one that hangs anyway so the outer 2-attempt retry can happen.
+
+  Both apt call sites now go through scripts/apt-install.sh rather than
+  repeating the options inline -- fixing build-linux and missing
+  static-checks is exactly what happened with needrestart, and ci.yml's
+  env block says so in its own comment, so the shared script makes that
+  recurrence structural rather than a thing to remember.
+
+  Verified on the runner, not just locally: run 32348969527 (a1cf34c) and
+  run 32349272675 (v1.0.1 tag) both took all four jobs green, build-linux
+  included. The hang is intermittent so this is not proof it can never
+  recur, but the 30-minute unbounded case is now bounded at ~10.
+
+  Side effect worth knowing: static-checks installs shellcheck with
+  --no-install-recommends now, which it did not before. That follows from
+  sharing the helper and only narrows what gets installed.
   **Layman:** One of our automated build steps sometimes freezes and has to be killed. It is not consistent, so it has not been pinned down yet.
   Kind: fix.
   Source: in-session-2026-08-19.
