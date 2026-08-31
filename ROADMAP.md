@@ -354,6 +354,30 @@ and application work. IDs are allocated from `.roadmap-counter`.
 
   Worth adding zizmor to static-checks afterwards so this cannot silently
   regress; the tool is already installed on the dev machine.
+  Progress (2026-08-31): issues 2 and 3 are done; issue 1 is not.
+
+  Issue 2 (excessive-permissions) closed: ci.yml now sets
+  `permissions: contents: read` at workflow scope, with a job-level
+  `contents: write` on `release` alone.
+
+  Issue 3 (artipacked) closed: all five actions/checkout steps now pass
+  `persist-credentials: false`.
+
+  Issue 1 (unpinned-uses) partially closed: 1 of 14. Only
+  softprops/action-gh-release was pinned — the third-party action, in the
+  one job that holds contents: write. It is pinned to
+  3bb12739c298aeb8a4eeaf626c5b8d85266b0e65, the commit `v2` pointed at on
+  2026-08-31 (v2.6.2). That is a pin, not a bump: `v2` remains the version
+  in use, and v3.0.3 is current, which is a separate question for
+  check-dependencies.
+
+  Still open: the 13 first-party actions/* pins (checkout, setup-python,
+  upload-artifact, download-artifact). Left for a deliberate pass because
+  pinning them commits the project to a SHA-update routine, and the bullet
+  already proposes `pinact run` plus adding zizmor to static-checks — both
+  of which should land together rather than piecemeal.
+
+  zizmor now reports 17 findings, down from 24.
   **Layman:** Our automated build has more power over the project than it needs, and trusts outside code that could change under us.
   Kind: security.
   Source: in-session-2026-08-20.
@@ -1233,6 +1257,25 @@ and application work. IDs are allocated from `.roadmap-counter`.
 
   Unexercised: the macOS Button-2 binding, since nobody has ever run the
   macOS build (SNAT-0025).
+  Correction (2026-08-31): this shipped ✅ on 2026-08-20 and the app has
+  not launched since. attach_context_menu was imported in
+  snatch/tabs/download.py and called, without an import, in
+  snatch/tabs/search.py and snatch/tabs/media_info.py. All four tabs are
+  built eagerly at app.py:206-221, so create_widgets raised NameError at
+  search.py:34 and the window never appeared. Found by check-code (ruff
+  F821, pyright reportUndefinedVariable, both independently), then
+  reproduced by constructing SnatchApp under Xvfb.
+
+  Fixed today by adding the missing import to both modules. Verified by
+  running: all four tabs build and Button-3 bindings are live on the
+  search entry, the channel entry and the media-info report. The bullet's
+  own list of six attached fields is accurate now; it was not when it was
+  written.
+
+  Status left ✅ rather than flipped back, because the claim is true as of
+  this fix. What the episode actually evidences is SNAT-0020: nothing in
+  CI imports the package, so a guaranteed startup crash shipped and
+  survived two sessions.
   **Layman:** You can now right-click any box in Snatch to paste a link, copy text or select everything.
   Kind: feature.
   Source: user-request-2026-08-20.
@@ -1439,3 +1482,114 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: fix.
   Source: in-session-2026-08-20.
   Lanes: downloader, packaging.
+
+- 📋 [SNAT-0044] **No Python tooling config, so the project's own declared standards are enforced by nothing.**
+  There is no pyproject.toml, ruff.toml, setup.cfg or mypy config anywhere
+  in the tree. Three consequences, found by running the tools during the
+  2026-08-31 whole-tree check-code pass.
+
+  1. STANDARDS.md 10.1 declares "PEP 8 style with 100-char line limit
+  (soft)". Nothing reads that. A bare `ruff check` uses its own default of
+  88 and reports 79 violations; at the project's declared 100 it reports
+  21. So the number a contributor sees depends entirely on how they
+  invoked the tool, and the declared limit is a sentence in a document
+  rather than a rule.
+
+  2. `mypy` cannot analyse this project at all. It stops with
+  `Duplicate module named "snatch" (also at "snatch.py")` and the note
+  "errors prevented further checking" — the entry-point script and the
+  package collide in module resolution. Zero mypy findings today is zero
+  confidence, not a clean result. A `[tool.mypy]` section with an explicit
+  `files` or `mypy_path` settles it.
+
+  3. CI runs `python -m compileall` and nothing else on Python. That is
+  what let SNAT-0041 ship a guaranteed NameError at startup: compileall
+  proves each file parses and never imports the package, so a missing
+  import is invisible to it. The cheapest possible guard is one line —
+  `python -c "import snatch, snatch.app, snatch.tabs.search"` — and it
+  would have caught that crash. See SNAT-0020 for the wider testing gap.
+
+  Not urgent, but note that item 3 is a real defect class this project has
+  already shipped once.
+  **Layman:** Snatch writes down its own coding rules, but no tool is set up to check them, so nothing notices when they are broken.
+  Kind: chore.
+  Source: check-code-tree-2026-08-31.
+  Lanes: ci, tooling.
+
+- 📋 [SNAT-0045] **Nothing anywhere in the app records why something failed.**
+  ruff S110 flags six `try/except: pass` blocks: app.py:161 (window icon),
+  downloader.py:698 (closing the stdout pipe in a finally),
+  downloader.py:777 and player.py:239,246 (process teardown and socket
+  unlink on cancel/close), and tabs/download.py:392 (optional drag-and-drop
+  registration).
+
+  Each one is defensible in isolation — they are best-effort cleanup and
+  optional-feature paths where there is genuinely no recovery action, and
+  two of them are doing what CLAUDE.md mandates ("close subprocess pipes
+  in finally blocks"). They were dismissed individually during the
+  2026-08-31 check-code triage rather than suppressed.
+
+  What they share is the real gap: the app imports no logging module
+  anywhere, so "swallow it" is the only option available at those six
+  sites. The rule's own suggestion — "consider logging the exception" —
+  cannot be followed because there is nothing to log to.
+
+  A module-level logger writing to app_data_dir(), off by default and
+  enabled by an env var or a flag, would turn six silent swallows into six
+  recorded ones without changing any behaviour a user sees. It would also
+  give the yt-dlp subprocess failures somewhere to go.
+  **Layman:** When something goes wrong quietly, Snatch has no record of it, so a problem that does not show a message leaves no trace at all.
+  Kind: enhancement.
+  Source: check-code-tree-2026-08-31.
+  Lanes: diagnostics.
+
+- 📋 [SNAT-0046] **Every theme class carries a NAME attribute that nothing reads.**
+  vulture flags `NAME` as unused on all seven theme classes
+  (theme.py:8, 35, 62, 89, 116, 143, 170). Verified during the 2026-08-31
+  check-code triage: nothing in the tree reads `.NAME`, and STANDARDS.md
+  3.1's table of required theme attributes does not list it.
+
+  The name a theme is actually known by is the key in the THEMES dict at
+  theme.py:196. app.py:185 builds the combobox from `list(THEMES.keys())`
+  and app.py:233 passes that string back to `set_theme`, which looks it up
+  in the same dict. So each theme's name is stored twice and only one copy
+  is ever consulted.
+
+  Left unfixed rather than deleted because there are two valid
+  resolutions and choosing between them is a design call, not an edit.
+  Either drop the seven attributes, or make the registry and the combobox
+  read `.NAME` so a theme owns its own display name and the dict key
+  becomes an internal id. The second is the better shape if a theme should
+  ever display differently from its key; the first is correct if it should
+  not.
+  **Layman:** Each colour scheme stores its own name twice, and the app only ever uses one of the two copies.
+  Kind: refactor.
+  Source: check-code-tree-2026-08-31.
+  Lanes: ui.
+
+- 📋 [SNAT-0047] **The three build jobs share a pip cache with pull-request runs.**
+  zizmor reports cache-poisoning, three occurrences, against the `on:`
+  block. All three build jobs pass `cache: "pip"` to actions/setup-python
+  (ci.yml:62, 112, 147), and the workflow triggers on pull_request as well
+  as on push and on v* tags.
+
+  The shape zizmor is describing: a pull-request run populates the pip
+  cache, and a later tag-triggered run — the one that produces the
+  artifacts attached to a GitHub Release — restores from it. The release
+  build would then be assembled partly from wheels a PR put there.
+
+  Not in SNAT-0035's scope: that bullet enumerates exactly three issues
+  from the 2026-08-20 zizmor run (unpinned-uses, excessive-permissions,
+  artipacked) and this is a fourth, surfaced by the 2026-08-31 pass.
+
+  No evidence it has been exploited, and the exposure is smaller than it
+  reads: this repo has no PR history from outside contributors. The
+  cheapest fix is to skip the cache on tag builds —
+  `cache: ${{ startsWith(github.ref, 'refs/tags/v') && '' || 'pip' }}` or
+  an explicit condition — which costs the release build one dependency
+  download and nothing else. Worth doing alongside SNAT-0035 rather than
+  separately, since both edit the same five job definitions.
+  **Layman:** Builds reuse downloaded packages from a shared store that outside contributions can also write to.
+  Kind: security.
+  Source: check-code-tree-2026-08-31.
+  Lanes: ci, supply-chain.

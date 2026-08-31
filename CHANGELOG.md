@@ -35,6 +35,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Snatch starts again** (SNAT-0041)
+  The right-click menu added in this same unreleased batch was wired into
+  the Download tab but not the Search or Media Info tabs, and Snatch
+  builds all four tabs the moment it opens. The window never appeared at
+  all. Both tabs now have what they were missing, and all six text boxes
+  the right-click feature promised really do have it.
+
+- **An empty playlist no longer breaks the fetch**
+  Pasting a link to a playlist with nothing in it crashed the format
+  fetch partway through, so you got an unhelpful error instead of being
+  told the playlist was empty.
+
+- **Error messages appear instead of vanishing**
+  Five places that report a problem — fetching formats, downloading,
+  searching, and reading media info — were losing the message on the way
+  to the screen and failing silently instead. If a download failed, you
+  saw nothing. The message now reaches the dialog it was written for.
+
+  STANDARDS.md's own worked example was teaching this mistake, and
+  contradicted the rule three lines above it. The example is corrected,
+  so the next person copying it gets a working version.
+
 - **Snatch was never using its bundled JavaScript helper, so YouTube hid most video qualities (SNAT-0043)**
   YouTube makes downloaders solve a small puzzle before it will hand
   over the picture qualities, and Snatch ships a helper program to
@@ -76,6 +98,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   It now tracks the same nightly channel Snatch bundles.
 
 ### Security
+
+- **The build pipeline now gets only the access it needs** (SNAT-0035)
+  The automated build had permission to write to the whole project, for
+  every job, when only the release step ever publishes anything. That is
+  now read-only by default, with write access granted to the release step
+  alone. The five checkout steps no longer leave a login token behind in
+  the build workspace, and the third-party action that publishes releases
+  is locked to an exact version rather than a label its author can move.
+
+  Nothing here was being exploited. It shrinks what a problem elsewhere
+  could reach. The remaining thirteen version labels are still to do.
 
 - **Updated the bundled image library to close 12 known advisories (SNAT-0030)**
   Snatch ships Pillow, which is what opens the picture previews it
