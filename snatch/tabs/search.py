@@ -8,6 +8,7 @@ from tkinter import ttk, messagebox
 from urllib.parse import quote
 
 from ..theme import get_theme
+from ..widgets import attach_context_menu
 from ..utils import format_duration, format_view_count, clear_treeview
 from ..platform_utils import find_mpv
 
@@ -333,7 +334,7 @@ class SearchTabMixin:
         except subprocess.TimeoutExpired:
             self.root.after(0, lambda: self._search_error("Search timed out"))
         except Exception as e:
-            self.root.after(0, lambda: self._search_error(str(e)))
+            self.root.after(0, lambda e=e: self._search_error(str(e)))
 
     def _display_search_results(self, entries):
         """Populate search results treeview"""

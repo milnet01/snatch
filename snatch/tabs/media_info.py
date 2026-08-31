@@ -7,6 +7,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
 from ..theme import get_theme
+from ..widgets import attach_context_menu
 from ..utils import zenity_file_dialog
 from ..platform_utils import find_ffprobe, is_windows
 
@@ -129,7 +130,7 @@ class MediaInfoTabMixin:
         except subprocess.TimeoutExpired:
             self.root.after(0, lambda: self._set_media_info_text("Analysis timed out."))
         except Exception as e:
-            self.root.after(0, lambda: self._set_media_info_text(f"Error: {e}"))
+            self.root.after(0, lambda e=e: self._set_media_info_text(f"Error: {e}"))
 
     @staticmethod
     def _format_ffprobe_output(stdout, stderr):
