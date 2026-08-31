@@ -303,8 +303,8 @@ class DownloaderMixin:
 
             if data.get("_type") == "playlist" or "entries" in data:
                 entries = data.get("entries", [])
-                del data  # Free large JSON before scheduling UI updates
                 if entries:
+                    del data  # Free large JSON before scheduling UI updates
                     pl_title = title or "Playlist"
                     self.root.after(0, lambda: self._show_playlist(entries, pl_title))
                     self.root.after(0, self._stop_indeterminate)
@@ -373,9 +373,9 @@ class DownloaderMixin:
         except subprocess.TimeoutExpired:
             self.root.after(0, lambda: self._show_error("Timeout while fetching formats"))
         except json.JSONDecodeError as e:
-            self.root.after(0, lambda: self._show_error(f"Error parsing format data: {e}"))
+            self.root.after(0, lambda e=e: self._show_error(f"Error parsing format data: {e}"))
         except Exception as e:
-            self.root.after(0, lambda: self._show_error(f"Error: {e}"))
+            self.root.after(0, lambda e=e: self._show_error(f"Error: {e}"))
 
     def _stop_indeterminate(self):
         """Stop indeterminate progress bar and reset to determinate mode"""
@@ -712,7 +712,7 @@ class DownloaderMixin:
                     self.root.after(0, self._update_title_progress)
 
         except Exception as e:
-            self.root.after(0, lambda: self._show_error(f"Download error: {e}"))
+            self.root.after(0, lambda e=e: self._show_error(f"Download error: {e}"))
             self.root.after(0, self._reset_ui)
             self.root.after(0, self._update_title_progress)
 

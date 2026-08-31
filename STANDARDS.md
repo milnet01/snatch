@@ -150,6 +150,7 @@ canvas = tk.Canvas(parent, bg=theme.BG, highlightthickness=0)
    thread.start()
    ```
 4. **Progress updates** from threads use `root.after(0, lambda p=value: self.var.set(p))` to avoid closure issues
+5. **Bind every value the lambda reads** with a default argument, not just progress values. `root.after` runs the lambda later, on the main thread, and a bare `lambda:` reads the variable at that point rather than at scheduling time. The `except ... as e` case is the sharp one: Python unbinds `e` when the `except` block ends, so `lambda: f"{e}"` raises `NameError` and the user sees no error dialog at all. Write `lambda e=e: ...`.
 
 ### 4.2 Thread-Safe Update Pattern
 
@@ -166,9 +167,10 @@ def _bg_thread(self):
     try:
         result = expensive_operation()
         # Schedule GUI update on main thread
-        self.root.after(0, lambda: self._bg_complete(result))
+        self.root.after(0, lambda result=result: self._bg_complete(result))
     except Exception as e:
-        self.root.after(0, lambda: self._bg_error(str(e)))
+        # e=e is required, not stylistic: e is unbound when this block ends.
+        self.root.after(0, lambda e=e: self._bg_error(str(e)))
 
 def _bg_complete(self, result):
     """Callback on main thread — safe to update GUI"""
