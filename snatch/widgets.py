@@ -134,12 +134,6 @@ class ToggleSwitch(tk.Canvas):
         self.label.config(text=self.on_text if is_on else self.off_text,
                           fg=self.on_color if is_on else theme.FG_DIM)
 
-    def apply_theme(self, theme):
-        """Update widget colors for a new theme"""
-        self.configure(bg=theme.BG)
-        self.label.configure(bg=theme.BG)
-        self._draw()
-
     def grid(self, **kwargs):
         """Grid the switch; label must be placed separately"""
         super().grid(**kwargs)
