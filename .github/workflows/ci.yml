@@ -13,8 +13,11 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Read-only by default. Only `release` publishes, so only `release` is
+# granted contents: write — a build job compromised through a dependency
+# cannot then write to the repository.
 permissions:
-  contents: write
+  contents: read
 
 env:
   # A GitHub runner ships needrestart, whose interactive "restart which
@@ -33,6 +36,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
@@ -54,6 +59,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
@@ -104,6 +111,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
@@ -139,6 +148,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
@@ -172,9 +183,13 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [build-linux, build-windows, build-macos]
     runs-on: ubuntu-22.04
+    permissions:
+      contents: write  # the only job that publishes
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Download all build artifacts
         uses: actions/download-artifact@v4
@@ -204,7 +219,9 @@ jobs:
           cat release-notes.md
 
       - name: Attach to GitHub Release
-        uses: softprops/action-gh-release@v2
+        # Pinned to the commit v2 pointed at on 2026-08-31 (v2.6.2). A tag is
+        # mutable; this job is the one holding contents: write.
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
         with:
           files: |
             artifacts/snatch-linux/Snatch-*.AppImage
