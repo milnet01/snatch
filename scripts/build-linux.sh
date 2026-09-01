@@ -69,7 +69,7 @@ echo "=== 1/5 fetch bundled binaries ==="
 scripts/fetch-binaries.sh
 
 echo "=== 2/5 smoke-test platform_utils ==="
-python3 scripts/verify_platform_utils.py
+python3 scripts/verify_platform_utils.py --require-bundled
 
 echo "=== 3/5 PyInstaller one-file build ==="
 rm -rf build dist AppDir

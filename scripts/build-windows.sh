@@ -17,7 +17,7 @@ echo "=== 1/4 fetch bundled binaries ==="
 scripts/fetch-binaries.sh
 
 echo "=== 2/4 smoke-test platform_utils ==="
-python scripts/verify_platform_utils.py
+python scripts/verify_platform_utils.py --require-bundled
 
 echo "=== 3/4 PyInstaller one-file build ==="
 rm -rf build dist

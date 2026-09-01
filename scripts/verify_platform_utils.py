@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from snatch import platform_utils as pu
 
 
-def main():
+def main(require_bundled=False):
     print("platform        :", sys.platform)
     print("is_windows      :", pu.is_windows())
     print("is_macos        :", pu.is_macos())
@@ -45,15 +45,26 @@ def main():
         "in user_bin_dir, and none on PATH"
     assert os.path.isfile(ytdlp), f"find_ytdlp returned a non-file: {ytdlp}"
 
-    # The one above passes when yt-dlp is merely on PATH, which is a legitimate
-    # runtime answer and NOT what a build needs: PyInstaller is about to bundle
-    # the copy in bin/. Measured while writing this — hiding bin/yt-dlp on a
-    # machine with /usr/local/bin/yt-dlp left the assert green, so it would have
-    # caught nothing here and only worked by accident on a bare runner.
-    assert pu._find_bundled_binary("yt-dlp") is not None, \
-        "no bundled yt-dlp — run scripts/fetch-binaries.sh before building"
-    assert pu._find_bundled_binary("ffmpeg") is not None, \
-        "no bundled ffmpeg — run scripts/fetch-binaries.sh before building"
+    # --require-bundled: only the three BUILD scripts pass it.
+    #
+    # The assert above passes when yt-dlp is merely on PATH, which is a
+    # legitimate runtime answer and NOT what a build needs — PyInstaller is
+    # about to bundle the copy in bin/. Measured while writing this: hiding
+    # bin/yt-dlp on a machine with /usr/local/bin/yt-dlp left it green, so it
+    # would have caught nothing and only worked by accident on a bare runner.
+    #
+    # But this stronger check holds only where fetch-binaries.sh has already
+    # run, and that is three of the four call sites. build-linux.sh:69,
+    # build-windows.sh:17 and build-macos.sh:19 fetch at step 1;
+    # local-ci.sh:68 deliberately does not, because the pre-push gate runs
+    # against a clean temp checkout and downloading ~100 MB is not a lint
+    # pass. So the flag says which contract is being checked rather than
+    # asserting the build's invariant everywhere and failing the gate.
+    if require_bundled:
+        assert pu._find_bundled_binary("yt-dlp") is not None, \
+            "no bundled yt-dlp — run scripts/fetch-binaries.sh before building"
+        assert pu._find_bundled_binary("ffmpeg") is not None, \
+            "no bundled ffmpeg — run scripts/fetch-binaries.sh before building"
 
     ffmpeg = pu.find_ffmpeg()
     assert ffmpeg is not None, "find_ffmpeg found neither a bundled copy nor one on PATH"
@@ -69,4 +80,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(require_bundled="--require-bundled" in sys.argv[1:])
