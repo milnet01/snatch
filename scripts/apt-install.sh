@@ -32,9 +32,23 @@ APT_OPTS=(
 ATTEMPT_TIMEOUT=300
 ATTEMPTS=2
 
+# timeout goes INSIDE sudo, not outside it.
+#
+# Outside, timeout runs as the unprivileged runner user and its child --
+# after sudo execs -- is a root process. An unprivileged process cannot
+# signal a root one (EPERM), and GNU timeout without -k sends its signal and
+# then keeps waiting for the child. So a stalled apt-get was not killed and
+# timeout blocked with it: the retry below could never happen, which is the
+# whole reason this script exists (SNAT-0019, a 25-minute CI hang).
+#
+# -k escalates to SIGKILL if apt-get ignores the first signal. A killed
+# apt-get can leave dpkg mid-transaction, so the retry repairs that first.
 for attempt in $(seq "$ATTEMPTS"); do
-    if timeout "$ATTEMPT_TIMEOUT" sudo apt-get "${APT_OPTS[@]}" update -qq &&
-        timeout "$ATTEMPT_TIMEOUT" sudo apt-get "${APT_OPTS[@]}" install \
+    if [ "$attempt" -gt 1 ]; then
+        sudo dpkg --configure -a || true
+    fi
+    if sudo timeout -k 10 "$ATTEMPT_TIMEOUT" apt-get "${APT_OPTS[@]}" update -qq &&
+        sudo timeout -k 10 "$ATTEMPT_TIMEOUT" apt-get "${APT_OPTS[@]}" install \
             -y -qq --no-install-recommends "$@"; then
         exit 0
     fi
