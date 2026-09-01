@@ -11,7 +11,7 @@ from tkinter import messagebox
 import tempfile
 import urllib.request
 
-from .platform_utils import (find_ytdlp, is_windows, is_macos, is_frozen,
+from .platform_utils import (find_ytdlp, is_windows, is_macos,
                              user_bin_dir, updated_ytdlp_path)
 
 # yt-dlp's NIGHTLY channel, matching scripts/fetch-binaries.sh.
@@ -176,12 +176,18 @@ class VersionMixin:
         """Set the button for the nothing-to-update case.
 
         Offers the way back to the bundled copy whenever a fetched one is in
-        use -- the escape hatch for a nightly that misbehaves. Packaged
-        builds only: from source there is no separate bundled copy to revert
-        to, because fetch-binaries.sh fills the very directory a fetched copy
-        lands in.
+        use -- the escape hatch for a nightly that misbehaves.
+
+        This used to be packaged-builds-only, on the grounds that from source
+        there was no separate bundled copy to revert to. That was true, and
+        it was the bug rather than a reason: user_bin_dir() and the bundled
+        bin/ were the same directory from source, so the update destroyed the
+        pinned copy AND the button that would have undone it was withheld
+        exactly where the damage happened. user_bin_dir() now keeps fetched
+        copies under bin/updated/ from source, so there is a floor to revert
+        to on both paths.
         """
-        if is_frozen() and updated_ytdlp_path():
+        if updated_ytdlp_path():
             self.update_btn.config(text="Revert to bundled yt-dlp",
                                    state=tk.NORMAL)
         else:
@@ -199,7 +205,13 @@ class VersionMixin:
                                        self.current_version) > 0)
         if newer:
             self._prompt_update()
-        elif is_frozen() and updated_ytdlp_path():
+        elif updated_ytdlp_path():
+            # is_frozen() dropped here for the same reason as in
+            # _refresh_idle_button: fetched copies now live under
+            # bin/updated/ from source too, so there is a bundled copy to
+            # revert to on both paths. The two guards must agree — this one
+            # decides whether the click does anything, the other whether the
+            # button is even offered.
             self._prompt_revert()
 
     def _prompt_update(self):

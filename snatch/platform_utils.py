@@ -97,13 +97,25 @@ def user_bin_dir():
     where app_data_dir() puts them, because moving them would strand the
     settings of someone who already has them.
 
+    Running from SOURCE it is app_data_dir()/bin/updated, not
+    app_data_dir()/bin. From source app_data_dir() is the repo root, so the
+    plain path is <repo>/bin -- the very directory scripts/fetch-binaries.sh
+    fills with the PINNED copy a release bundles. A self-update therefore
+    overwrote the pin and left no floor to fall back to, which made
+    find_ytdlp()'s own docstring, docs/building.md and the dialog shown to
+    the user ("The copy that came with Snatch is kept, so you can go back to
+    it at any time") all false on that path. Frozen builds are unaffected:
+    there the bundled copy lives in PyInstaller's extraction directory and
+    never shared this one.
+
     Cached -- find_ytdlp() runs on every subprocess call and the Windows
     writability probe is a real filesystem write.
     """
     global _USER_BIN_DIR
     if _USER_BIN_DIR is None:
-        candidate = _ensure_dir(os.path.join(app_data_dir(), "bin"))
-        if not _is_writable_dir(candidate) and is_windows():
+        parts = ["bin"] if is_frozen() else ["bin", "updated"]
+        candidate = _ensure_dir(os.path.join(app_data_dir(), *parts))
+        if is_windows() and not _is_writable_dir(candidate):
             base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
             candidate = _ensure_dir(os.path.join(base, "Snatch", "bin"))
         _USER_BIN_DIR = candidate
