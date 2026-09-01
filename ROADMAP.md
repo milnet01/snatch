@@ -482,6 +482,44 @@ and application work. IDs are allocated from `.roadmap-counter`.
   an existing file after a save would have caught it (SNAT-0020).
 
   cookies.txt is the one that matters: it carries session tokens.
+  Progress (2026-09-01): the WRITE side is done. The on-disk tightening
+  pass this bullet asks for is NOT, and it is the half that matters.
+
+  utils.atomic_private_write now writes to a temp file with an explicit
+  mode and os.replace's it into place, so a save installs a fresh 0600
+  inode whatever the target's mode was. All three call sites use it:
+  app.py (config.json), tabs/history.py (history.json), cookies.py
+  (cookies.txt). Verified: a 0664 file rewritten through it comes out
+  0600, where the old os.open form left it 0664.
+
+  That closes "no amount of re-saving will ever narrow them". It does not
+  close this bullet. A file that is never saved again keeps its old mode,
+  and this bullet already named the better fix for exactly that reason --
+  "a one-time tightening pass over app_data_dir() at startup", which also
+  catches a file copied in from an old install.
+
+  Measured on this machine immediately after the fix landed:
+  config.json 600, history.json 600, cookies.txt 664. The first two had
+  tightened only because the session's testing happened to re-save them.
+  cookies.txt -- the one this bullet calls out as carrying session
+  tokens -- had not been rewritten and was still group-readable. It was
+  chmod'ed to 600 by hand on 2026-09-01, which fixes this machine and
+  nothing else.
+
+  So what remains is the startup pass over app_data_dir(), narrowing
+  config.json, history.json and cookies.txt if present. Small, and it is
+  the difference between the rule holding for a user who happens to
+  trigger a save and holding for everyone.
+
+  Process note worth keeping. Three lanes of the 2026-08-31 review-code
+  sweep found the O_CREAT mechanism independently and reported it as new.
+  It was not new: this bullet diagnosed it in full on 2026-08-20,
+  mechanism and remedy included. The lane briefs carried CLAUDE.md and
+  STANDARDS.md but not the ROADMAP, so the sweep paid three times for an
+  analysis the project already owned -- and, worse, the resulting fix was
+  scoped to what the lanes saw (the write sites) rather than to what this
+  bullet already knew was insufficient. Brief the roadmap, or at least
+  query it per lane, before the next sweep.
 
 - ✅ [SNAT-0007] **Verify the GUI renders on Windows from a real desktop session.**
   The 2026-08-19 test reached the Tk main loop over SSH, but SSH runs in
@@ -1919,3 +1957,132 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: doc.
   Source: review-code-sweep-2026-08-31.
   Lanes: security, docs.
+
+- 📋 [SNAT-0055] **Eight places where STANDARDS.md or CLAUDE.md describe code that no longer works that way.**
+  Each was verified against current source by a lane of the 2026-08-31
+  sweep. Three sibling defects of the same class WERE fixed on
+  2026-09-01 -- STANDARDS 4.1/4.2 (the lambda binding), 5.3 (the file
+  permission pattern) and 12.2 (the --js-runtimes form) -- because each
+  was actively teaching a shipped bug. These eight are stale rather than
+  harmful, so they were deferred together rather than fixed piecemeal.
+
+  In every case below the DOCUMENT is the wrong side, not the code.
+
+  1. STANDARDS 5.1 quotes _is_valid_url without the empty-URL guard the
+  real one carries at downloader.py:76-77.
+
+  2. STANDARDS 8.2, 8.4 and 2.1, and CLAUDE.md's Quick Reference, all
+  present HAS_MPV as the live mpv detection surface. It has ZERO readers
+  tree-wide; find_mpv() (platform_utils.py:216) is the real gate and
+  prefers the bundled copy, which player.py:82-85 explains. Found by two
+  lanes independently. Either delete HAS_MPV or have something adopt it,
+  then fix all four documents.
+
+  3. Same paragraph: HAS_PIL is documented as living in
+  snatch/__init__.py and actually lives at downloader.py:21.
+
+  4. STANDARDS 12.3 states the cookie priority as cached file, then
+  browser SQLite, then --cookies-from-browser. cookies.py:117-125 does
+  the opposite -- a selected browser always wins -- and its comment says
+  the inversion is deliberate. NOTE: the code half of this is a real bug
+  and is filed separately as SNAT-0053's remediation-loop item; only the
+  ordering is the document's fault.
+
+  5. STANDARDS 7.1's persisted-settings table omits last_tab, which
+  app.py:145 does persist, and calls window_geometry "Window size (WxH)"
+  when root.geometry() returns WxH+X+Y.
+
+  6. CLAUDE.md states "All subprocess calls need timeout" with no
+  exception. downloader.py:637 and :701 are a download and its wait, and
+  cannot carry a fixed one. The rule needs an explicit long-running
+  carve-out or it is unfollowable as written.
+
+  7. pyinstaller.spec:4 says it is invoked by .github/workflows/build.yml
+  after that workflow downloads the binaries. No build.yml exists
+  (ci.yml is the only workflow) and it is the build SCRIPTS, not the
+  workflow, that call fetch-binaries.sh.
+
+  8. scripts/local-ci.sh:59 labels its actionlint step "workflow syntax +
+  action pinning". actionlint does not check pinning -- it passed clean
+  on 14 mutable tags. zizmor is what catches those and the gate does not
+  run it. SNAT-0035 already proposes adding zizmor to static-checks; the
+  label should stop claiming coverage until it does.
+
+  STANDARDS.md is a contract document, so a change of direction here runs
+  CLAUDE.md rule 14's gate. Most of these are corrections of false claims
+  and sit in its exemption; item 6 is a genuine rule change and item 2
+  turns on a code decision first.
+  **Layman:** The project's own rulebook is wrong in eight places, so anyone following it writes the wrong thing.
+  Kind: doc-fix.
+  Source: review-code-sweep-2026-08-31.
+  Lanes: docs.
+
+- 📋 [SNAT-0056] **STANDARDS.md 5.3 changed direction without the review gate rule 14 asks for.**
+  On 2026-09-01, STANDARDS.md 5.3 was rewritten to prescribe
+  utils.atomic_private_write / write_private_json in place of
+  os.open(path, O_WRONLY|O_CREAT|O_TRUNC, 0o600). The old form does not
+  deliver the guarantee the section states, so the correction is right
+  (SNAT-0006 has the measurement).
+
+  What did not happen is the gate. CLAUDE.md rule 14 covers a document
+  that is built UNDER -- a standard qualifies -- and its trigger is
+  "would someone conforming to this document now do something different?
+  Name the line." Here the answer is yes and the line is nameable: a
+  conformer writing a sensitive file now calls a helper rather than
+  os.open. That is the gated branch, not the exemption.
+
+  Two other STANDARDS edits in the same pass ARE exempt and are not in
+  scope here: 4.2 and 12.2 both removed a contradiction in favour of a
+  passage that already said the right thing and did not change, which is
+  rule 14's Q2 being answered rather than a change of direction.
+
+  The determination was recorded in the commit body of the pass, which is
+  where rule 14 says to put it -- and a commit body is not where a future
+  session looks, which is why it is also here.
+
+  To close: run `review-contract STANDARDS.md --genre standard`, or
+  decide on the record that the edit does not warrant it and say why.
+  Either is a legitimate outcome; the current state -- gated branch,
+  no gate, no visible record outside a commit message -- is not.
+  **Layman:** A rule in the project's own standards was rewritten, and the independent check that is supposed to run on such a change did not.
+  Kind: doc.
+  Source: in-session-2026-09-01.
+  Lanes: docs, process.
+
+- 📋 [SNAT-0057] **The project has no specs directory, no decision records and no declared test root.**
+  Found while running Phase 0 of write-code on 2026-09-01.
+  invariant_check returned scanned_nothing:true with the hint
+  "docs/specs does not exist", and there is no docs/decisions/ either.
+  task_priors returned specs_count 0 and adrs_count 0 for the same
+  reason -- so both verbs report an absence of contracts that is a fact
+  about the layout rather than about the project.
+
+  The consequence is not hypothetical. Several decisions taken during the
+  2026-08-31 review pass now live ONLY in commit bodies: why the mpv
+  named-pipe path was scoped out rather than implemented, why appimagetool
+  was pinned to 1.9.1 rather than tracking continuous, why the Revert
+  button lost its is_frozen() guard, and why the type2-runtime pin moved
+  to an older dated tag than the continuous build it replaced. A commit
+  body is searchable but nobody reads git log to find a contract.
+
+  spec-format.md section 1 is explicit that most work needs no spec, and
+  that is very likely true here -- this is not an argument for writing
+  specs. It is an argument for having somewhere to put an ADR when a
+  decision is genuinely load-bearing, which four of the above are.
+
+  Cheapest useful version: create docs/decisions/ and write ADR-0001 for
+  the supply-chain pinning policy, which is the decision most likely to be
+  reopened by a future session that sees an old pin and "helpfully" bumps
+  it.
+
+  Separately, .ants/project.json was created on 2026-08-31 declaring
+  source_roots, docs_dir, roadmap and changelog. test_roots and specs_dir
+  were deliberately left undeclared: docs/specs does not exist, and the
+  only test is a build-time smoke script under scripts/, which is not a
+  test root. Every declared path must resolve or the write is rejected, so
+  those two cannot be declared until they exist. Revisit alongside
+  SNAT-0020.
+  **Layman:** There is nowhere in this project to write down a design decision, so they only exist in commit messages and chat.
+  Kind: doc.
+  Source: in-session-2026-09-01.
+  Lanes: docs, process.
