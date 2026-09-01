@@ -73,17 +73,44 @@ esac
 echo "==> fetching binaries for $uname_s/$uname_m (ffmpeg: $ffmpeg_slug)"
 mkdir -p "$BIN_DIR"
 
+# Cache stamps. The cache used to be keyed on the DESTINATION FILENAME, which
+# carries no version -- so bumping a pin above and re-running silently reused
+# the old binary while printing "cached", and a maintainer verifying a bump
+# tested the version they were replacing. CI never saw it: a fresh checkout
+# has no bin/, so this only ever failed where nobody was watching.
+#
+# Each fetch now records the URL it satisfied and re-fetches when that URL
+# changes. Keyed on the URL rather than on the version variable, so a repo or
+# asset-name change invalidates it too.
+STAMP_DIR="$BIN_DIR/.stamps"
+mkdir -p "$STAMP_DIR"
+
+stamp_path() { printf '%s/%s.url' "$STAMP_DIR" "$(basename "$1")"; }
+
+# True when $1 exists AND was fetched from $2.
+stamp_matches() {
+    local dest="$1" url="$2" stamp
+    stamp="$(stamp_path "$dest")"
+    [ -e "$dest" ] && [ -f "$stamp" ] && [ "$(cat "$stamp")" = "$url" ]
+}
+
 fetch() {
     local url="$1" dest="$2"
-    if [ -f "$dest" ]; then
+    if stamp_matches "$dest" "$url"; then
         echo "    cached: $(basename "$dest")"
         return
     fi
-    echo "    downloading $(basename "$dest")"
+    if [ -e "$dest" ]; then
+        echo "    re-fetching $(basename "$dest") (pin changed)"
+    else
+        echo "    downloading $(basename "$dest")"
+    fi
     curl --fail --location --silent --show-error --retry 3 --retry-delay 2 \
+         --proto '=https' --proto-redir '=https' \
          --max-time 300 -o "$dest.part" "$url"
     mv "$dest.part" "$dest"
     chmod +x "$dest"
+    printf '%s' "$url" > "$(stamp_path "$dest")"
 }
 
 fetch "https://github.com/${YTDLP_REPO}/releases/download/${YTDLP_VERSION}/${ytdlp_asset}" \
@@ -107,7 +134,7 @@ fetch "https://github.com/quickjs-ng/quickjs/releases/download/${QUICKJS_TAG}/${
 # mpv, Windows only for now. Linux and macOS keep using a system mpv; see
 # SNAT-0013 for why those two are harder (nested AppImage / .app bundle).
 if [ "$exe_suffix" = ".exe" ]; then
-    if [ ! -x "$BIN_DIR/mpv/mpv.exe" ]; then
+    if ! stamp_matches "$BIN_DIR/mpv/mpv.exe" "mpv:${MPV_WIN_TAG}"; then
         echo "    resolving mpv asset for tag ${MPV_WIN_TAG}"
         mpv_url="$(curl --fail --location --silent --show-error --max-time 60 \
             "https://api.github.com/repos/shinchiro/mpv-winbuild-cmake/releases/tags/${MPV_WIN_TAG}" \
@@ -129,6 +156,7 @@ else:
         # 7z ships with the GitHub windows runner and with Git for Windows.
         7z x -y -o"$BIN_DIR/mpv" "$BIN_DIR/mpv.7z" > /dev/null
         rm -f "$BIN_DIR/mpv.7z"
+        printf '%s' "mpv:${MPV_WIN_TAG}" > "$(stamp_path "$BIN_DIR/mpv/mpv.exe")"
     else
         echo "    cached: mpv/mpv.exe"
     fi
