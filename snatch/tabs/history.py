@@ -6,7 +6,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime
 
-from ..utils import clear_treeview
+from ..utils import clear_treeview, write_private_json
 from ..platform_utils import open_path
 
 
@@ -58,22 +58,40 @@ class HistoryTabMixin:
         """Load history from cache or JSON file"""
         if self._history_cache is not None:
             return self._history_cache
+        # Nothing here may raise. _load_history_into_tree calls this from
+        # _create_history_tab, which runs inside SnatchApp.__init__ — so an
+        # unreadable or malformed history.json used to stop the app launching
+        # at all, with no UI route to repair it. Only FileNotFoundError and
+        # JSONDecodeError were caught; PermissionError, UnicodeDecodeError,
+        # IsADirectoryError and valid-but-wrong-shaped JSON all escaped.
+        self._history_cache = []
         try:
-            with open(self.history_file, "r") as f:
-                self._history_cache = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
-            self._history_cache = []
+            with open(self.history_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, ValueError):
+            return self._history_cache
+        # ValueError above covers JSONDecodeError and UnicodeDecodeError.
+        # A bare 5 or {"a": 1} parses fine and then breaks the consumers, so
+        # the shape is checked rather than assumed.
+        if isinstance(data, list):
+            self._history_cache = [e for e in data if isinstance(e, dict)]
         return self._history_cache
 
     def _save_history(self, history):
-        """Save history list to JSON file and update cache"""
-        self._history_cache = history
+        """Save history to disk, then update the cache. Reports a failure.
+
+        The order matters: the cache used to be assigned first, so a failed
+        write left memory and disk disagreeing and the user looking at a
+        healthy list that was not saved. And the failure was swallowed
+        entirely, so both callers reported success.
+        """
         try:
-            fd = os.open(self.history_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-            with os.fdopen(fd, "w") as f:
-                json.dump(history, f, indent=2)
-        except OSError:
-            pass
+            write_private_json(self.history_file, history)
+        except OSError as exc:
+            if hasattr(self, "status_var"):
+                self.status_var.set(f"Could not save history: {exc.strerror or exc}")
+            return
+        self._history_cache = history
 
     def _add_history_entry(self, title, url, fmt, path):
         """Add a new download to history"""

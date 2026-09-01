@@ -8,6 +8,7 @@ from tkinter import ttk, messagebox
 from . import HAS_DND, __version__
 from .platform_utils import app_data_dir
 from .theme import THEMES, get_theme, set_theme, setup_styles
+from .utils import write_private_json
 from .player import PlayerMixin
 from .version import VersionMixin
 from .downloader import DownloaderMixin
@@ -145,9 +146,7 @@ class SnatchApp(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
             "last_tab": self.notebook.index(self.notebook.select()),
         }
         try:
-            fd = os.open(self.config_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-            with os.fdopen(fd, "w") as f:
-                json.dump(config, f, indent=2)
+            write_private_json(self.config_file, config)
         except OSError:
             pass
 

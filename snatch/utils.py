@@ -1,6 +1,59 @@
 """Shared utility functions"""
 
+import contextlib
+import os
+import json
 import subprocess
+import tempfile
+
+
+@contextlib.contextmanager
+def atomic_private_write(path):
+    """Write `path` atomically, owner-only (0o600), yielding a text handle.
+
+    Replaces `os.open(path, O_WRONLY | O_CREAT | O_TRUNC, 0o600)`, which was
+    used for config.json, cookies.txt and history.json and does not deliver
+    what those three need.
+
+    The mode argument applies ONLY when the file is created. An existing file
+    -- from an older build, a restore, a copy -- keeps whatever bits it
+    already had, so the 0o600 that CLAUDE.md states as a guarantee for all
+    user data files was merely usual. Here the content is written to a fresh
+    temp file whose mode is set explicitly, and os.replace installs that
+    inode, so the permissions hold whatever the target was.
+
+    O_TRUNC also empties the target before the new content arrives, so a
+    failure part-way (disk full, quota) left a truncated file where a
+    complete one had been -- and for history.json that truncation then read
+    back as "no history" and was overwritten on the next save. Nothing is
+    destroyed here until a complete file is ready to take its place.
+
+    The temp file is created in the target's own directory because os.replace
+    is atomic only within one filesystem. Encoding is explicit: the callers
+    were text-mode with no `encoding=`, so the locale decided, and a non-ASCII
+    cookie value raised UnicodeEncodeError under LC_ALL=C.
+    """
+    directory = os.path.dirname(os.path.abspath(path)) or "."
+    fd, tmp = tempfile.mkstemp(
+        prefix="." + os.path.basename(path) + "-", dir=directory)
+    try:
+        os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            yield handle
+        os.replace(tmp, path)
+        tmp = None
+    finally:
+        if tmp is not None:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+
+
+def write_private_json(path, data):
+    """Serialise `data` to `path` via atomic_private_write. Raises on failure."""
+    with atomic_private_write(path) as handle:
+        json.dump(data, handle, indent=2)
 
 
 def format_duration(seconds):

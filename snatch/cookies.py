@@ -6,6 +6,8 @@ import sqlite3
 import tempfile
 import configparser
 
+from .utils import atomic_private_write
+
 
 def find_firefox_cookies_db():
     """Find Firefox's cookies.sqlite by reading profiles.ini"""
@@ -89,9 +91,10 @@ def extract_browser_cookies(browser, cookies_out):
                 if not rows:
                     return None
 
-                # Write Netscape cookie format (restrictive permissions)
-                fd = os.open(cookies_out, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-                with os.fdopen(fd, "w") as f:
+                # Netscape cookie format, owner-only and written atomically.
+                # A plain os.open(..., O_CREAT, 0o600) would leave an existing
+                # cookies.txt on whatever mode it already had.
+                with atomic_private_write(cookies_out) as f:
                     f.write("# Netscape HTTP Cookie File\n")
                     f.write("# Extracted from Firefox by Snatch\n\n")
                     for host, name, value, path, expiry, secure, _httponly in rows:
