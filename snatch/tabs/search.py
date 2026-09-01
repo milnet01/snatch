@@ -203,6 +203,18 @@ class SearchTabMixin:
         ttk.Label(seek_frame, textvariable=self.player_time_var,
                   style="Version.TLabel").pack(side=tk.RIGHT)
 
+        # Where mpv's IPC transport is not reachable, say so rather than
+        # shipping controls that quietly do nothing. On Windows mpv serves
+        # --input-ipc-server over a named pipe, not a filesystem socket, so
+        # every _mpv_command returns None there. Stop and Fullscreen do not
+        # use IPC and stay live.
+        if not self._ipc_supported():
+            for widget in (self.play_pause_btn, self.volume_scale,
+                           self.seek_scale):
+                widget.state(["disabled"])
+            self.player_time_var.set("transport controls unavailable "
+                                     "on this platform")
+
         # Same authority as the Play button and the player itself: a packaged
         # build ships mpv, which shutil.which() cannot see.
         if not find_mpv():

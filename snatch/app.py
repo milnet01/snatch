@@ -264,6 +264,22 @@ class SnatchApp(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
         if hasattr(self, 'history_tree'):
             self._load_history_into_tree()
 
+        # Restore the update button. create_widgets rebuilds it as a disabled
+        # "Up to date", while version_var survives and keeps showing the old
+        # text — so a user with a pending yt-dlp update who changed theme was
+        # left with a disabled button contradicting the label and no route to
+        # the update until restart.
+        if self.latest_version and self.current_version and \
+                self._version_compare(self.latest_version, self.current_version) > 0:
+            # Deliberately NOT _show_update_available(): that ends in
+            # _prompt_update(), which opens a modal dialog. Calling it here
+            # would pop an update prompt on every theme switch. Only the
+            # button state needs restoring; the user has already been asked.
+            self.update_btn.config(text=f"Update to {self.latest_version}",
+                                   state=tk.NORMAL)
+        else:
+            self._refresh_idle_button()
+
         # Update format tree tag colors
         if hasattr(self, 'format_tree'):
             self.format_tree.tag_configure("video_only", foreground=theme.VIDEO_ONLY)

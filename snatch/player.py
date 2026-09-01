@@ -166,10 +166,34 @@ class PlayerMixin:
         if self._fullscreen:
             self.root.bind("<Escape>", lambda e: self._toggle_fullscreen())
         else:
-            self.root.unbind("<Escape>")
+            # Restore, do not unbind. root.unbind("<Escape>") removes EVERY
+            # Escape binding, including app.py's cancel_download — which
+            # STANDARDS.md section 9 documents as a shortcut. Nothing rebound
+            # it, so one fullscreen round-trip silently and permanently killed
+            # a shipped feature.
+            self.root.bind("<Escape>", lambda e: self.cancel_download())
+
+    @staticmethod
+    def _ipc_supported():
+        """True where this app can talk to mpv's IPC server.
+
+        mpv's own options.rst: "On Windows, named pipes are used, so the path
+        refers to the pipe namespace." So --input-ipc-server creates no
+        filesystem object there, os.path.exists is False forever, and every
+        _mpv_command returned None — leaving play/pause, volume, seek and the
+        position readout inert on a platform this project builds and ships,
+        silently, because the handler below swallows everything.
+
+        Reaching Windows means a named-pipe client rather than AF_UNIX, which
+        is a feature and not this fix. What this does is stop pretending: the
+        controls are disabled with a visible reason instead of doing nothing.
+        """
+        return not is_windows() and hasattr(socket, "AF_UNIX")
 
     def _mpv_command(self, command):
         """Send a command to mpv via IPC socket and return response"""
+        if not self._ipc_supported():
+            return None
         if not self.mpv_socket_path or not os.path.exists(self.mpv_socket_path):
             return None
         try:
