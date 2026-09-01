@@ -28,10 +28,43 @@ def main():
     print()
 
     # Sanity asserts — fail loud if something looks wrong.
-    assert os.path.isdir(pu.app_data_dir()), "app_data_dir must exist"
-    if pu.is_frozen():
-        assert pu.find_ytdlp() != "yt-dlp", \
-            "frozen build must resolve yt-dlp to a real path (bundled or PATH)"
+    #
+    # These run UNCONDITIONALLY. They used to sit behind `if pu.is_frozen():`,
+    # and sys.frozen is set only inside a PyInstaller bundle — while all four
+    # call sites (build-linux.sh:20, build-windows.sh:20, build-macos.sh:22,
+    # local-ci.sh:68) run this as a plain script, every one of them BEFORE
+    # PyInstaller. So the branch never executed on any platform and the file
+    # asserted nothing at all. Each build script fetches the bundled binaries
+    # at step 1, so by the time this runs they are on disk in both modes.
+    assert os.path.isdir(pu.app_data_dir()), \
+        f"app_data_dir must exist: {pu.app_data_dir()}"
+
+    ytdlp = pu.find_ytdlp()
+    assert ytdlp != "yt-dlp", \
+        "find_ytdlp fell through to the bare literal — no bundled copy, none " \
+        "in user_bin_dir, and none on PATH"
+    assert os.path.isfile(ytdlp), f"find_ytdlp returned a non-file: {ytdlp}"
+
+    # The one above passes when yt-dlp is merely on PATH, which is a legitimate
+    # runtime answer and NOT what a build needs: PyInstaller is about to bundle
+    # the copy in bin/. Measured while writing this — hiding bin/yt-dlp on a
+    # machine with /usr/local/bin/yt-dlp left the assert green, so it would have
+    # caught nothing here and only worked by accident on a bare runner.
+    assert pu._find_bundled_binary("yt-dlp") is not None, \
+        "no bundled yt-dlp — run scripts/fetch-binaries.sh before building"
+    assert pu._find_bundled_binary("ffmpeg") is not None, \
+        "no bundled ffmpeg — run scripts/fetch-binaries.sh before building"
+
+    ffmpeg = pu.find_ffmpeg()
+    assert ffmpeg is not None, "find_ffmpeg found neither a bundled copy nor one on PATH"
+    assert os.path.isfile(ffmpeg), f"find_ffmpeg returned a non-file: {ffmpeg}"
+
+    icon = pu.resource_path("icon.png")
+    assert os.path.isfile(icon), f"resource_path could not locate icon.png: {icon}"
+
+    assert os.path.isdir(pu.user_bin_dir()), \
+        f"user_bin_dir must exist and be a directory: {pu.user_bin_dir()}"
+
     print("OK")
 
 
