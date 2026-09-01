@@ -56,6 +56,9 @@ local run and hide the real build result.
 | yt-dlp (Python library) | `requirements.txt` | 2026.7.4 |
 | ffmpeg + ffprobe | `scripts/fetch-binaries.sh` | ffmpeg-static `b6.1.1` |
 | QuickJS | `scripts/fetch-binaries.sh` | `v0.16.1` |
+| mpv (Windows only) | `scripts/fetch-binaries.sh` | `MPV_WIN_TAG=20260814` |
+| AppImage type2 runtime | `scripts/build-linux.sh` | `20251108` (SHA-256 pinned) |
+| appimagetool | `scripts/build-linux.sh` | `1.9.1` (SHA-256 pinned) |
 | PyInstaller | `.github/workflows/ci.yml` | 6.11.1 |
 
 **The two yt-dlp pins are deliberately different versions, and do NOT move
@@ -71,9 +74,16 @@ three platforms, so there is a single pin to move.
 ### The bundled yt-dlp is a floor, not the last word
 
 Since SNAT-0016 a packaged build can fetch a newer nightly for itself, into
-`app_data_dir()/bin/` (see below), and `find_ytdlp()` prefers that copy. The
-bundled binary stays as the fallback, so a failed or half-written download can
-never leave the app with no yt-dlp. `snatch/version.py` holds the channel
+`app_data_dir()/bin/` — `app_data_dir()/bin/updated/` when running from
+source — and `find_ytdlp()` prefers that copy. The bundled binary stays as the
+fallback, so a failed or half-written download can never leave the app with no
+yt-dlp. The `updated/` split exists because from source `app_data_dir()` is the
+repo root, so the plain path is the same `bin/` that `fetch-binaries.sh` fills
+with the pinned copy: before 2026-09-01 a self-update overwrote the pin and
+there was no floor left, while this sentence said otherwise.
+
+Downloads are verified against the `SHA2-256SUMS` file the same yt-dlp release
+publishes, before the file is made executable and before it is run. `snatch/version.py` holds the channel
 constants, and they must name the same repo `fetch-binaries.sh` does — a
 self-update that pulled stable would be a downgrade.
 
@@ -108,8 +118,13 @@ git push --follow-tags origin main
 
 ## Known rough edges
 
-- **The AppImage runtime tracks `continuous`**, not a fixed version, while
-  everything else is pinned (SNAT-0009).
+- **The AppImage runtime and `appimagetool` are pinned and checksummed**
+  (type2-runtime `20251108`, appimagetool `1.9.1`), with a per-arch SHA-256 in
+  `build-linux.sh`. Both used to track `continuous` — this entry previously
+  said the runtime was the only unpinned thing, and `appimagetool` was
+  unpinned too. To move a pin, change the version, run the build, and replace
+  the digest with the one the mismatch message prints. An architecture with no
+  recorded digest exits rather than skipping the check.
 - **`appimagetool` will hang forever** if left to download that runtime
   itself — observed blocked in a futex at 0% CPU with no output. `build-linux.sh`
   fetches it up front and passes `--runtime-file` so a network problem fails

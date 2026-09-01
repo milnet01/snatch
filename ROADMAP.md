@@ -413,6 +413,27 @@ and application work. IDs are allocated from `.roadmap-counter`.
 
   This is SNAT-0031's question turned around: that one is about verifying
   what we consume, this is about letting others verify what we ship.
+  Correction (2026-09-01): this bullet's evidence line is now false and
+  its subject is not.
+
+  The body says "no checksum file anywhere in the repo -- grepping for
+  sha256/shasum/checksum/gpg across scripts/ and the workflow returns
+  [nothing]". Re-derived today rather than re-read: that grep now returns
+  16 matches. build-linux.sh records and verifies SHA-256 digests for the
+  AppImage runtime and appimagetool (SNAT-0031), and snatch/version.py
+  verifies the self-update against the SHA2-256SUMS file the yt-dlp
+  release publishes.
+
+  None of that changes what this bullet asks for. Those are checksums this
+  project CONSUMES; SNAT-0036 is about checksums this project PUBLISHES,
+  so that someone downloading a Snatch release can verify it. The release
+  job still emits no SHA256SUMS, no signature and no attestation. The
+  bullet stands; only its "nothing anywhere" framing has expired.
+
+  Worth noting for whoever picks it up: the yt-dlp nightly releases carry
+  both SHA2-256SUMS and SHA2-256SUMS.sig, which is a working example of
+  the shape this bullet proposes, published by a project of comparable
+  size.
   **Layman:** Someone downloading Snatch has no way to check the file they got is the one we published.
   Kind: security.
   Source: in-session-2026-08-20.
@@ -803,6 +824,38 @@ and application work. IDs are allocated from `.roadmap-counter`.
   original bullet was written from a `wc -l snatch/*.py` that also missed
   snatch/tabs/ entirely -- the same glob, the same blind spot, and the
   reason its line count read 2,712 rather than 3,865.
+  Correction (2026-09-01): this bullet's own correction was itself wrong.
+  The 2026-08-20 note says scripts/verify_platform_utils.py "carries two
+  real asserts ... so a failure does fail the build. That is a genuine
+  gate, and it runs on Windows and macOS where nothing else does." It did
+  not gate anything on any platform.
+
+  One assert sat behind `if pu.is_frozen():`, and sys.frozen is set only
+  inside a PyInstaller bundle. All four call sites -- build-linux.sh:20,
+  build-windows.sh:20, build-macos.sh:22, local-ci.sh:68 -- run it as a
+  plain script, every one of them BEFORE PyInstaller, which is also the
+  reverse of the file's own docstring. The other assert,
+  `os.path.isdir(pu.app_data_dir())`, resolves in dev mode to the repo
+  root the script was just loaded from, so it could not fail. Confirmed
+  by running the pre-fix file with bin/yt-dlp hidden: exit 0.
+
+  Fixed today. The asserts run unconditionally and cover find_ytdlp,
+  find_ffmpeg, resource_path, user_bin_dir and app_data_dir, plus a
+  separate _find_bundled_binary check for yt-dlp and ffmpeg. That second
+  check exists because the obvious one was weaker than it looked: hiding
+  bin/yt-dlp left `find_ytdlp() != "yt-dlp"` green, because it fell
+  through to /usr/local/bin/yt-dlp on PATH. On a bare CI runner it would
+  have worked by accident. Proved red three ways and green when restored.
+
+  What the bullet asks for is unchanged and still open: this is a
+  build-time smoke check on one module, not a test suite for 3,865 lines,
+  and it would still not have caught either version.py bug. Two things
+  from the 2026-08-31 review sweep sharpen the starting point. CI's only
+  Python check is `python -m compileall`, which proves each file parses
+  and never imports the package -- which is exactly how SNAT-0041 shipped
+  a guaranteed NameError at startup that survived two sessions. A single
+  line, `python -c "import snatch, snatch.app, snatch.tabs.search"`,
+  would have caught it. See SNAT-0044.
   **Layman:** Nothing automatically checks that Snatch still works after a change, so a mistake can reach users unnoticed.
   Kind: test.
   Source: in-session-2026-08-20.
@@ -1037,6 +1090,32 @@ and application work. IDs are allocated from `.roadmap-counter`.
 
   Pairs with SNAT-0036, which is the same question asked about what WE
   publish rather than what we consume.
+  Progress (2026-09-01): the build TOOLING half is done; the five bundled
+  binaries this bullet enumerates are untouched and still unverified.
+
+  The 2026-08-31 review sweep found two unverified downloads this bullet
+  does not cover, because they are not bundled binaries: the AppImage
+  type2 runtime, which becomes the first bytes of the artifact every user
+  executes, and appimagetool, which runs on the build host. Both came from
+  a rolling `continuous` tag with no pin and no hash, and the runtime's
+  cache test was `[ ! -s "$runtime" ]` -- non-emptiness -- so once a file
+  landed it was trusted forever. appimagetool was worse: `command -v`
+  silently preferred any system copy of unknown version.
+
+  Both are now pinned to immutable tags (type2-runtime 20251108,
+  appimagetool 1.9.1) with a per-arch SHA-256 recorded in build-linux.sh,
+  verified before use, and an unrecorded architecture exits rather than
+  skipping the check. Verified: a corrupted cached runtime is rejected
+  where the old test accepted it, a digest mismatch exits 1 leaving no
+  .part, and a full build with the pinned tools produces a working 98 MB
+  AppImage.
+
+  Still open, and unchanged: yt-dlp, ffmpeg, ffprobe, qjs and mpv are
+  fetched by scripts/fetch-binaries.sh with no hash check at all. What
+  landed there today is a version-keyed cache (a pin bump used to be
+  silently ignored) and --proto '=https' on every curl, not integrity.
+  The fetch_verified/cached_ok pair in build-linux.sh is the shape to
+  reuse.
   **Layman:** Snatch downloads its helper programs from the internet and runs them without checking they are the files we expect.
   Kind: security.
   Source: in-session-2026-08-20.
@@ -1593,3 +1672,250 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: security.
   Source: check-code-tree-2026-08-31.
   Lanes: ci, supply-chain.
+
+- 📋 [SNAT-0048] **Blocking work still runs on the GUI thread, and a Tk variable is still read from a worker.**
+  STANDARDS.md 4.1 rule 1 ("All blocking operations run in daemon
+  threads") and rule 2 ("Never modify GUI from a thread") are both
+  unconditional, and three lanes of the 2026-08-31 sweep found breaches
+  independently. Two of the four are fixed; these two are not.
+
+  1. player.py:171-205 `_mpv_command` opens a socket, sendall's and
+  recv's with settimeout(0.5), and every caller runs it on the MAIN GUI
+  thread: `_update_player_state` (:290), `_on_volume_change` (:261),
+  `_on_seek_release` (:270), `_toggle_play_pause` (:224).
+  `_on_volume_change` is a Scale `command` callback, so it fires once per
+  drag increment, each a full connect/round-trip/close. Against a wedged
+  mpv the UI freezes 0.5 s per event, and the poller does two round-trips
+  every 500 ms. Fix: hold one persistent socket, or move `_mpv_command`
+  onto a worker and marshal results back with root.after(0, ...) as 4.2
+  prescribes.
+
+  2. downloader.py:223 calls `_extract_browser_cookies()` inside
+  `_fetch_formats_thread`, and that method does
+  `self.cookies_file_var.set(result)` at downloader.py:109 -- a Tk
+  variable WRITE from a daemon thread. Fix: return the path and set the
+  var inside root.after(0, ...).
+
+  Also filed here because it is the same class: search.py:318 reads
+  `self.search_duration_var.get()` inside `_search_thread`. Depending on
+  the _tkinter build that takes the Tcl lock or raises RuntimeError. Fix:
+  read it in `_perform_search` on the main thread and pass it as a third
+  args= element, as `search_target` and `count` already are.
+
+  Not done in the 2026-09-01 fix pass, which was scoped to CRITICAL and
+  HIGH. These are the MEDIUM tail of the same contract.
+  **Layman:** Some buttons talk to the video player in a way that can freeze the window, and one search setting is read from the wrong place, which can crash on some systems.
+  Kind: fix.
+  Source: review-code-sweep-2026-08-31.
+  Lanes: threading.
+
+- 📋 [SNAT-0049] **Search can start twice, and then claims to be searching forever.**
+  search.py:223-226 `_start_search_anim` does not cancel an in-flight
+  animation, and `_perform_search` has no re-entrancy guard -- the Search
+  button (:47) and <Return> (:34, :43) all call it unconditionally.
+
+  Two clicks start two `after` chains. `_tick_search_anim` (:233) stores
+  its id into the same attribute, so `_stop_search_anim` can cancel only
+  one of them. The survivor rewrites `search_status_var` every 400 ms
+  forever, overwriting the "N results" line at :359, so the UI reads
+  "Searching....." indefinitely after the search has finished.
+
+  The same missing guard starts a second 120-second yt-dlp subprocess per
+  click, and opens a window in which `self.search_results` (set from the
+  thread at :331) and the tree contents (set at :355) come from DIFFERENT
+  searches -- so a click downloads a different video from the one
+  highlighted. That last consequence is the reason this is not merely
+  cosmetic.
+
+  Fix: call `self._stop_search_anim()` as the first line of
+  `_start_search_anim`, and gate `_perform_search` on an `is_searching`
+  flag that the display and error callbacks clear. The equivalent guard
+  for downloads landed on 2026-09-01; this one did not.
+
+  Related open question the lane could not settle: search.py:331 sets
+  search_results from the thread while app.py:251 clears it on a theme
+  switch, so a theme change during an in-flight search may leave the tree
+  populated with search_results empty, and every row then reports "Select
+  a search result first".
+  **Layman:** Clicking Search twice leaves the box saying "Searching..." for good, runs two searches at once, and can download a different video from the one you picked.
+  Kind: fix.
+  Source: review-code-sweep-2026-08-31.
+  Lanes: ui, search.
+
+- 📋 [SNAT-0050] **Parsers assume shapes that yt-dlp and ffprobe do not guarantee.**
+  search.py:311-332 makes two shape assumptions about
+  `yt-dlp -J --flat-playlist` that the tool does not guarantee.
+  `data.get("entries", [])` returns None rather than [] when a playlist
+  has no listable children, because yt-dlp emits JSON null there, and
+  `for entry in entries` then raises TypeError. Individual elements are
+  also null for deleted, private or region-blocked videos, so
+  `entry.get(...)` raises AttributeError. Inside the thread that lands in
+  the catch-all at :336 and shows a bare exception string; in
+  `_display_search_results` (:344, main thread, no try) it is an
+  unhandled Tk traceback with the tree half-populated. Fix:
+  `entries = data.get("entries") or []` then filter on isinstance dict.
+
+  media_info.py:112 runs ffprobe with `capture_output=True` and no output
+  cap. A file with thousands of streams or chapters sends unbounded stdout
+  into memory and then into a tk.Text.
+
+  Open question the lane could not settle without running it: for a
+  channel path (`https://www.youtube.com/@x/videos`) does
+  `-J --flat-playlist` return videos directly, or a nested tab-playlist
+  whose entries are themselves playlists? search.py:311 assumes flat. If
+  it is nested, the results table shows tab names rather than videos.
+
+  Also: downloader.py:288 reads a thumbnail response with no byte cap.
+  The URL comes from remote JSON (:272) and the 10 s timeout at :287
+  bounds latency, not size. STANDARDS.md 6.3 requires capping network
+  buffers.
+  **Layman:** Some kinds of playlist or video make Snatch fail with a raw error instead of a clear message.
+  Kind: fix.
+  Source: review-code-sweep-2026-08-31.
+  Lanes: parsing.
+
+- 📋 [SNAT-0051] **The config loader crashes the app on four corrupt shapes it does not catch.**
+  STANDARDS.md 7.3 promises "Graceful fallback: Returns {} on
+  missing/corrupt config". app.py:123-129 catches only FileNotFoundError
+  and json.JSONDecodeError, so four shapes escape and crash startup:
+  valid JSON that is not an object (AttributeError on `saved_config.get`
+  at app.py:47), UnicodeDecodeError, and PermissionError /
+  IsADirectoryError.
+
+  A fifth is type confusion rather than a parse failure: `last_tab`
+  (app.py:108-109) goes straight into `0 <= last_tab < ...`, so
+  `"last_tab": "2"` raises TypeError, and `window_geometry` (app.py:101)
+  goes straight to `self.root.geometry(...)`, so a malformed value raises
+  TclError.
+
+  The identical defect in history.json was fixed on 2026-09-01 -- widen
+  to `except (OSError, ValueError)` and validate the shape before use.
+  This is the same fix in the other file; it was left because it is
+  MEDIUM where the history one was HIGH (history.json is written far more
+  often, so it is the one likely to be found truncated). The atomic write
+  half IS already done here: app.py:148 now goes through
+  utils.write_private_json.
+
+  Related, same file: app.py:101's saved geometry is `WxH+X+Y`, not
+  `WxH` as STANDARDS.md 7.1 describes, so a geometry saved on a monitor
+  that is no longer attached reopens the window off-screen. And
+  theme.py:215-219 falls back to DarkTheme for an unknown theme name
+  while theme_var keeps the bogus string, which _save_config then writes
+  back -- so a typo'd theme name is persisted forever while the app
+  silently runs Dark.
+  **Layman:** A damaged settings file can stop Snatch opening, and the only fix is deleting a file you cannot see is the cause.
+  Kind: fix.
+  Source: review-code-sweep-2026-08-31.
+  Lanes: config.
+
+- 📋 [SNAT-0052] **The mpv socket lands in a shared /tmp with a predictable name.**
+  CLAUDE.md's mandatory rules say "Validate directory ownership for
+  security-sensitive paths (mpv socket)" without qualification.
+  player.py:100-102 validates only the XDG_RUNTIME_DIR branch: the
+  fallback it jumps to is never checked at all, and the socket is then
+  placed at `snatch-mpv-{os.getpid()}` -- fully predictable.
+
+  On a Linux box with no XDG_RUNTIME_DIR (non-systemd, an su session, a
+  container) that is /tmp: shared, world-writable, sticky. mpv's IPC
+  accepts every input command including loadfile and run, so whoever can
+  connect owns the process's command surface. Whether they can depends on
+  the inherited umask, which this code does not control. Secondary: the
+  check tests st_uid but not mode, so a self-owned 0777 runtime dir
+  passes.
+
+  Fix: `tempfile.mkdtemp(prefix="snatch-")`, which is 0700 by
+  construction, put the socket inside it, and shutil.rmtree it in
+  _stop_player. That also removes the predictable name. The same edit
+  fixes player.py:103-104, where an unguarded os.unlink -- the sibling
+  copy at :243-247 IS guarded -- raises an uncaught PermissionError out
+  of _play_in_mpv if the path is squatted in a sticky /tmp, producing a
+  traceback and no player.
+
+  Raw severity from the lane was HIGH; calibrated to MEDIUM for the
+  2026-09-01 pass because it requires a hostile local user on a shared
+  machine, which is outside this app's derived threat model. Kept
+  visible: it is a mandatory rule stated unconditionally and the fix is
+  small. Note the project has no SECURITY.md and no written threat model,
+  so that calibration was derived rather than read -- see SNAT-0054.
+
+  Same file, lower: player.py:129 puts the cookie file path in mpv's
+  argv, readable from /proc/<pid>/cmdline by any local user, against
+  STANDARDS.md 5.2. A comma anywhere in that path also silently breaks
+  mpv's option parsing.
+  **Layman:** On a computer shared with other people, another user could in principle send commands to Snatch's video player.
+  Kind: security.
+  Source: review-code-sweep-2026-08-31.
+  Lanes: security.
+
+- 📋 [SNAT-0053] **Install advice, exception handling and constants have drifted apart across modules.**
+  Three related classes from the 2026-08-31 sweep, none individually
+  worth its own item.
+
+  DIVERGED INSTALL ADVICE. media_info.py:122-127 branches two ways --
+  Windows, else "sudo apt install ffmpeg". player.py:14-36
+  `_no_player_message()` branches THREE ways and its docstring records
+  why: "The advice here used to be 'sudo apt install mpv' on every
+  platform, which is wrong on Windows and macOS." That fix was never
+  applied to the ffmpeg copy, so a macOS user with no ffmpeg is told to
+  run apt, and so is every openSUSE, Fedora and Arch user -- on a project
+  whose own primary machine is openSUSE. Fix: hoist a shared
+  `_install_hint(tool)` into platform_utils and have both call it.
+
+  BROAD EXCEPT. version.py:70, :88, :110, :265 are four bare
+  `except Exception:`, two of which discard the exception object
+  entirely: :70 reports "yt-dlp not found" for a TimeoutExpired, a
+  PermissionError or a corrupt binary alike, and :88 collapses every
+  failure of the GitHub check into "Check failed".
+  ~/.claude/standards/languages/python.md is explicit -- "Catch what you
+  can name". This is the class of blindness that let both SNAT-0020 bugs
+  ship through two releases. Same shape at player.py:204 and
+  cookies.py:109.
+
+  MAGIC NUMBERS. search.py:297 (timeout=120), :323-327 (240, 1200),
+  media_info.py:112 (timeout=30), version.py:63 and :78 (timeout=10),
+  utils.py:53 (timeout=300). CLAUDE.md and STANDARDS.md 6.4 both require
+  named constants for timeouts and thresholds, and several of these
+  modules already define some.
+
+  Also: cookies.py:109-111 reports the whole Firefox extraction failure
+  with `print()`, which in a packaged windowed build goes nowhere -- and
+  the printed text carries the sqlite path, against STANDARDS.md 5.2. See
+  SNAT-0045 for the underlying absence of any logging path.
+  **Layman:** Snatch tells Mac and Linux users the wrong command to install a missing tool, and hides the reason when something fails.
+  Kind: fix.
+  Source: review-code-sweep-2026-08-31.
+  Lanes: consistency.
+
+- 📋 [SNAT-0054] **There is no written threat model, so every security judgement is derived rather than read.**
+  The project has no SECURITY.md, no threat-model section in README.md or
+  STANDARDS.md, and no .semgrep.yml threat block. STANDARDS.md section 5
+  states security RULES -- validate URLs, use --, no shell=True, 0o600,
+  realpath, HTTPS-only -- but never says who the adversary is.
+
+  This surfaced during the 2026-08-31 review sweep, where the severity
+  calibration had to be performed against a model derived from what the
+  app is rather than one the project had written down. That was stated in
+  the report as a weaker basis than it should be. Two findings were
+  calibrated DOWN on it -- the /tmp mpv socket (SNAT-0052) and the
+  unvalidated binary-execution directory in platform_utils.py:162 -- and
+  two calibrated UP, the self-update integrity gap and the AppImage
+  runtime, both since fixed. If the derived model is wrong, those four
+  moved the wrong way.
+
+  The model that was derived, and which is the thing to confirm or
+  replace: a single-user desktop GUI run by its owner on their own
+  machine; no service, no multi-tenancy, no untrusted local users
+  assumed. The adversaries that reach it in practice are the remote
+  endpoints it fetches from (the yt-dlp nightly releases, the GitHub API,
+  thumbnail CDNs, the AppImage runtime), and the content it was asked to
+  fetch and parse. A hostile local user on a shared machine is real but
+  secondary.
+
+  Writing that down is maybe twenty lines, and it converts every future
+  security judgement in this project from a guess into a lookup. It also
+  gives review-code's threat-model calibration step something to read,
+  which is the specific thing it went without.
+  **Layman:** Nobody has written down who Snatch is defending against, so each person deciding whether something is a security problem has to guess.
+  Kind: doc.
+  Source: review-code-sweep-2026-08-31.
+  Lanes: security, docs.

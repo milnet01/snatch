@@ -35,6 +35,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **The player's controls say when they cannot work**
+  On Windows the play/pause, volume and seek controls could never do
+  anything, because Snatch talks to the video player in a way Windows
+  does not provide. They looked normal and silently ignored every
+  click. They are now greyed out with a note saying so. Stop and
+  Fullscreen are unaffected and still work.
+
+- **Reverting to the bundled yt-dlp works when running from source**
+  Running Snatch from source rather than a packaged build, downloading a
+  newer yt-dlp overwrote the copy that shipped with it — so the promise
+  in the update dialog, that you could always go back, was not true
+  there. Downloaded copies are now kept separately, and the Revert
+  button is offered in that mode too.
+
+- **Changing theme no longer hides a waiting update**
+  If a yt-dlp update was available and you changed the colour theme, the
+  Update button reset itself to "Up to date" and greyed out, while the
+  version label still said an update was there. The only way back was
+  restarting.
+
+- **Escape cancels downloads again after using fullscreen**
+  Leaving fullscreen in the video player silently removed the Escape
+  shortcut for cancelling a download, for the rest of the session.
+
+- **The format list no longer offers thumbnail sheets as video**
+  YouTube returns a few entries that are neither video nor audio — they
+  are contact sheets of preview thumbnails. Snatch was listing them as
+  though they were normal video, including in the resolution filters,
+  and downloading one reported success. On a typical video that was 6
+  entries out of 53. They are no longer listed.
+
+- **Queued downloads are recorded under their own name**
+  Every download started from the queue was saved to your history with
+  the title and quality of a different video — whichever one you had
+  looked at last. The queue already knew the right name; it just was
+  not being used.
+
+- **Two downloads at once no longer interfere with each other**
+  The Download button greys out while a download runs, but the keyboard
+  shortcut and the Quick Select buttons did not, so a second download
+  could still be started. The two then tripped over each other and one
+  would fail with a confusing error. Starting a second download now
+  tells you one is already running.
+
+  Cancelling is cleaner too: pressing Escape no longer pops an error
+  message of its own, and the progress bar no longer flickers back to a
+  stale percentage afterwards.
+
+- **A damaged history file no longer stops Snatch opening**
+  If history.json was unreadable or its contents were not what Snatch
+  expected, the app failed to start at all, and there was no way to fix
+  it from inside the app. It now starts with an empty history instead.
+
+- **Your settings, cookies and history are now really kept private**
+  All three files were meant to be readable only by you. That was true
+  when they were first created and quietly stopped being true for any
+  file that already existed — from an older version, a backup or a
+  copy. It now holds in every case.
+
+  The same change makes saving safe to interrupt. Previously a save
+  that failed part-way (a full disk, for instance) could leave a
+  half-written file behind; for the history that then looked like an
+  empty history and got overwritten. Nothing is replaced now until the
+  new version is complete.
+
 - **Snatch starts again** (SNAT-0041)
   The right-click menu added in this same unreleased batch was wired into
   the Download tab but not the Search or Media Info tabs, and Snatch
@@ -98,6 +163,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   It now tracks the same nightly channel Snatch bundles.
 
 ### Security
+
+- **The Linux build no longer trusts whatever it downloads**
+  The AppImage build pulled two pieces of tooling from a moving target,
+  with nothing checking what arrived — including the small program that
+  becomes the first thing your computer runs when you open Snatch. Both
+  are now locked to a specific version with a recorded fingerprint, and
+  the build stops if what arrives does not match.
+
+- **Updates to yt-dlp are now checked before they are run**
+  When Snatch downloads a newer yt-dlp for itself, it now compares the
+  file against the checksum yt-dlp publishes with that release, before
+  making it runnable and before running it. Previously the only check
+  was running the downloaded file to see whether it worked — which
+  means it had already run.
+
+  Snatch also refuses a download that gets redirected off a secure
+  connection, and refuses a release name that looks like it is trying
+  to point somewhere else.
 
 - **The build pipeline now gets only the access it needs** (SNAT-0035)
   The automated build had permission to write to the whole project, for

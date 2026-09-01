@@ -209,12 +209,28 @@ def _is_valid_url(url):
 
 ### 5.3 File Permissions
 
-Sensitive files are created with restrictive permissions (0o600):
+Sensitive files are written through `utils.atomic_private_write`, or
+`utils.write_private_json` for JSON:
+
 ```python
-fd = os.open(filepath, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-with os.fdopen(fd, "w") as f:
-    json.dump(data, f, indent=2)
+from .utils import write_private_json
+write_private_json(filepath, data)          # config.json, history.json
+
+from .utils import atomic_private_write
+with atomic_private_write(path) as f:       # cookies.txt, or any text file
+    f.write(...)
 ```
+
+**Do not use `os.open(path, O_WRONLY | O_CREAT | O_TRUNC, 0o600)`,** which is
+what this section used to show. It does not deliver the guarantee above. The
+mode argument applies ONLY when the file is created, so an existing file keeps
+whatever bits it already had — measured 2026-08-31: a 0644 file rewritten
+through that call stays 0644, on all three of the files listed below. And
+`O_TRUNC` empties the target before the new content is written, so a failure
+part-way leaves a truncated file where a complete one was. The helper writes to
+a temp file in the same directory with an explicit mode and `os.replace`s it
+into place, so both properties hold whatever the target was. It also sets
+`encoding="utf-8"` rather than letting the locale decide.
 
 **Files with restricted permissions:**
 - `config.json` — user preferences
@@ -485,12 +501,25 @@ cmd.extend(["--", url])             # URL always after "--" separator
 
 ```python
 def _get_base_cmd(self):
-    cmd = ["yt-dlp", "--ignore-config", "--remote-components", "ejs:github"]
-    runtimes = [r for r in ("deno", "node", "bun") if shutil.which(r)]
-    if runtimes:
-        cmd.extend(["--js-runtimes", ",".join(runtimes)])
+    cmd = [find_ytdlp(), "--ignore-config", "--remote-components", "ejs:github"]
+    ffmpeg = find_ffmpeg()
+    if ffmpeg:
+        cmd.extend(["--ffmpeg-location", ffmpeg])
+    # ONE FLAG PER RUNTIME. --js-runtimes takes a single RUNTIME[:PATH] and is
+    # repeatable; a comma-joined list is read as ONE runtime with a nonsense
+    # path, which leaves yt-dlp with no JS runtime at all and silently drops
+    # every format behind YouTube's n challenge.
+    for runtime in self._cached_runtimes:
+        cmd.extend(["--js-runtimes", runtime])
     return cmd
 ```
+
+The comma-joined form `",".join(runtimes)` is what this section used to show,
+and SNAT-0043 measured it as broken: `quickjs:<path>,node` yielded 4 formats
+and 0 with video, against 37 and 25 for the repeated-flag form. The runtimes
+this project probes are `deno`, `node`, `quickjs` and `bun`, and the bundled
+`qjs` is passed as `quickjs:<path>` — `scripts/fetch-binaries.sh` and
+`pyinstaller.spec` both ship it on the strength of that mechanism working.
 
 ### 12.3 Cookie Strategy
 
