@@ -342,7 +342,21 @@ class DownloaderMixin:
                 else:
                     note = f"V: {vcodec}, A: {acodec}"
 
-                # Pre-compute type flags and parsed height for filtering
+                # Pre-compute type flags and parsed height for filtering.
+                #
+                # There are FOUR cases, not three. A format carrying neither
+                # stream -- vcodec "none" AND acodec "none" -- is not media at
+                # all: yt-dlp emits these on essentially every YouTube video
+                # as the sb0/sb1 storyboard sheets, ext mhtml. Both flags below
+                # come out False for it, which used to read as "muxed", so it
+                # was tagged [V+A], labelled "Audio: none", kept by the
+                # Video+Audio filter, and -- because it carries width and
+                # height -- filed into a resolution bucket. A user filtering to
+                # Video+Audio / 480p was offered a sheet of thumbnails
+                # presented as video, and downloading it reported success.
+                is_media = not (vcodec == "none" and acodec == "none")
+                if not is_media:
+                    continue
                 is_video_only = vcodec != "none" and acodec == "none"
                 is_audio_only = vcodec == "none" and acodec != "none"
                 parsed_height = None
@@ -574,7 +588,18 @@ class DownloaderMixin:
         self.last_download_format = format_spec[:30]
         self._start_download(format_spec, audio_only=audio_only, merge=merge)
 
-    def _start_download(self, format_spec, audio_only=False, merge=False, queue_mode=False):
+    def _start_download(self, format_spec, audio_only=False, merge=False,
+                        queue_mode=False, history_title=None, history_format=None):
+        # The disabled download_btn is not the control it looks like:
+        # app.py binds <Control-d> to download_selected regardless of widget
+        # state, and the Quick Select buttons are never stored on self and so
+        # are never disabled. Without this, a second download overwrote
+        # self.download_process and the two threads then closed each other's
+        # pipes. _process_queue already guards; this did not.
+        if self.is_downloading and not queue_mode:
+            messagebox.showwarning("Busy", "A download is already in progress")
+            return
+
         url = self.url_var.get().strip()
         save_path = self.save_path_var.get().strip()
 
@@ -598,13 +623,16 @@ class DownloaderMixin:
         self.progress_var.set(0)
         self.status_var.set("Starting download...")
 
-        thread = threading.Thread(target=self._download_thread,
-                                   args=(url, save_path, format_spec, audio_only, merge, queue_mode))
+        thread = threading.Thread(
+            target=self._download_thread,
+            args=(url, save_path, format_spec, audio_only, merge, queue_mode,
+                  history_title, history_format))
         thread.daemon = True
         thread.start()
 
     def _download_thread(self, url, save_path, format_spec, audio_only=False,
-                         merge=False, queue_mode=False):
+                         merge=False, queue_mode=False, history_title=None,
+                         history_format=None):
         try:
             cmd = self._get_base_cmd()
             cmd.extend(self._get_cookie_args())
@@ -634,13 +662,21 @@ class DownloaderMixin:
 
             cmd.extend(["--", url])
 
-            self.download_process = subprocess.Popen(
+            # Bound to a local as well as to self. self.download_process is
+            # what cancel_download reaches, and _reset_ui sets it to None --
+            # which used to land between this thread's pipe close and its
+            # wait(), raising AttributeError into the handler below and
+            # popping "'NoneType' object has no attribute 'wait'" at a user
+            # who had just pressed Escape. The local is this thread's own
+            # handle and cannot be nulled or replaced underneath it.
+            proc = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1
             )
+            self.download_process = proc
 
             try:
                 # Throttle UI updates to avoid flooding the event loop
@@ -648,7 +684,7 @@ class DownloaderMixin:
                 pending_progress = None
                 pending_status = None
 
-                for line in self.download_process.stdout:
+                for line in proc.stdout:
                     if not self.is_downloading:
                         break
 
@@ -683,26 +719,31 @@ class DownloaderMixin:
                             pending_status = None
                         last_ui_update = now
 
-                # Flush any remaining updates
-                if pending_progress is not None:
+                # Flush any remaining updates -- but not on the cancel path.
+                # The loop also exits by `break` when is_downloading goes
+                # false, and these after() callbacks would then land AFTER
+                # cancel_download had written "Download cancelled" and zeroed
+                # the bar, leaving a stale percentage on screen.
+                if self.is_downloading and pending_progress is not None:
                     p = pending_progress
                     self.root.after(0, lambda p=p: self.progress_var.set(p))
                     self.root.after(0, lambda p=p: self._update_title_progress(percent=p))
-                if pending_status is not None:
+                if self.is_downloading and pending_status is not None:
                     s = pending_status
                     self.root.after(0, lambda s=s: self.status_var.set(s))
             finally:
                 # Always close the stdout pipe to release the file descriptor
                 try:
-                    self.download_process.stdout.close()
+                    proc.stdout.close()
                 except Exception:
                     pass
 
-            self.download_process.wait()
+            proc.wait()
 
-            if self.is_downloading and self.download_process.returncode == 0:
+            if self.is_downloading and proc.returncode == 0:
                 self.last_download_path = save_path
-                self.root.after(0, lambda: self._download_complete(queue_mode))
+                self.root.after(0, lambda: self._download_complete(
+                    queue_mode, history_title, history_format))
             elif self.is_downloading:
                 if queue_mode:
                     self.root.after(0, lambda: self._queue_item_failed())
@@ -722,16 +763,25 @@ class DownloaderMixin:
         self.progress_bar.start(15)
         self.status_var.set("Merging audio and video...")
 
-    def _download_complete(self, queue_mode=False):
+    def _download_complete(self, queue_mode=False, history_title=None,
+                           history_format=None):
         self._stop_indeterminate()
         self.progress_var.set(100)
         self.status_var.set("Download complete!")
         self._update_title_progress()
 
+        # Prefer what this download was started with. Reading the two
+        # session-global attributes instead meant every QUEUED download wrote
+        # a record describing a different video: _process_next_queue_item
+        # calls _start_download directly and sets neither, so history.json
+        # recorded the last FETCHED title and the last MANUALLY CHOSEN format
+        # for each queue item -- or an empty title for a session that queued
+        # without fetching. The queue entry has always carried the right
+        # title; it was simply discarded.
         self._add_history_entry(
-            self.last_download_title or self.video_title,
+            history_title or self.last_download_title or self.video_title,
             self.url_var.get().strip(),
-            self.last_download_format,
+            history_format or self.last_download_format,
             self.last_download_path
         )
 
@@ -842,7 +892,9 @@ class DownloaderMixin:
         self.url_var.set(entry["url"])
 
         format_spec, merge = self._preferred_format_spec()
-        self._start_download(format_spec, merge=merge, queue_mode=True)
+        self._start_download(format_spec, merge=merge, queue_mode=True,
+                             history_title=entry.get("title"),
+                             history_format=format_spec)
 
     # ── Playlist ────────────────────────────────────────────────────
 
