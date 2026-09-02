@@ -170,6 +170,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Security
 
+- **Every bundled helper program is now checked against a known fingerprint** (SNAT-0031)
+  Snatch ships five helper programs it downloads at build time. It
+  checked they came from the right website, but not that they were the
+  same files we had reviewed — so if one had been swapped out at the
+  source, the change would have reached you unnoticed. Each is now
+  recorded by fingerprint and the build stops if one does not match.
+
 - **Write user data files with 0600 permissions.** (SNAT-0006)
   Settings, history and cookie files are now tightened to owner-only
   at startup, not just when they are saved. A file left loose by an

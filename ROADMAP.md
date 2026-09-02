@@ -1202,7 +1202,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: in-session-2026-08-20.
   Lanes: security, dependencies.
 
-- 📋 [SNAT-0031] **Five bundled binaries are downloaded and executed with no integrity check.**
+- ✅ [SNAT-0031] **Five bundled binaries are downloaded and executed with no integrity check.**
   scripts/fetch-binaries.sh's fetch() curls a URL, moves the result into
   bin/, and chmod +x it. There is no hash comparison, no signature check,
   and no checksum file anywhere in the repo -- grepping for
@@ -1268,6 +1268,48 @@ and application work. IDs are allocated from `.roadmap-counter`.
   silently ignored) and --proto '=https' on every curl, not integrity.
   The fetch_verified/cached_ok pair in build-linux.sh is the shape to
   reuse.
+  Resolved (2026-09-02): both halves are done, and the runtime half was
+  already done before today.
+
+  Build half, landed now. digest_for() in fetch-binaries.sh records the
+  expected SHA-256 of all 19 assets across every platform the script
+  supports, and fetch() verifies before chmod +x, so an unverified file
+  never becomes executable. The mpv archive is verified before 7z unpacks
+  it -- unpacking an unverified archive is already executing
+  attacker-chosen paths, and that asset's name carries a build hash
+  resolved from the API at fetch time, so the digest is the only thing
+  pinning it. The cache is keyed on content now rather than on a stamp
+  file agreeing about a URL, and an unrecorded asset stops the build
+  rather than being fetched unverified, which is the shape build-linux.sh
+  already used.
+
+  Runtime half: already shipped 2026-09-01, after this bullet was written.
+  version.py fetches each nightly's SHA2-256SUMS manifest, streams the
+  download while hashing, and refuses a mismatch. The bullet asked that if
+  neither approach were workable the code should say so; what it does
+  instead is state the real ceiling in _expected_digest's docstring --
+  this defends against alteration in transit and substitution, not against
+  a compromised release. Nothing further is owed there.
+
+  Digests came from the GitHub API's own `digest` field rather than from
+  downloading ~400 MB. That field was checked before being trusted:
+  qjs-linux-x86_64 downloaded and hashed by hand matched exactly. It is
+  also independently corroborated -- the four binaries already sitting in
+  bin/, fetched weeks ago through the unverified path, match the recorded
+  values.
+
+  Proved in four directions, not assumed: a normal fetch verifies; a byte
+  appended to bin/qjs is detected and re-fetched where the old
+  stamp-keyed cache would have printed "cached"; a faked expected digest
+  exits 1 leaving no binary and no .part; an unrecorded asset stops with a
+  message naming digest_for().
+
+  Bumping a pin now means updating its digest. That is the point -- it
+  makes an upstream content change visible instead of automatic.
+  docs/building.md carries the refresh command.
+
+  Leaves SNAT-0036 untouched, which is the same question asked about what
+  we publish rather than what we consume.
   **Layman:** Snatch downloads its helper programs from the internet and runs them without checking they are the files we expect.
   Kind: security.
   Source: in-session-2026-08-20.
