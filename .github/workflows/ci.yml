@@ -47,6 +47,21 @@ jobs:
       - name: Byte-compile every module
         run: python -m compileall -q snatch.py snatch scripts
 
+      # F821 and friends are what actually catch the SNAT-0041 shape: a name
+      # called inside a method with no import for it. compileall parses it and
+      # the import check above imports the module fine -- the NameError only
+      # fires when that widget is built. Measured 2026-09-02 by reproducing the
+      # bug: both missed it, `ruff --select F821` found it.
+      #
+      # Deliberately NOT the whole F family. F401 fires on the tkinterdnd2
+      # re-exports in __init__.py and F841 on the Tk app object that must stay
+      # alive; both are adjudicated in .ants_review_falsepos.jsonl. This set is
+      # green today, so the gate means something the day it lands.
+      - name: Undefined names and syntax errors (ruff)
+        run: |
+          python -m pip install --quiet ruff==0.16.4
+          ruff check --select F821,F811,F822,F823,E9 snatch.py snatch scripts
+
       - name: User-data permission pass (SNAT-0006)
         run: python scripts/verify_permissions.py
 
@@ -92,6 +107,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller==6.11.1
+
+      # compileall proves each file PARSES; it never imports the package, so a
+      # missing module or a bad `from X import Y` is invisible to it. This runs
+      # here rather than in static-checks because snatch.app imports tkinter at
+      # module level, and that job installs neither python3-tk nor the
+      # requirements -- measured 2026-09-02, where it failed for exactly that.
+      #
+      # It does NOT catch a name used only inside a method; ruff F821 in
+      # static-checks is what covers that shape.
+      - name: Import every module (compileall does not import)
+        run: python -c "import snatch, snatch.app, snatch.tabs.search, snatch.tabs.download, snatch.tabs.history, snatch.tabs.media_info, snatch.player, snatch.downloader, snatch.version"
 
       - name: Build AppImage
         run: scripts/build-linux.sh

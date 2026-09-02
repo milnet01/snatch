@@ -1,0 +1,46 @@
+# Tool configuration only. There is deliberately no [project] or [build-system]
+# table: Snatch is not installed as a package, it is frozen by PyInstaller from
+# pyinstaller.spec, and adding one would change how the tree is built.
+#
+# What this file is for (SNAT-0044): STANDARDS.md declares rules that no tool
+# was reading, so the number a contributor saw depended on how they happened to
+# invoke the tool. Declaring them here makes the standard the default.
+
+[tool.ruff]
+# STANDARDS.md 10.1 declares a 100-character limit. Without this, ruff applies
+# its own default of 88 and reports 73 long lines instead of 17 -- which is why
+# the 2026-08-31 sweep adjudicated that whole class as a false positive
+# (.ants_review_falsepos.jsonl, entry 8). It was a configuration gap, not noise.
+line-length = 100
+
+# README.md promises "Python 3.10 or newer" and STANDARDS.md 8.1/10.1 agree.
+# CI builds on 3.12 only, so anything lower is unverified rather than known
+# good; this at least stops ruff suggesting rewrites that need a newer runtime.
+target-version = "py310"
+
+[tool.ruff.lint]
+# No project-wide `ignore` list, on purpose. 25 of the findings a default run
+# reports are BLE001 and S110 -- broad excepts and try/except/pass -- and that
+# is the subject of SNAT-0045, "nothing anywhere in the app records why
+# something failed". Silencing them here would close an open roadmap item by
+# configuration rather than by fixing it.
+#
+# The security rules the 2026-08-31 sweep adjudicated (S310, S603, S607) are
+# not in ruff's default selection at all, so they appear only when a run
+# selects them explicitly. Their adjudications live in
+# .ants_review_falsepos.jsonl and are not re-stated here.
+
+[tool.mypy]
+# mypy analyses this tree fine as of 1.20.1; the "Duplicate module named
+# snatch" collision SNAT-0044 recorded no longer occurs -- re-measured
+# 2026-09-02, `mypy .` checks 18 files.
+#
+# What remains is three copies of one third-party gap: tkinterdnd2 ships no
+# py.typed marker and no stubs. That is a packaging fact about a dependency,
+# not a defect here, and left unsilenced it is the only thing mypy says -- so
+# a real error would arrive in a report that already looks noisy.
+python_version = "3.10"
+
+[[tool.mypy.overrides]]
+module = ["tkinterdnd2", "tkinterdnd2.*"]
+ignore_missing_imports = true

@@ -60,6 +60,7 @@ local run and hide the real build result.
 | AppImage type2 runtime | `scripts/build-linux.sh` | `20251108` (SHA-256 pinned) |
 | appimagetool | `scripts/build-linux.sh` | `1.9.1` (SHA-256 pinned) |
 | PyInstaller | `.github/workflows/ci.yml` | 6.11.1 |
+| ruff (lint gate only, not bundled) | `.github/workflows/ci.yml` | 0.16.4 |
 
 **The two yt-dlp pins are deliberately different versions, and do NOT move
 together.** The bundled binary is the one the app actually runs, and it comes
