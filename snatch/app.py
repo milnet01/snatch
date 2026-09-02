@@ -38,6 +38,7 @@ class SnatchApp(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
         self.formats = []
         self.download_process = None
         self.is_downloading = False
+        self.is_searching = False
         self.current_version = None
         self.latest_version = None
         self.browser_var = tk.StringVar(value="none")

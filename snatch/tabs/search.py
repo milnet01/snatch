@@ -237,6 +237,11 @@ class SearchTabMixin:
 
     def _start_search_anim(self):
         """Start cycling-dots animation in the status label"""
+        # Cancel any loop already running. _tick_search_anim overwrites
+        # _search_anim_id, so a second loop makes the first uncancellable and
+        # it rewrites the status label every 400 ms forever -- overwriting the
+        # "N results" line the search finishes with. See SNAT-0049.
+        self._stop_search_anim()
         self._search_anim_step = 0
         self._search_anim_id = self.root.after(0, self._tick_search_anim)
 
@@ -259,6 +264,14 @@ class SearchTabMixin:
 
     def _perform_search(self):
         """Search YouTube using yt-dlp"""
+        # Without this, two clicks start two yt-dlp subprocesses, and the tree
+        # can end up showing one search's rows while self.search_results holds
+        # the other's -- so Download and Play act on a different video from the
+        # one highlighted. Same guard start_download already uses (SNAT-0049).
+        if self.is_searching:
+            messagebox.showwarning("Busy", "A search is already in progress")
+            return
+
         query = self.search_var.get().strip()
         channel = self.search_channel_var.get().strip()
         if not query and not channel:
@@ -288,6 +301,7 @@ class SearchTabMixin:
         clear_treeview(self.search_tree)
         self._start_search_anim()
 
+        self.is_searching = True
         thread = threading.Thread(target=self._search_thread,
                                   args=(search_target, count))
         thread.daemon = True
@@ -343,7 +357,11 @@ class SearchTabMixin:
                         filtered.append(entry)
                 entries = filtered
 
-            self.search_results = entries
+            # search_results is assigned in _display_search_results instead of
+            # here, so it lands on the main thread in the same step as the tree
+            # rows. Assigned here, a theme switch could clear it between this
+            # line and the callback, leaving a populated tree whose every row
+            # reported "Select a search result first" (SNAT-0049).
             self.root.after(0, lambda: self._display_search_results(entries))
 
         except subprocess.TimeoutExpired:
@@ -354,7 +372,9 @@ class SearchTabMixin:
 
     def _display_search_results(self, entries):
         """Populate search results treeview"""
+        self.is_searching = False
         self._stop_search_anim()
+        self.search_results = entries
         clear_treeview(self.search_tree)
 
         for i, entry in enumerate(entries, 1):
@@ -375,6 +395,7 @@ class SearchTabMixin:
         self.search_status_var.set(f"{len(entries)} results")
 
     def _search_error(self, message):
+        self.is_searching = False
         self._stop_search_anim()
         self.search_status_var.set("Search failed")
         # Show only ERROR lines; fall back to full message if none found

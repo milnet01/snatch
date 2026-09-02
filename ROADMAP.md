@@ -1150,32 +1150,22 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: in-session-2026-08-20.
   Lanes: application.
 
-- 📋 [SNAT-0022] **Failures vanish -- there is no log and 11 handlers swallow errors silently.**
-  The app imports no logging module anywhere. Alongside that there are
-  11 handlers whose body is `pass`, and 15 `except Exception` clauses
-  across five modules.
+- 📋 [SNAT-0022] **Nothing in the app tells you where its diagnostic log is.**
+  Narrowed 2026-09-02. Two of this item's three parts shipped as
+  SNAT-0045: a size-capped rotating snatch.log in app_data_dir() at
+  0o600, and a walk of the broad handlers that were discarding the
+  reason a failure happened.
 
-  Some of those are correct -- ignoring an OSError while unlinking a temp
-  file is right. Others silently discard the reason a real feature did
-  not work: a thumbnail that never appears, a config that never saves, a
-  cookie extraction that quietly returns nothing. From the user's side
-  these are indistinguishable from the app deciding not to bother.
+  What remains is the third: a route to that file from the GUI, so a bug
+  report can carry it. Today nothing in the app names the path, so a user
+  has to be told where app_data_dir() resolves to before they can find
+  it.
 
-  The cost lands on the user, and it landed on this project already: the
-  Windows "binary missing" report on 2026-08-19 turned out to be a stale
-  _MEI extraction directory, and finding that took a round trip to real
-  hardware because there was no log to read.
-
-  Shape of the fix:
-  - A rotating log file in app_data_dir(), written 0600 like every other
-  user data file, capped so it cannot grow without bound.
-  - A way to open it from the GUI, so a bug report can carry it.
-  - Then walk the 11 silent handlers and split them: keep the ones that
-  are genuinely ignorable and say so in a comment, log the rest.
-
-  Not a rewrite of the error handling. The point is that a failure
-  leaves a trace somewhere, not that every failure becomes a dialog.
-  **Layman:** When something goes wrong, Snatch often says nothing and keeps no record, so there is nothing to send when reporting a problem.
+  Any affordance has to handle the file not existing. Logging is off
+  unless SNATCH_LOG is set, and even when set the file stays empty until
+  something fails -- so "open the log" must not present an empty or
+  absent file as a fault.
+  **Layman:** Snatch keeps a troubleshooting log, but there is no button to open it, so you have to be told where the file lives.
   Kind: fix.
   Source: in-session-2026-08-20.
   Lanes: application.
@@ -2081,7 +2071,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: review-code-sweep-2026-08-31.
   Lanes: threading.
 
-- 📋 [SNAT-0049] **Search can start twice, and then claims to be searching forever.**
+- ✅ [SNAT-0049] **Search can start twice, and then claims to be searching forever.**
   search.py:223-226 `_start_search_anim` does not cancel an in-flight
   animation, and `_perform_search` has no re-entrancy guard -- the Search
   button (:47) and <Return> (:34, :43) all call it unconditionally.
@@ -2109,6 +2099,24 @@ and application work. IDs are allocated from `.roadmap-counter`.
   switch, so a theme change during an in-flight search may leave the tree
   populated with search_results empty, and every row then reports "Select
   a search result first".
+  Resolved (2026-09-02). _start_search_anim now cancels any chain already
+  running before starting one, so the status label can no longer be left
+  cycling by an uncancellable loop. _perform_search is gated on
+  self.is_searching -- the same flag shape start_download uses -- set
+  before the worker starts and cleared by both _display_search_results and
+  _search_error, which are the only two ways the worker ends.
+
+  The stale-pairing consequence is closed at its source rather than by the
+  guard alone: _search_thread no longer assigns self.search_results. That
+  now happens inside _display_search_results, on the main thread and in the
+  same call as the tree rows, so _change_theme cannot clear the list
+  between the two. This settles the open question the lane left about a
+  theme switch during an in-flight search.
+
+  Verified by running: tests/test_search_reentrancy.py, six tests, all six
+  FAIL against the pre-fix source and pass after. Full suite 53 green.
+  Ruff over snatch/ and tests/ is unchanged at 36 lines before and after,
+  so the change introduced no new finding.
   **Layman:** Clicking Search twice leaves the box saying "Searching..." for good, runs two searches at once, and can download a different video from the one you picked.
   Kind: fix.
   Source: review-code-sweep-2026-08-31.

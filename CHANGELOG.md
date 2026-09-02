@@ -56,6 +56,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Searching twice no longer leaves the box stuck on "Searching..."** (SNAT-0049)
+  Clicking Search while a search was already running started a second
+  one on top of the first. The status line then said "Searching..."
+  for good, two searches ran at once, and -- the reason this mattered
+  most -- the results list could end up out of step with the rows on
+  screen, so Play or Download acted on a different video from the one
+  you had highlighted. Snatch now tells you a search is already
+  running instead, and the results and the rows are always filled in
+  together.
+
 - **Windows builds failed intermittently on a GitHub API rate limit.** (SNAT-0064)
   Windows builds sometimes failed for no reason anyone could see; they no longer make the call that was failing.
 
