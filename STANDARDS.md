@@ -66,7 +66,10 @@ class SnatchApp(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
 
 ### 3.1 Theme Architecture
 
-Themes are defined as classes with color constants in `theme.py`. The active theme is referenced throughout the app via a module-level variable.
+Themes are defined as classes with color constants in `theme.py`. **Obtain the
+active theme by calling `theme.get_theme()` at the point of use — never capture
+it at import.** A theme bound at import keeps its colours after `set_theme()`
+and the widget stops following the theme switch.
 
 **Theme class contract — required color attributes:**
 
@@ -203,7 +206,9 @@ def _is_valid_url(url):
 - **Never use `shell=True`** in subprocess calls
 - **Never use `sh -c`** — pass arguments as list items, not shell strings
 - **Use list-form commands**, not string concatenation
-- **Privilege escalation** (`pkexec`) uses only specific commands (e.g. `install`), never `sh -c`
+- **No privilege escalation** — the app never invokes `pkexec` or `sudo`. Updates
+  are written into `platform_utils.user_bin_dir()`, inside the user's own data
+  directory, so nothing outside the app is ever modified
 - **HTTPS-only** for thumbnail/update downloads (`--proto =https`, URL prefix checks)
 - **Never leak sensitive paths** (cookie file locations) in status bar output
 
@@ -231,6 +236,13 @@ part-way leaves a truncated file where a complete one was. The helper writes to
 a temp file in the same directory with an explicit mode and `os.replace`s it
 into place, so both properties hold whatever the target was. It also sets
 `encoding="utf-8"` rather than letting the locale decide.
+
+**A new sensitive file must be registered in two places, not one.** Writing it
+through the helper covers the file from then on; it does nothing for a copy that
+already exists with looser bits. Add its name to `utils.PRIVATE_DATA_FILES`,
+which `utils.tighten_user_data_permissions()` walks at startup — called from
+`SnatchApp.__init__` — to repair files predating the private write path or
+carried in from an older install.
 
 **Files with restricted permissions:**
 - `config.json` — user preferences
@@ -309,7 +321,7 @@ MAX_HISTORY_ENTRIES = 200
 
 ### 7.1 Config File
 
-**Location:** `{project_root}/config.json`
+**Location:** `platform_utils.app_data_dir()/config.json` — see §14
 **Permissions:** `0o600`
 
 **Persisted settings:**
@@ -330,7 +342,7 @@ MAX_HISTORY_ENTRIES = 200
 
 ### 7.2 History File
 
-**Location:** `{project_root}/history.json`
+**Location:** `platform_utils.app_data_dir()/history.json` — see §14
 **Permissions:** `0o600`
 **Max entries:** 200 (oldest trimmed on overflow)
 
@@ -359,7 +371,7 @@ Each entry:
 
 | Dependency | Purpose |
 |------------|---------|
-| Python 3.8+ | Runtime |
+| Python 3.10+ | Runtime |
 | tkinter | GUI framework (usually bundled with Python) |
 | yt-dlp | Video downloading engine |
 
@@ -367,7 +379,7 @@ Each entry:
 
 | Dependency | Purpose | Detection |
 |------------|---------|-----------|
-| Deno or Node.js | YouTube JS challenge solving | `shutil.which()` |
+| Deno, Node.js, QuickJS or Bun | YouTube JS challenge solving | `shutil.which()`, then the bundled copy |
 | ffmpeg/ffprobe | Media merging + analysis | Subprocess call |
 | mpv | Embedded video player | `shutil.which("mpv")` → `HAS_MPV` |
 | Pillow (PIL) | Thumbnail display | `import PIL` → `HAS_PIL` |
@@ -413,7 +425,9 @@ except ImportError:
 
 ### 10.1 General
 
-- **Python 3.8+** compatibility
+- **Python 3.10+** compatibility, matching the floor `README.md` promises.
+  Nothing enforces it: CI builds on 3.12 only, so any lower version is
+  unverified rather than known good
 - **PEP 8** style with 100-char line limit (soft)
 - **Docstrings** on all public methods and classes (one-line or multi-line)
 - **Type hints** not required but welcomed on utility functions
@@ -451,7 +465,7 @@ import threading
 import tkinter as tk
 from tkinter import ttk, messagebox
 
-from ..theme import DarkTheme
+from ..theme import get_theme
 from ..utils import format_duration, clear_treeview
 ```
 
@@ -509,6 +523,7 @@ def _get_base_cmd(self):
     # repeatable; a comma-joined list is read as ONE runtime with a nonsense
     # path, which leaves yt-dlp with no JS runtime at all and silently drops
     # every format behind YouTube's n challenge.
+    self._ensure_runtime_cache()
     for runtime in self._cached_runtimes:
         cmd.extend(["--js-runtimes", runtime])
     return cmd
@@ -573,5 +588,8 @@ Running from source it is the project root. In a packaged build it is not:
 | macOS `.app` | `~/Library/Application Support/Snatch` | Writing inside the bundle breaks on upgrade and on a read-only mount. |
 | Linux AppImage | `$XDG_DATA_HOME/snatch` | `sys.executable` is a temp dir that is deleted on exit. |
 
-The directory itself is created `0o700`.
-| `icon.png` | Project root | Default | PNG (optional window icon) |
+`app_data_dir()` creates the directory `0o700` on the macOS and Linux packaged
+builds only. On Windows and when running from source it returns a directory that
+already exists and does not change its mode. **So the per-file `0o600` above is
+the only permission guarantee that holds on every platform** — never treat the
+containing directory as private.
