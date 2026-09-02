@@ -127,12 +127,14 @@ class HistoryTabMixin:
         """Resolve a path to its real location, rejecting suspicious paths"""
         if not path:
             return None
-        resolved = os.path.realpath(path)
-        # Reject paths that resolve outside the filesystem root (shouldn't happen)
-        # or contain null bytes
-        if "\x00" in resolved:
+        # Checked on the INPUT, before realpath. os.path.realpath raises
+        # ValueError on an embedded null byte, so a check on its RESULT was
+        # unreachable and the function raised where its callers -- both of
+        # which test `if resolved` -- expect None. Found by tests/ on its
+        # first run (SNAT-0020).
+        if "\x00" in path:
             return None
-        return resolved
+        return os.path.realpath(path)
 
     def _history_open_file(self):
         """Open the selected history entry's location"""

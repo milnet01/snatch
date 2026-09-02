@@ -65,6 +65,15 @@ jobs:
       - name: User-data permission pass (SNAT-0006)
         run: python scripts/verify_permissions.py
 
+      # The suite imports version.py, downloader.py and tabs/history.py, all of
+      # which import tkinter at module level, so this job needs python3-tk --
+      # actions/setup-python does not bundle _tkinter. It drives no GUI.
+      - name: Tests
+        run: |
+          scripts/apt-install.sh python3-tk
+          python -m pip install --quiet pytest==9.1.1
+          python -m pytest
+
       - name: Shell lint
         run: |
           scripts/apt-install.sh shellcheck

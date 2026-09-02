@@ -61,6 +61,7 @@ local run and hide the real build result.
 | appimagetool | `scripts/build-linux.sh` | `1.9.1` (SHA-256 pinned) |
 | PyInstaller | `.github/workflows/ci.yml` | 6.11.1 |
 | ruff (lint gate only, not bundled) | `.github/workflows/ci.yml` | 0.16.4 |
+| pytest (test gate only, not bundled) | `.github/workflows/ci.yml` | 9.1.1 |
 
 **Every bundled binary is pinned by CONTENT, not just by tag (SNAT-0031).**
 `scripts/fetch-binaries.sh` carries the expected SHA-256 of each asset in
