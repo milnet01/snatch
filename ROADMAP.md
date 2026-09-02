@@ -1595,6 +1595,36 @@ and application work. IDs are allocated from `.roadmap-counter`.
   runtime" does not reliably mean "no video formats", and a diagnosis
   that reasons from the runtime alone can reach the wrong answer. Treat
   that as an observation from one video on one day, not a rule.
+  Cookie probe run 2026-09-02, with the user's approval. It closes the
+  question this bullet left open, and disproves the answer it expected.
+
+  wintest, fresh deploy of the HEAD artifact (CI run 33511414856, commit
+  3fe5fc7; `git diff 3fe5fc7 HEAD -- snatch/ scripts/` empty), bundled
+  binaries lifted from _MEIPASS per the method note, against the reported
+  URL with the app's own flags:
+
+    no cookies                        -> 188 formats, 37 video, 105 audio
+    --cookies-from-browser chrome     -> ERROR "Failed to decrypt with
+                                         DPAPI", non-zero, no JSON
+    --cookies-from-browser edge       -> same
+
+  So cookies do not yield an audio-only list on Windows; they yield
+  nothing at all. SNAT-0042's account is therefore NOT the explanation for
+  the Windows report, and this thread's remaining hypothesis is spent.
+  SNAT-0042's fallback still stays -- it was demonstrated on Linux -- but
+  it cannot reach the Windows failure, which is SNAT-0059.
+
+  The probe's real yield is elsewhere. Reading yt-dlp's source rather than
+  its output showed that a failed n challenge is a WARNING, exit 0, with
+  the video formats simply absent -- and that the probe both suppresses
+  warnings and reads stderr only on failure. That mechanism produces
+  exactly the reported symptom and is intermittent, which is why nothing
+  here ever reproduced it. Filed as SNAT-0058, with SNAT-0060 and
+  SNAT-0061 for the two further defects the same reading exposed.
+
+  Consequence for this bullet: it stays shipped and correct as a fix, and
+  its Windows verification stands. What is now settled is that it never
+  explained the report, and neither did SNAT-0042.
   **Layman:** Snatch was telling yt-dlp about its bundled helper program in a way yt-dlp could not read, so the helper was never used and YouTube quietly withheld all the picture qualities.
   Kind: fix.
   Source: in-session-2026-08-20.
@@ -2086,3 +2116,94 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: doc.
   Source: in-session-2026-09-01.
   Lanes: docs, process.
+
+- 📋 [SNAT-0058] **A failed JS challenge drops video formats with no sign to the user: the probe suppresses the warning and only reads stderr on failure.**
+  Read out of yt-dlp's own source, 2026.08.19. When the n challenge
+  cannot be solved the youtube extractor calls report_warning with "n
+  challenge solving failed: Some formats may be missing" -- a WARNING.
+  yt-dlp still exits 0 and still emits a payload; the video formats are
+  simply absent from it.
+
+  _probe_formats defeats that signal twice over. It passes --no-warnings,
+  which suppresses the message, and _fetch_formats_thread inspects stderr
+  only inside the `returncode != 0` branch, which a warning never enters.
+  So a partial answer is byte-indistinguishable from a complete one and
+  the user is shown whatever survived -- audio and storyboards.
+
+  This is the first mechanism found that actually produces the reported
+  Windows symptom, and it fits the evidence SNAT-0043 gathered: that
+  user's history holds an "audio only mp4" and a "48x27 mhtml" storyboard
+  for the reported URL, which is what a stripped format list offers. It
+  also explains why the symptom does not reproduce -- the challenge
+  succeeds today, so the full list comes back. It is intermittent by
+  nature.
+
+  The durable fix does not string-match yt-dlp's wording, which is what
+  rots across updates. _has_video_format already exists: a non-playlist
+  payload carrying no video format at all IS the signal, whatever yt-dlp
+  calls it that release. Warn on that condition.
+  **Layman:** When YouTube's puzzle-solving step fails, only the sound tracks come back and Snatch says nothing is wrong — so the user sees an audio-only list and no explanation.
+  Kind: fix.
+  Source: in-session-2026-09-02.
+  Lanes: downloader.
+
+- 📋 [SNAT-0059] **The retry-without-cookies fallback cannot fire on a cookied probe that exits non-zero.**
+  SNAT-0042's fallback sits AFTER the `returncode != 0` guard in
+  _fetch_formats_thread, so it only runs when the cookied probe succeeded
+  and came back without video. A cookied probe that fails outright skips
+  it and dead-ends in the generic error dialog.
+
+  That is not hypothetical: it is the failure Windows actually produces
+  (see the App-Bound Encryption bullet). Measured on wintest 2026-09-02
+  with the bundled yt-dlp -- --cookies-from-browser chrome and edge both
+  abort with "Failed to decrypt with DPAPI", non-zero, empty stdout, no
+  JSON. The same fetch with no cookies returns the full list.
+
+  Fix: when cookie arguments were used and the probe exits non-zero,
+  retry once without them before reporting anything. Keyed on the exit
+  code and on whether cookies were passed -- no message matching, so it
+  survives yt-dlp rewording its errors.
+  **Layman:** Snatch knows to try again without your browser cookies when they cause trouble — but only if the first try half-worked. If it fails outright, the safety net never opens.
+  Kind: fix.
+  Source: in-session-2026-09-02.
+  Lanes: downloader.
+
+- 📋 [SNAT-0060] **The age-restriction branch matches a string yt-dlp no longer emits, so it is unreachable.**
+  _fetch_formats_thread tests stderr for "Sign in to confirm your age".
+  That phrase does not occur anywhere in yt-dlp 2026.08.19 -- grepped the
+  installed package including the whole youtube extractor. The extractor
+  now relays whatever the site said via `Youtube said: {message}`, so the
+  text is server-supplied and not a constant yt-dlp owns.
+
+  Everything behind that test -- the cookie refresh, both tailored
+  dialogs -- is therefore dead code, and an age-gated video falls to the
+  generic error instead.
+
+  This is the clearest instance of the general problem: Snatch classifies
+  yt-dlp failures by matching human-readable prose, and that prose is not
+  an interface. Whatever replaces this branch should key on something
+  observable rather than on wording.
+  **Layman:** Snatch watches for a specific YouTube error message to offer cookie help. yt-dlp stopped using that wording, so that help can never appear.
+  Kind: fix.
+  Source: in-session-2026-09-02.
+  Lanes: downloader.
+
+- 📋 [SNAT-0061] **On Windows the browser dropdown offers Chromium browsers whose cookies yt-dlp cannot decrypt.**
+  Chrome's App-Bound Encryption puts Chromium cookie stores out of
+  yt-dlp's reach on Windows (yt-dlp issue 10927). Measured on wintest
+  2026-09-02 against the reported URL: chrome and edge both fail with
+  "Failed to decrypt with DPAPI" and return nothing at all.
+
+  yt-dlp's cookies.py groups brave, chrome, chromium, edge, opera,
+  vivaldi and whale as Chromium-based; firefox and safari take other
+  paths, and firefox is unaffected on Windows. So the dropdown currently
+  offers Windows users several choices that cannot succeed.
+
+  Deliberately NOT fixed by hard-coding a per-platform blocklist: this is
+  yt-dlp's limitation to lift, and a blocklist would outlive it silently.
+  The durable half is the graceful fallback in the sibling bullet. A hint
+  naming the browser when that fallback fires is the useful addition.
+  **Layman:** On Windows, picking Chrome or Edge for cookies simply cannot work — Chrome locks them in a way yt-dlp can't open — yet Snatch still offers both.
+  Kind: fix.
+  Source: in-session-2026-09-02.
+  Lanes: downloader, ui.
