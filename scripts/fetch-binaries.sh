@@ -37,6 +37,16 @@ QUICKJS_TAG="${QUICKJS_TAG:-v0.16.1}"
 # unpacked into bin/mpv/ as a directory. The release tag is pinned; the asset
 # filename inside it carries a build hash and is resolved at fetch time.
 MPV_WIN_TAG="${MPV_WIN_TAG:-20260814}"
+# The asset name carries a build hash, so it is pinned rather than resolved.
+# It USED to be looked up through api.github.com at fetch time, and that call
+# is rate-limited per IP for unauthenticated callers: on 2026-09-02 a Windows
+# CI build failed with `curl: (22) ... error: 403` followed by a
+# JSONDecodeError on the empty body. Nothing about the lookup was needed -- a
+# pinned tag has a fixed asset -- and removing it takes out a network call, a
+# JSON parse and a whole class of intermittent failure. Bumping MPV_WIN_TAG
+# means updating this name and its digest below; the digest is what makes a
+# wrong guess loud rather than silent.
+MPV_WIN_ASSET="${MPV_WIN_ASSET:-mpv-x86_64-20260814-git-7b8915bc1d.7z}"
 
 # ── Expected SHA-256 of every asset (SNAT-0031) ───────────────────────
 # HTTPS proves the bytes came from github.com unaltered in transit. It says
@@ -211,28 +221,13 @@ fetch "https://github.com/quickjs-ng/quickjs/releases/download/${QUICKJS_TAG}/${
 # SNAT-0013 for why those two are harder (nested AppImage / .app bundle).
 if [ "$exe_suffix" = ".exe" ]; then
     if ! stamp_matches "$BIN_DIR/mpv/mpv.exe" "mpv:${MPV_WIN_TAG}"; then
-        echo "    resolving mpv asset for tag ${MPV_WIN_TAG}"
-        mpv_url="$(curl --fail --location --silent --show-error --max-time 60 \
-            "https://api.github.com/repos/shinchiro/mpv-winbuild-cmake/releases/tags/${MPV_WIN_TAG}" \
-            | python -c "
-import json,sys
-d = json.load(sys.stdin)
-for a in d['assets']:
-    n = a['name']
-    if n.startswith('mpv-x86_64-') and '-v3-' not in n and not n.startswith('mpv-dev'):
-        print(a['browser_download_url']); break
-else:
-    sys.exit('no mpv asset found in tag')
-")"
-        [ -n "$mpv_url" ] || { echo "could not resolve mpv asset" >&2; exit 1; }
-        mpv_asset="$(basename "$mpv_url")"
-        if ! mpv_want="$(digest_for "$mpv_asset")"; then
-            echo "no recorded SHA-256 for mpv asset '$mpv_asset'" >&2
-            echo "the tag resolved to an asset this script has not pinned;" >&2
+        mpv_url="https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/${MPV_WIN_TAG}/${MPV_WIN_ASSET}"
+        if ! mpv_want="$(digest_for "$MPV_WIN_ASSET")"; then
+            echo "no recorded SHA-256 for mpv asset '$MPV_WIN_ASSET'" >&2
             echo "add its digest to digest_for() rather than skipping the check" >&2
             exit 1
         fi
-        echo "    downloading $mpv_asset"
+        echo "    downloading $MPV_WIN_ASSET"
         curl --fail --location --silent --show-error --retry 3 --max-time 600 \
              --proto '=https' --proto-redir '=https' \
              -o "$BIN_DIR/mpv.7z.part" "$mpv_url"
