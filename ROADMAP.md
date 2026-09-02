@@ -1942,7 +1942,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: check-code-tree-2026-08-31.
   Lanes: ci, tooling.
 
-- 📋 [SNAT-0045] **Nothing anywhere in the app records why something failed.**
+- ✅ [SNAT-0045] **Nothing anywhere in the app records why something failed.**
   ruff S110 flags six `try/except: pass` blocks: app.py:161 (window icon),
   downloader.py:698 (closing the stdout pipe in a finally),
   downloader.py:777 and player.py:239,246 (process teardown and socket
@@ -1964,6 +1964,31 @@ and application work. IDs are allocated from `.roadmap-counter`.
   enabled by an env var or a flag, would turn six silent swallows into six
   recorded ones without changing any behaviour a user sees. It would also
   give the yt-dlp subprocess failures somewhere to go.
+  Resolved (2026-09-02): added snatch/logging_setup.py -- a package
+  logger, off unless SNATCH_LOG is set, writing a size-capped snatch.log
+  in app_data_dir() at 0o600. Wired from __main__.main() before the Tk
+  root is built, so a startup failure is recorded too.
+
+  All six try/except/pass sites now log instead of swallowing, as does the
+  config-save OSError beside them, and every remaining broad handler that
+  was discarding diagnostic detail: the yt-dlp download and format
+  failures the bullet named, cookie extraction (whose print() reached
+  nobody in a windowed build), thumbnail decode, mpv teardown and IPC, the
+  system-player handoff, ffprobe, search, and all four version/self-update
+  handlers.
+
+  Measured: ruff on snatch/ went from 56 findings to 32 -- exactly the 18
+  BLE001 and 6 S110 removed, none introduced. Both rules stop firing once
+  a handler logs the exception, so they close by being fixed rather than
+  by the pyproject.toml suppression that comment refused. 12 new tests in
+  tests/test_logging_setup.py cover off-by-default, the level parsing, the
+  0o600 mode, idempotence and an unwritable directory; suite is 47 green.
+
+  Enable mechanism is the env var alone, confirmed with the user -- no
+  config key and no settings-UI toggle. Documented in README (how to get
+  a log to attach to an issue) and CLAUDE.md Quick Reference. STANDARDS.md
+  was deliberately NOT given a new rule: ruff already fires on any fresh
+  bare swallow, which is a mechanical guard rather than prose.
   **Layman:** When something goes wrong quietly, Snatch has no record of it, so a problem that does not show a message leaves no trace at all.
   Kind: enhancement.
   Source: check-code-tree-2026-08-31.

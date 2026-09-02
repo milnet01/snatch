@@ -2,6 +2,8 @@
 config.json
 history.json
 cookies.txt
+snatch.log
+snatch.log.*
 
 # Python bytecode
 __pycache__/

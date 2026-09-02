@@ -15,6 +15,9 @@ from io import BytesIO
 from .utils import format_duration, format_filesize, clear_treeview
 from .cookies import extract_browser_cookies, get_cookie_args
 from .platform_utils import find_ytdlp, find_ffmpeg, find_jsruntime, is_windows
+from .logging_setup import get_logger
+
+log = get_logger(__name__)
 
 try:
     from PIL import Image, ImageTk
@@ -386,6 +389,7 @@ class DownloaderMixin:
                     self.root.after(0, lambda: self.thumb_label.config(
                         image=self.video_thumbnail, text=""))
                 except Exception:
+                    log.debug("Thumbnail could not be decoded", exc_info=True)
                     self.root.after(0, lambda: self.thumb_label.config(
                         image="", text="No thumbnail"))
 
@@ -475,8 +479,10 @@ class DownloaderMixin:
         except subprocess.TimeoutExpired:
             self.root.after(0, lambda: self._show_error("Timeout while fetching formats"))
         except json.JSONDecodeError as e:
+            log.warning("yt-dlp returned unparseable format data", exc_info=True)
             self.root.after(0, lambda e=e: self._show_error(f"Error parsing format data: {e}"))
         except Exception as e:
+            log.exception("Fetching formats failed")
             self.root.after(0, lambda e=e: self._show_error(f"Error: {e}"))
 
     def _stop_indeterminate(self):
@@ -824,7 +830,8 @@ class DownloaderMixin:
                 try:
                     proc.stdout.close()
                 except Exception:
-                    pass
+                    log.debug("Closing the yt-dlp stdout pipe failed",
+                              exc_info=True)
 
             proc.wait()
 
@@ -841,6 +848,7 @@ class DownloaderMixin:
                     self.root.after(0, self._update_title_progress)
 
         except Exception as e:
+            log.exception("Download failed")
             self.root.after(0, lambda e=e: self._show_error(f"Download error: {e}"))
             self.root.after(0, self._reset_ui)
             self.root.after(0, self._update_title_progress)
@@ -913,7 +921,8 @@ class DownloaderMixin:
                     self.download_process.kill()
                     self.download_process.wait(timeout=2)
             except Exception:
-                pass
+                log.debug("Tearing down the yt-dlp process on cancel failed",
+                          exc_info=True)
             self.status_var.set("Download cancelled")
             self._stop_indeterminate()
             self._update_title_progress()

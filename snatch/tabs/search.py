@@ -11,6 +11,9 @@ from ..theme import get_theme
 from ..widgets import attach_context_menu
 from ..utils import format_duration, format_view_count, clear_treeview
 from ..platform_utils import find_mpv
+from ..logging_setup import get_logger
+
+log = get_logger(__name__)
 
 
 class SearchTabMixin:
@@ -346,6 +349,7 @@ class SearchTabMixin:
         except subprocess.TimeoutExpired:
             self.root.after(0, lambda: self._search_error("Search timed out"))
         except Exception as e:
+            log.exception("Search failed")
             self.root.after(0, lambda e=e: self._search_error(str(e)))
 
     def _display_search_results(self, entries):

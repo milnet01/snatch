@@ -117,6 +117,19 @@ it, you may be missing `ffmpeg`.
 issue](https://github.com/milnet01/snatch/issues) and say what you clicked and
 what happened.
 
+**Getting a log to attach.** Snatch normally records nothing. Start it with
+`SNATCH_LOG=1` and it writes `snatch.log` next to your settings (the same
+folder as `config.json` — see *Where Snatch keeps your files*), noting what
+failed and why. Nothing else about the app changes.
+
+```
+SNATCH_LOG=1 ./Snatch-x86_64.AppImage      # Linux
+set SNATCH_LOG=1 && Snatch.exe             # Windows, from a cmd window
+```
+
+The file is readable only by you and is capped in size, but it does contain
+the links you downloaded — skim it before attaching it to an issue.
+
 ---
 
 ## Running from source

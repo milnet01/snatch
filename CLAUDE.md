@@ -75,6 +75,9 @@ platform builds, change the script — never the workflow step that calls it.
 - Feature flags: `HAS_DND` (`snatch/__init__.py`), `HAS_PIL` (`snatch/downloader.py`)
 - **mpv is gated by `platform_utils.find_mpv()`, not by `HAS_MPV`** — that
   constant still exists in `__init__.py` and nothing reads it (SNAT-0055)
+- Diagnostic log: off unless `SNATCH_LOG` is set; module is
+  `snatch/logging_setup.py`, file is `snatch.log` in `app_data_dir()` (0o600,
+  rotating). Modules use `log = get_logger(__name__)`
 - Verify changes: `python3 -m py_compile snatch/<file>.py`
 - Pre-push gate: `scripts/local-ci.sh` (`--lint` for docs-only)
 - Roadmap: `ROADMAP.md`, ants-v1 format, store-backed (project `snatch`)

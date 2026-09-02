@@ -13,6 +13,9 @@ import urllib.request
 
 from .platform_utils import (find_ytdlp, is_windows, is_macos,
                              user_bin_dir, updated_ytdlp_path)
+from .logging_setup import get_logger
+
+log = get_logger(__name__)
 
 # yt-dlp's NIGHTLY channel, matching scripts/fetch-binaries.sh.
 #
@@ -116,6 +119,8 @@ class VersionMixin:
                 self.root.after(0, lambda: self.version_var.set("Version unknown"))
                 return
         except Exception:
+            log.warning("Could not read the installed yt-dlp version",
+                        exc_info=True)
             self.root.after(0, lambda: self.version_var.set("yt-dlp not found"))
             return
 
@@ -134,6 +139,7 @@ class VersionMixin:
                     else:
                         self.root.after(0, self._refresh_idle_button)
         except Exception:
+            log.warning("Update check failed", exc_info=True)
             self.root.after(0, lambda: self.update_btn.config(
                 text="Check failed", state=tk.DISABLED))
 
@@ -156,6 +162,8 @@ class VersionMixin:
                     return -1
             return 0
         except Exception:
+            log.debug("Falling back to string comparison for %r vs %r",
+                      v1, v2, exc_info=True)
             return (v1 > v2) - (v1 < v2)
 
     def _show_update_available(self):
@@ -343,6 +351,7 @@ class VersionMixin:
             tmp_path = None
             self.root.after(0, lambda: self._update_complete(new_version))
         except Exception as e:
+            log.exception("yt-dlp self-update failed")
             detail = str(e) or e.__class__.__name__
             self.root.after(0, lambda: self._update_failed(
                 f"Could not update yt-dlp.\n\n{detail}\n\n"

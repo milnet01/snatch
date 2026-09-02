@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Snatch can now record why something failed** (SNAT-0045)
+  Snatch now has somewhere to write down what went wrong. It stays
+  silent unless you ask for it: start it with SNATCH_LOG=1 and it
+  writes snatch.log beside your settings, then behaves exactly as
+  before in every other respect. Failures that used to leave no trace
+  at all -- a download that died, a thumbnail that would not decode,
+  cleanup that quietly failed -- now say so in that file. The log is
+  readable only by you and is capped in size.
+
 - **Automated tests now run on every change** (SNAT-0020)
   Nothing checked automatically that Snatch still worked after an edit,
   so a mistake could reach you unnoticed. There is now a test suite

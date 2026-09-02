@@ -16,6 +16,9 @@ from .tabs.download import DownloadTabMixin
 from .tabs.search import SearchTabMixin
 from .tabs.media_info import MediaInfoTabMixin
 from .tabs.history import HistoryTabMixin
+from .logging_setup import get_logger
+
+log = get_logger(__name__)
 
 
 class SnatchApp(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
@@ -155,7 +158,8 @@ class SnatchApp(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
         try:
             write_private_json(self.config_file, config)
         except OSError:
-            pass
+            log.warning("Could not save config to %s",
+                        self.config_file, exc_info=True)
 
     def _set_icon(self):
         """Set the window icon from the bundled icon file"""
@@ -165,7 +169,8 @@ class SnatchApp(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
                 self._icon = tk.PhotoImage(file=icon_path)
                 self.root.iconphoto(True, self._icon)
             except Exception:
-                pass
+                log.debug("Window icon %s could not be loaded",
+                          icon_path, exc_info=True)
 
     def create_widgets(self):
         # Main container with padding

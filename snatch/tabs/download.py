@@ -8,6 +8,9 @@ from ..theme import get_theme
 from ..widgets import ToggleSwitch, attach_context_menu
 from ..utils import zenity_file_dialog
 from ..platform_utils import open_path
+from ..logging_setup import get_logger
+
+log = get_logger(__name__)
 
 
 class DownloadTabMixin:
@@ -390,7 +393,8 @@ class DownloadTabMixin:
             self.url_entry.drop_target_register(DND_TEXT)
             self.url_entry.dnd_bind("<<Drop>>", self._on_url_drop)
         except Exception:
-            pass
+            log.debug("Drag-and-drop registration failed; the URL entry "
+                      "stays type-only", exc_info=True)
 
     def _on_url_drop(self, event):
         """Handle dropped URL - validate before accepting"""

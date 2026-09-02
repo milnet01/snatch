@@ -7,6 +7,9 @@ import tempfile
 import configparser
 
 from .utils import atomic_private_write
+from .logging_setup import get_logger
+
+log = get_logger(__name__)
 
 
 def find_firefox_cookies_db():
@@ -109,8 +112,10 @@ def extract_browser_cookies(browser, cookies_out):
                     p = tmp_path + ext
                     if os.path.isfile(p):
                         os.unlink(p)
-        except Exception as e:
-            print(f"Cookie extraction failed: {e}")
+        except Exception:
+            # Was a print(), which reaches nobody in a windowed build and can
+            # itself raise when there is no stdout to write to.
+            log.warning("Cookie extraction failed", exc_info=True)
             return None
     else:
         # For non-Firefox browsers, fall back to yt-dlp's --cookies-from-browser

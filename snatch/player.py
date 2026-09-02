@@ -9,6 +9,9 @@ import tempfile
 from .theme import get_theme
 from .utils import format_duration
 from .platform_utils import open_path, is_windows, is_macos, find_mpv, find_ytdlp
+from .logging_setup import get_logger
+
+log = get_logger(__name__)
 
 
 def _no_player_message():
@@ -89,6 +92,8 @@ class PlayerMixin:
             try:
                 open_path(url)
             except Exception:
+                log.warning("Handing %s to the system player failed",
+                            url, exc_info=True)
                 messagebox.showerror("Error", _no_player_message())
             return
 
@@ -226,6 +231,7 @@ class PlayerMixin:
                         continue
             return None
         except Exception:
+            log.debug("mpv IPC command failed", exc_info=True)
             return None
 
     def _mpv_get_property(self, prop):
@@ -261,14 +267,15 @@ class PlayerMixin:
             except subprocess.TimeoutExpired:
                 self.mpv_process.kill()
             except Exception:
-                pass
+                log.debug("Tearing down the mpv process failed", exc_info=True)
             self.mpv_process = None
 
         if self.mpv_socket_path and os.path.exists(self.mpv_socket_path):
             try:
                 os.unlink(self.mpv_socket_path)
             except Exception:
-                pass
+                log.debug("Removing the mpv IPC socket %s failed",
+                          self.mpv_socket_path, exc_info=True)
 
         self.player_paused = False
         self.play_pause_btn.config(text="Play")
