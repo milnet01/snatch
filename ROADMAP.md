@@ -441,7 +441,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
 
 ## Application
 
-- 📋 [SNAT-0006] **Write user data files with 0600 permissions.**
+- ✅ [SNAT-0006] **Write user data files with 0600 permissions.**
   `CLAUDE.md` and `STANDARDS.md` section 5 require 0600 on `config.json`,
   `history.json` and `cookies.txt`. Observed 2026-08-19: the files on
   disk are 0644 and 0664, so the rule is not being applied at write
@@ -520,6 +520,37 @@ and application work. IDs are allocated from `.roadmap-counter`.
   scoped to what the lanes saw (the write sites) rather than to what this
   bullet already knew was insufficient. Brief the roadmap, or at least
   query it per lane, before the next sweep.
+  Resolved (2026-09-02): the on-disk tightening pass this bullet asked
+  for is in, so both halves are now done.
+
+  utils.tighten_user_data_permissions(directory) chmods config.json,
+  history.json and cookies.txt to 0o600 where they are not already, and
+  SnatchApp.__init__ calls it right after app_data_dir(). That covers the
+  file a user never saves again and the file copied in from an older
+  install, which is how the loose ones arrived.
+
+  Three deliberate limits, each with a reason rather than an oversight.
+  Windows is skipped: POSIX mode bits are not the access mechanism there
+  and S_IMODE never reads back 0o600, so an unconditional pass would chmod
+  every startup and never converge. A symlink is skipped rather than
+  followed, because chmod follows a link and would re-mode a file outside
+  the data directory. Nothing raises: a permission pass that stops the app
+  launching is worse than the mode it was fixing.
+
+  Verified by running, not reading. scripts/verify_permissions.py builds
+  the loose state in a scratch directory -- the project's own files are
+  already 0600, so asserting against them would pass without the code
+  under test -- and checks the fix, idempotency, a missing file, the
+  symlink case and that atomic_private_write still installs 0600 over a
+  loose target. Proved red first: stubbing the pass to return [] fails it
+  on the first assert. And the real app, launched under Xvfb with
+  app_data_dir pointed at a directory of 0664 files, built all four tabs
+  and left all three at 0600.
+
+  The test is wired into scripts/local-ci.sh beside the platform_utils
+  smoke test, so it is part of the pre-push gate rather than a script
+  nobody runs. This is the second entry in what SNAT-0020 calls an absent
+  test suite; it does not close that item.
 
 - ✅ [SNAT-0007] **Verify the GUI renders on Windows from a real desktop session.**
   The 2026-08-19 test reached the Tk main loop over SSH, but SSH runs in

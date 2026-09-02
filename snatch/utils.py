@@ -3,8 +3,11 @@
 import contextlib
 import os
 import json
+import stat
 import subprocess
 import tempfile
+
+from .platform_utils import is_windows
 
 
 @contextlib.contextmanager
@@ -55,6 +58,51 @@ def write_private_json(path, data):
     with atomic_private_write(path) as handle:
         json.dump(data, handle, indent=2)
 
+
+# Files inside app_data_dir() that hold user data and must be owner-only.
+PRIVATE_DATA_FILES = ("config.json", "history.json", "cookies.txt")
+PRIVATE_MODE = 0o600
+
+
+def tighten_user_data_permissions(directory):
+    """Chmod the user data files in `directory` to 0o600. Returns names fixed.
+
+    atomic_private_write guarantees the mode only for a file that is SAVED.
+    A file that is never written again keeps whatever bits it already had --
+    which is how these got loose: the original os.open form set a mode that
+    applies only on creation, so every file that predates it stayed 0o644 or
+    0o664 forever. It also catches a file copied in from an older install,
+    which is how the ones measured on 2026-08-19 arrived.
+
+    Skipped on Windows: POSIX mode bits are not the access-control mechanism
+    there, S_IMODE never reads back 0o600, so the pass would chmod on every
+    startup and never converge.
+
+    Symlinks are skipped rather than followed -- chmod follows a link, so
+    following one would re-mode a file outside the data directory.
+
+    Never raises: this runs at startup, and a permission pass that stops the
+    app launching is worse than the mode it was fixing.
+    """
+    if is_windows():
+        return []
+    fixed = []
+    for name in PRIVATE_DATA_FILES:
+        path = os.path.join(directory, name)
+        try:
+            info = os.lstat(path)
+        except OSError:
+            continue
+        if not stat.S_ISREG(info.st_mode):
+            continue
+        if stat.S_IMODE(info.st_mode) == PRIVATE_MODE:
+            continue
+        try:
+            os.chmod(path, PRIVATE_MODE)
+        except OSError:
+            continue
+        fixed.append(name)
+    return fixed
 
 def format_duration(seconds):
     """Format seconds into H:MM:SS or M:SS string"""

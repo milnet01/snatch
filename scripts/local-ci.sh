@@ -66,6 +66,8 @@ step "python byte-compile (every module)" \
     python3 -m compileall -q snatch.py snatch scripts
 step "platform_utils smoke-test" \
     python3 scripts/verify_platform_utils.py
+step "user-data permission pass (SNAT-0006)" \
+    python3 scripts/verify_permissions.py
 
 if [ "$MODE" = "lint" ]; then
     printf '\n'; bold "lint-only mode — no build was run."

@@ -164,6 +164,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Security
 
+- **Write user data files with 0600 permissions.** (SNAT-0006)
+  Settings, history and cookie files are now tightened to owner-only
+  at startup, not just when they are saved. A file left loose by an
+  older build, or copied in from one, is fixed on the next launch.
+
 - **The Linux build no longer trusts whatever it downloads**
   The AppImage build pulled two pieces of tooling from a moving target,
   with nothing checking what arrived — including the small program that

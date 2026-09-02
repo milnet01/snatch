@@ -8,7 +8,7 @@ from tkinter import ttk, messagebox
 from . import HAS_DND, __version__
 from .platform_utils import app_data_dir
 from .theme import THEMES, get_theme, set_theme, setup_styles
-from .utils import write_private_json
+from .utils import tighten_user_data_permissions, write_private_json
 from .player import PlayerMixin
 from .version import VersionMixin
 from .downloader import DownloaderMixin
@@ -43,6 +43,11 @@ class SnatchApp(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
 
         # Paths - use the project root (parent of snatch package)
         self.script_dir = app_data_dir()
+        # One-time tightening of user data files that predate the 0o600 write
+        # path. atomic_private_write only fixes a file on SAVE; one that is
+        # never saved again -- or was copied in from an older install -- keeps
+        # its old mode forever. See SNAT-0006.
+        tighten_user_data_permissions(self.script_dir)
         self.config_file = os.path.join(self.script_dir, "config.json")
         saved_config = self._load_config()
         self.save_path_var = tk.StringVar(
