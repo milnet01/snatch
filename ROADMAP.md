@@ -2008,7 +2008,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: check-code-tree-2026-08-31.
   Lanes: ui.
 
-- 📋 [SNAT-0047] **The three build jobs share a pip cache with pull-request runs.**
+- ✅ [SNAT-0047] **The three build jobs share a pip cache with pull-request runs.**
   zizmor reports cache-poisoning, three occurrences, against the `on:`
   block. All three build jobs pass `cache: "pip"` to actions/setup-python
   (ci.yml:62, 112, 147), and the workflow triggers on pull_request as well
@@ -2030,6 +2030,35 @@ and application work. IDs are allocated from `.roadmap-counter`.
   an explicit condition — which costs the release build one dependency
   download and nothing else. Worth doing alongside SNAT-0035 rather than
   separately, since both edit the same five job definitions.
+  Resolved (2026-09-02). All three build jobs now pass
+  `cache: ${{ !startsWith(github.ref, 'refs/tags/v') && 'pip' || '' }}`,
+  so a tag build -- the run whose artifacts are attached to the Release --
+  does no caching and cannot restore wheels a pull-request run put there.
+
+  Not done alongside SNAT-0035 as this bullet suggested. That one is a
+  deliberate deferral (the 13 actions/* mutable tags), and this is a
+  three-line edit that does not depend on it.
+
+  The first attempt was WRONG and shipped nothing: written as
+  `startsWith(...) && '' || 'pip'`, which always evaluates to 'pip'.
+  GitHub's `A && B || C` is a ternary only while B is truthy, and '' is
+  not. zizmor's unsound-ternary audit caught it. The comment in ci.yml now
+  carries that reasoning, because the broken form is the one that reads
+  naturally.
+
+  Verified by executing the real workflow under act with both refs, not by
+  reading the action's docs. refs/heads/main: the log carries "Cache
+  restored from key" and two "Cache Size" lines. refs/tags/v9.9.9: no
+  cache restore or save at all.
+
+  zizmor still reports cache-poisoning three times. Its audit fires on a
+  `cache:` key present alongside a publishing trigger and does not
+  evaluate the expression, so the count does not move however the value is
+  computed. Logged in .ants_review_falsepos.jsonl as mitigated-but-not-
+  visible-to-the-tool, with the act evidence and a note to re-check if the
+  expression is edited.
+
+  yamllint and actionlint clean.
   **Layman:** Builds reuse downloaded packages from a shared store that outside contributions can also write to.
   Kind: security.
   Source: check-code-tree-2026-08-31.

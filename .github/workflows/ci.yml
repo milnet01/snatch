@@ -93,7 +93,21 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: "pip"
+          # No pip cache on a tag build. This workflow also runs on
+          # pull_request, so a PR populates the same cache a later v* run
+          # restores from -- and that run is the one whose artifacts are
+          # attached to the Release. zizmor calls this cache-poisoning; the
+          # cost of skipping it is one dependency download on release day.
+          #
+          # Written as `!startsWith(...) && 'pip' || ''`, not
+          # `startsWith(...) && '' || 'pip'`. GitHub's A && B || C is only a
+          # ternary while B is TRUTHY, and '' is not -- the second form
+          # evaluates to 'pip' on BOTH branches and caches exactly as before.
+          # zizmor's unsound-ternary audit is what caught it.
+          #
+          # The other two build jobs do the same, for the same reason
+          # (SNAT-0047).
+          cache: ${{ !startsWith(github.ref, 'refs/tags/v') && 'pip' || '' }}
 
       - name: Install Tk runtime and X libraries
         run: |
@@ -156,7 +170,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: "pip"
+          # No pip cache on a tag build -- see build-linux (SNAT-0047).
+          cache: ${{ !startsWith(github.ref, 'refs/tags/v') && 'pip' || '' }}
 
       - name: Install build dependencies
         run: |
@@ -193,7 +208,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: "pip"
+          # No pip cache on a tag build -- see build-linux (SNAT-0047).
+          cache: ${{ !startsWith(github.ref, 'refs/tags/v') && 'pip' || '' }}
 
       - name: Install build dependencies
         run: |

@@ -229,6 +229,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Security
 
+- **Release downloads are no longer built from a shared package cache** (SNAT-0047)
+  The files attached to a release are built on GitHub, and the build
+  reused a store of downloaded packages that a proposed change from
+  anyone could also write to. Release builds now start from a clean
+  download instead.
+
 - **The built-in player can no longer be reached by other users on a shared computer** (SNAT-0052)
   Snatch talks to its video player through a small control channel. On
   a computer shared with other people that channel could sit in a public
