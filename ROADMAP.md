@@ -72,11 +72,27 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: in-session-2026-08-19.
   Lanes: ci, security.
 
-- 📋 [SNAT-0009] **Pin the appimagetool runtime rather than tracking continuous.**
+- ✅ [SNAT-0009] **Pin the appimagetool runtime rather than tracking continuous.**
   scripts/build-linux.sh downloads the AppImage type2 runtime from the
   `continuous` tag, which moves. Everything else in the build is pinned
   (yt-dlp 2026.03.17, ffmpeg-static b6.1.1, pyinstaller 6.11.1). A moving
   runtime can break a build with no change on our side.
+  Resolved (2026-09-02): already done, and this status was stale rather
+  than the work being open.
+
+  scripts/build-linux.sh pins APPIMAGETOOL_VERSION and
+  TYPE2_RUNTIME_VERSION to explicit versions and verifies each download
+  against a recorded SHA-256, per architecture. The bullet's body still
+  described the runtime as coming from the moving `continuous` tag, which
+  has not been true for some time.
+
+  Worth noting for anyone reading the pin later: the runtime tag is an
+  OLDER dated release than the `continuous` build it replaced. That is
+  deliberate -- it is the only immutable tag available -- and it is not a
+  version to bump. Moving it means moving the pin and its digest together.
+
+  Found while surveying open items, not by a ledger sweep; other bullets
+  in this roadmap may carry the same kind of staleness.
   **Layman:** One piece of the Linux build always grabs the newest version, which could break without warning.
   Kind: chore.
   Source: in-session-2026-08-19.
