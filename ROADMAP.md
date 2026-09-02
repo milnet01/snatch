@@ -551,6 +551,19 @@ and application work. IDs are allocated from `.roadmap-counter`.
   smoke test, so it is part of the pre-push gate rather than a script
   nobody runs. This is the second entry in what SNAT-0020 calls an absent
   test suite; it does not close that item.
+  Follow-up (2026-09-02): the test now runs in CI as well, which the
+  note above claimed less than it should have.
+
+  It was wired into scripts/local-ci.sh only, so it ran on one machine at
+  push time and never on GitHub. CI's static-checks job runs compileall
+  and shellcheck; verify_platform_utils.py reaches CI solely through the
+  three build scripts, and this test is not part of a build. A regression
+  test only one machine runs is the same shape as the bug this item was
+  about -- code that looks right and never takes effect.
+
+  Added as a static-checks step in .github/workflows/ci.yml, verified
+  through act rather than by reading the YAML: the step ran inside the
+  real job and passed.
 
 - ✅ [SNAT-0007] **Verify the GUI renders on Windows from a real desktop session.**
   The 2026-08-19 test reached the Tk main loop over SSH, but SSH runs in
