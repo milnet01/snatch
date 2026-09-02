@@ -56,6 +56,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **A damaged settings file no longer stops Snatch opening** (SNAT-0051)
+  If config.json was corrupted -- half-written by a crash, edited by
+  hand, or left unreadable -- Snatch could fail to start with a raw
+  error and no window, and nothing told you which file was at fault.
+  It now falls back to defaults, notes what it could not read in the
+  log, and opens. A theme name it does not recognise is corrected
+  instead of being saved back forever, and a window position saved on
+  a monitor you no longer have no longer reopens the window off the
+  edge of the screen.
+
 - **Searching twice no longer leaves the box stuck on "Searching..."** (SNAT-0049)
   Clicking Search while a search was already running started a second
   one on top of the first. The status line then said "Searching..."

@@ -2,6 +2,7 @@
 
 import os
 import json
+import re
 import tkinter as tk
 from tkinter import ttk, messagebox
 
@@ -101,24 +102,34 @@ class SnatchApp(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
         self.player_paused = False
         self._user_seeking = False
 
-        # Theme — restore from config, set before widget creation
-        self.theme_var = tk.StringVar(value=saved_config.get("theme", "Dark"))
-        set_theme(self.theme_var.get())
+        # Theme — restore from config, set before widget creation.
+        # set_theme() falls back to Dark for an unknown name but does not say
+        # so, so theme_var used to keep the bogus string and _save_config
+        # wrote it straight back: a typo'd theme was persisted forever while
+        # the app silently ran Dark. Correct it here instead.
+        theme_name = saved_config.get("theme", "Dark")
+        if theme_name not in THEMES:
+            log.warning("Unknown theme %r in config; using Dark", theme_name)
+            theme_name = "Dark"
+        self.theme_var = tk.StringVar(value=theme_name)
+        set_theme(theme_name)
 
         # Set root background from active theme
         self.root.configure(bg=get_theme().BG)
 
         # Restore window geometry
-        geometry = saved_config.get("window_geometry", "1200x900")
-        self.root.geometry(geometry)
+        self.root.geometry(self._sanitize_geometry(
+            saved_config.get("window_geometry")))
 
         self._set_icon()
         setup_styles()
         self.create_widgets()
 
-        # Restore last active tab
+        # Restore last active tab. A config carrying "2" rather than 2 makes
+        # the comparison raise TypeError, which happens after the widgets are
+        # built but still inside __init__, so the window never appears.
         last_tab = saved_config.get("last_tab", 0)
-        if 0 <= last_tab < self.notebook.index("end"):
+        if isinstance(last_tab, int) and 0 <= last_tab < self.notebook.index("end"):
             self.notebook.select(last_tab)
 
         self.check_version()
@@ -132,13 +143,56 @@ class SnatchApp(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
         self.root.bind("<Escape>", lambda e: self.cancel_download())
         self._setup_keyboard_shortcuts()
 
+    DEFAULT_GEOMETRY = "1200x900"
+    # Tk accepts WxH with an optional origin. root.geometry() always returns
+    # the long form, so the long form is what _save_config writes.
+    _GEOMETRY_RE = re.compile(r"^(\d+)x(\d+)(?:([+-])(\d+)([+-])(\d+))?$")
+
+    def _sanitize_geometry(self, geometry):
+        """Return a geometry string Tk will accept, dropping a dead origin.
+
+        Two failures this guards. A hand-edited or truncated value raises
+        TclError out of root.geometry(), which runs before the window exists,
+        so the app does not start. And an origin saved on a monitor that is no
+        longer attached reopens the window where the user cannot reach it, so
+        the offset is kept only while it still lands on a screen that exists
+        now. A negative sign anchors to the right or bottom edge, which is
+        always present, so those are left alone.
+        """
+        match = self._GEOMETRY_RE.match(str(geometry or "").strip())
+        if not match:
+            return self.DEFAULT_GEOMETRY
+        width, height, x_sign, x, y_sign, y = match.groups()
+        size = f"{width}x{height}"
+        if x_sign is None:
+            return size
+        if x_sign == "+" and int(x) >= self.root.winfo_screenwidth():
+            return size
+        if y_sign == "+" and int(y) >= self.root.winfo_screenheight():
+            return size
+        return f"{size}{x_sign}{x}{y_sign}{y}"
+
     def _load_config(self):
         """Load saved settings from config file"""
+        # Nothing here may raise. This runs inside SnatchApp.__init__ before
+        # any window exists, so an unreadable or malformed config.json stopped
+        # the app launching at all, with no UI route to repair it. Only
+        # FileNotFoundError and JSONDecodeError were caught; PermissionError,
+        # IsADirectoryError, UnicodeDecodeError and valid-but-wrong-shaped
+        # JSON all escaped. Same fix history.json took in _load_history.
         try:
-            with open(self.config_file, "r") as f:
-                return json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
+            with open(self.config_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, ValueError) as exc:
+            log.warning("Could not read %s: %s", self.config_file, exc)
             return {}
+        # ValueError above covers JSONDecodeError and UnicodeDecodeError.
+        # A bare 5 or a list parses fine and then breaks saved_config.get().
+        if not isinstance(data, dict):
+            log.warning("Ignoring %s: expected an object, got %s",
+                        self.config_file, type(data).__name__)
+            return {}
+        return data
 
     def _save_config(self):
         """Save current settings to config file"""

@@ -2154,7 +2154,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: review-code-sweep-2026-08-31.
   Lanes: parsing.
 
-- 📋 [SNAT-0051] **The config loader crashes the app on four corrupt shapes it does not catch.**
+- ✅ [SNAT-0051] **The config loader crashes the app on four corrupt shapes it does not catch.**
   STANDARDS.md 7.3 promises "Graceful fallback: Returns {} on
   missing/corrupt config". app.py:123-129 catches only FileNotFoundError
   and json.JSONDecodeError, so four shapes escape and crash startup:
@@ -2183,6 +2183,32 @@ and application work. IDs are allocated from `.roadmap-counter`.
   while theme_var keeps the bogus string, which _save_config then writes
   back -- so a typo'd theme name is persisted forever while the app
   silently runs Dark.
+  Resolved (2026-09-02). _load_config now widens to `except (OSError,
+  ValueError)` and checks the parsed value is a dict before returning it,
+  which is the shape _load_history took on 2026-09-01. It logs what it
+  rejected rather than discarding it silently. last_tab is guarded with
+  isinstance before the range comparison. The theme name is validated
+  against THEMES at load, so an unknown one is corrected once instead of
+  being persisted forever while the app ran Dark.
+
+  The saved geometry goes through a new _sanitize_geometry: anything Tk
+  would reject falls back to the default, and a `+X+Y` origin past the
+  current screen is dropped while the size is kept -- a window saved on a
+  monitor that is no longer attached now reopens where it can be reached.
+  An edge-anchored `-X-Y` origin is left alone; that edge always exists.
+
+  Correcting this bullet: it said STANDARDS.md 7.1 describes the value as
+  `WxH`. 7.1 currently reads "Whatever root.geometry() returns -- WxH+X+Y,
+  so position too", so that claim was already stale when read. No
+  standards edit was needed.
+
+  Verified by running. Against the pre-fix source, a list config raised
+  AttributeError, `"last_tab": "2"` raised TypeError and a garbage
+  geometry raised _tkinter.TclError -- each out of __init__, so no window
+  appeared. All three, plus a bare number, a truncated file, a bogus theme
+  name and an off-screen geometry, now launch the real app under Xvfb and
+  stay up. 26 new tests in tests/test_config_resilience.py; suite 79 green;
+  ruff unchanged at 36 lines before and after.
   **Layman:** A damaged settings file can stop Snatch opening, and the only fix is deleting a file you cannot see is the cause.
   Kind: fix.
   Source: review-code-sweep-2026-08-31.
