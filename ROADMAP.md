@@ -2866,7 +2866,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: user-request-2026-09-02.
   Lanes: packaging.
 
-- 📋 [SNAT-0063] **The permission test's fixture cannot grow with the list it tests.**
+- ✅ [SNAT-0063] **The permission test's fixture cannot grow with the list it tests.**
   scripts/verify_permissions.py builds its fixture with
   zip(PRIVATE_DATA_FILES, (0o664, 0o644, 0o664)) -- a hardcoded
   three-element tuple of modes paired against a registry meant to grow.
@@ -2890,6 +2890,29 @@ and application work. IDs are allocated from `.roadmap-counter`.
   file the same loose mode, or map name to mode and assert the map covers
   PRIVATE_DATA_FILES. That removes the silent truncation and the third
   registration point with it, which would let 5.3 go back to naming two.
+  Resolved (2026-09-02). The fixture is derived from PRIVATE_DATA_FILES
+  instead of zipped against a fixed tuple of modes: every file gets one
+  LOOSE_MODE constant. The bullet offered that or a name-to-mode map, and
+  this is the one that also removes the third registration point.
+
+  The measured modes were 0664, 0644 and 0664. One loose mode exercises
+  the same path, because what is under test is that anything other than
+  0o600 is tightened, not which loose mode it started from. Recorded in
+  the comment so the fidelity that was dropped is visible.
+
+  The stale "expected all three tightened" message went with it.
+
+  Verified by running, with a fourth entry added to PRIVATE_DATA_FILES and
+  then reverted. Old script: AssertionError "expected all three tightened,
+  got ['config.json', 'history.json', 'cookies.txt']" -- red, naming the
+  permission pass, which was fine. Fixed script: OK.
+
+  Still owed, deliberately not done here: STANDARDS.md 5.3's closing
+  paragraph describes this fixture as pairing PRIVATE_DATA_FILES with a
+  fixed tuple of loose modes, and says a new name must be added here too.
+  Both are now false. Editing 5.3 re-arms CLAUDE.md rule 14's cold-read
+  gate, so it is batched with the other STANDARDS edits this run produces
+  and gated once rather than three times.
   **Layman:** A safety check quietly stops covering a new private file, and the build then fails in a way that points at the wrong thing.
   Kind: test.
   Source: review-contract-standards-2026-09-02.

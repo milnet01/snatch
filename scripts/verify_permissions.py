@@ -23,6 +23,11 @@ from snatch.utils import (
 )
 
 
+# Group- and world-readable: the shape the bug produced, and the thing
+# tighten_user_data_permissions() has to repair.
+LOOSE_MODE = 0o664
+
+
 def mode_of(path):
     return stat.S_IMODE(os.lstat(path).st_mode)
 
@@ -34,17 +39,27 @@ def main():
 
     with tempfile.TemporaryDirectory() as data_dir:
         # A file that predates the 0o600 write path and is never saved again.
-        # This is the exact shape measured on 2026-08-19.
-        for name, loose in zip(PRIVATE_DATA_FILES, (0o664, 0o644, 0o664)):
+        # The modes measured on 2026-08-19 were 0664, 0644 and 0664; one loose
+        # mode exercises the same path, and what is under test is that
+        # anything other than 0o600 gets tightened.
+        #
+        # Derived from PRIVATE_DATA_FILES rather than zipped against a fixed
+        # tuple of modes. zip stops at the shorter side, so a fourth entry in
+        # the registry silently created three fixture files while the
+        # assertion below still compared against all four -- turning CI red on
+        # a file the fixture never made, which reads as the permission pass
+        # being broken when it is fine. It also means this script is no longer
+        # a place a new private file has to be registered (SNAT-0063).
+        for name in PRIVATE_DATA_FILES:
             path = os.path.join(data_dir, name)
             with open(path, "w", encoding="utf-8") as handle:
                 handle.write("{}")
-            os.chmod(path, loose)
-            assert mode_of(path) == loose, f"setup failed for {name}"
+            os.chmod(path, LOOSE_MODE)
+            assert mode_of(path) == LOOSE_MODE, f"setup failed for {name}"
 
         fixed = tighten_user_data_permissions(data_dir)
         assert sorted(fixed) == sorted(PRIVATE_DATA_FILES), \
-            f"expected all three tightened, got {fixed}"
+            f"expected every entry tightened, got {fixed}"
         for name in PRIVATE_DATA_FILES:
             got = mode_of(os.path.join(data_dir, name))
             assert got == PRIVATE_MODE, f"{name} is {oct(got)}, want 0o600"
