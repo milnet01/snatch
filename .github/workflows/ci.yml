@@ -47,6 +47,9 @@ jobs:
       - name: Byte-compile every module
         run: python -m compileall -q snatch.py snatch scripts
 
+      - name: User-data permission pass (SNAT-0006)
+        run: python scripts/verify_permissions.py
+
       - name: Shell lint
         run: |
           scripts/apt-install.sh shellcheck
