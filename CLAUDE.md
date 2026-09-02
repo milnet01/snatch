@@ -62,8 +62,11 @@ so what runs locally and what runs in CI cannot drift. When changing how a
 platform builds, change the script — never the workflow step that calls it.
 
 ## Quick Reference
-- Config: `config.json` (project root, 0o600)
-- History: `history.json` (project root, 0o600, max 200 entries)
+- Config: `config.json` (in `platform_utils.app_data_dir()`, 0o600)
+- History: `history.json` (same dir, 0o600, max 200 entries)
+- **`app_data_dir()` decides where those live, not the project root.** From
+  source it *is* the project root; in a packaged build it is not — see
+  STANDARDS.md 14.
 - Themes: `theme.py` — Dark, Nord, Monokai, YouTube, Dracula, Gruvbox, Solarized (registry: `THEMES`)
 - Feature flags: `HAS_DND`, `HAS_MPV`, `HAS_PIL` (detected at import)
 - Verify changes: `python3 -m py_compile snatch/<file>.py`

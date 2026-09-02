@@ -71,7 +71,10 @@ active theme by calling `theme.get_theme()` at the point of use — never captur
 it at import.** A theme bound at import keeps its colours after `set_theme()`
 and the widget stops following the theme switch.
 
-**Theme class contract — required color attributes:**
+**Theme class contract — required color attributes.** Nothing enforces this
+list: §13 runs no conformance check over `THEMES`, so a theme missing an
+attribute passes every verification here and surfaces as an `AttributeError`
+the first time that widget is drawn in that state.
 
 | Attribute | Purpose | Example |
 |-----------|---------|---------|
@@ -111,6 +114,7 @@ button = ttk.Button(parent, text="Click", style="Accent.TButton")
 **Use tk widgets only when ttk lacks the feature** (Canvas, embedded player, rich labels):
 ```python
 # When tk widgets are necessary, always reference theme colors
+theme = get_theme()        # at point of use — never bound at import
 label = tk.Label(parent, bg=theme.BG, fg=theme.FG, font=("Helvetica", 10))
 canvas = tk.Canvas(parent, bg=theme.BG, highlightthickness=0)
 ```
@@ -191,6 +195,8 @@ All URLs are validated before passing to subprocess commands:
 ```python
 @staticmethod
 def _is_valid_url(url):
+    if not url:
+        return False
     if re.match(r'^ytsearch\w*:', url):  # yt-dlp search prefix
         return True
     return url.startswith("http://") or url.startswith("https://")
@@ -201,7 +207,7 @@ def _is_valid_url(url):
 - **Always use `--` separator** before URL/path arguments to prevent flag injection:
   ```python
   cmd.extend(["--", url])
-  subprocess.Popen(["xdg-open", "--", path])
+  platform_utils.open_path(path)   # never a bare xdg-open — see below
   ```
 - **Never use `shell=True`** in subprocess calls
 - **Never use `sh -c`** — pass arguments as list items, not shell strings
@@ -209,7 +215,12 @@ def _is_valid_url(url):
 - **No privilege escalation** — the app never invokes `pkexec` or `sudo`. Updates
   are written into `platform_utils.user_bin_dir()`, inside the user's own data
   directory, so nothing outside the app is ever modified
-- **HTTPS-only** for thumbnail/update downloads (`--proto =https`, URL prefix checks)
+- **HTTPS-only** for network fetches. Route app-side downloads through
+  `version._open_https`, which checks the requested URL **and**
+  `resp.geturl()` afterwards — urllib follows redirects and permits an
+  https -> http downgrade, so a prefix check alone asserts what was asked
+  for rather than what arrived. (`--proto '=https'` is curl's equivalent
+  guard in the build scripts; it is not available to the app.)
 - **Never leak sensitive paths** (cookie file locations) in status bar output
 
 ### 5.3 File Permissions
@@ -242,7 +253,13 @@ through the helper covers the file from then on; it does nothing for a copy that
 already exists with looser bits. Add its name to `utils.PRIVATE_DATA_FILES`,
 which `utils.tighten_user_data_permissions()` walks at startup — called from
 `SnatchApp.__init__` — to repair files predating the private write path or
-carried in from an older install.
+carried in from an older install. **That walk is a no-op on Windows** (see
+§14), so the legacy-copy problem is closed on macOS and Linux only.
+
+Then update `scripts/verify_permissions.py`, whose fixture pairs
+`PRIVATE_DATA_FILES` with a fixed tuple of loose modes and asserts every entry
+was tightened. CI runs it, so a name added in one place and not the other turns
+the pipeline red.
 
 **Files with restricted permissions:**
 - `config.json` — user preferences
@@ -257,7 +274,7 @@ The mpv IPC socket is placed in `XDG_RUNTIME_DIR` (user-private) instead of `/tm
 runtime_dir = os.environ.get("XDG_RUNTIME_DIR", tempfile.gettempdir())
 # Validate ownership before trusting the directory
 runtime_dir = os.path.realpath(runtime_dir)
-if not os.path.isdir(runtime_dir) or os.stat(runtime_dir).st_uid != os.getuid():
+if is_windows() or not os.path.isdir(runtime_dir) or os.stat(runtime_dir).st_uid != os.getuid():
     runtime_dir = tempfile.gettempdir()
 ```
 
@@ -339,6 +356,7 @@ MAX_HISTORY_ENTRIES = 200
 | `sponsorblock` | int | `0` | Enable SponsorBlock segment removal |
 | `speed_limit` | string | `"Unlimited"` | Download speed limit |
 | `theme` | string | `"Dark"` | Active theme name |
+| `last_tab` | int | `0` | Index of the notebook tab to reopen on launch |
 
 ### 7.2 History File
 
@@ -431,7 +449,8 @@ except ImportError:
 - **PEP 8** style with 100-char line limit (soft)
 - **Docstrings** on all public methods and classes (one-line or multi-line)
 - **Type hints** not required but welcomed on utility functions
-- **No global mutable state** — all state lives on `self`
+- **No module-level mutable state.** Instance state lives on `self`; a cache
+  that is deliberately process-wide is a class variable, per §6.1
 
 ### 10.2 Naming Conventions
 
@@ -590,6 +609,8 @@ Running from source it is the project root. In a packaged build it is not:
 
 `app_data_dir()` creates the directory `0o700` on the macOS and Linux packaged
 builds only. On Windows and when running from source it returns a directory that
-already exists and does not change its mode. **So the per-file `0o600` above is
-the only permission guarantee that holds on every platform** — never treat the
-containing directory as private.
+already exists and does not change its mode. On macOS and Linux the per-file `0o600` is then the only permission guarantee
+that holds — never treat the containing directory as private. **On Windows
+neither guarantee holds**: POSIX mode bits are not the access-control mechanism
+there, so a file that must be private on Windows needs ACL work this document
+does not cover.
