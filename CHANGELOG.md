@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **The build now catches a whole class of crash before it ships** (SNAT-0044)
+  A missing import used to reach users: the old check only proved each
+  file could be read, never that the app could actually load. The build
+  now refuses code that calls something which does not exist, which is
+  the exact bug that stopped Snatch launching in an earlier version.
+
 - **Right-click to paste, copy or cut in any box (SNAT-0041)**
   Every text box in Snatch — the URL bar, the search boxes, the
   cookies and save-location fields — now has a right-click menu with

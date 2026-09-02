@@ -1744,7 +1744,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: in-session-2026-08-20.
   Lanes: downloader, packaging.
 
-- 📋 [SNAT-0044] **No Python tooling config, so the project's own declared standards are enforced by nothing.**
+- ✅ [SNAT-0044] **No Python tooling config, so the project's own declared standards are enforced by nothing.**
   There is no pyproject.toml, ruff.toml, setup.cfg or mypy config anywhere
   in the tree. Three consequences, found by running the tools during the
   2026-08-31 whole-tree check-code pass.
@@ -1772,6 +1772,45 @@ and application work. IDs are allocated from `.roadmap-counter`.
 
   Not urgent, but note that item 3 is a real defect class this project has
   already shipped once.
+  Resolved (2026-09-02). Two of the three claims had gone stale and the
+  third was wrong, so what shipped is not quite what this bullet asked
+  for.
+
+  Item 1 holds, with different numbers. pyproject.toml sets
+  line-length = 100, so a bare `ruff check` now applies STANDARDS 10.1
+  instead of its own 88. Re-measured today: 73 long lines at the default,
+  17 at the declared limit -- the bullet said 79 and 21.
+
+  Item 2 is no longer true. mypy 1.20.1 does not hit "Duplicate module
+  named snatch"; `mypy .` analyses all 18 files. No files/mypy_path
+  setting was needed. What was real is that tkinterdnd2 ships no py.typed
+  and no stubs, which was every error mypy reported. With that silenced
+  the run is "Success: no issues found in 18 source files", so a genuine
+  type error now arrives in a report that is not already noisy.
+
+  Item 3 was wrong, and this is the useful part. The bullet prescribes
+  `python -c "import snatch, snatch.app, snatch.tabs.search"` and says it
+  would have caught SNAT-0041. It would not: that fix ADDED an import for
+  a name called inside a method, so the module imports cleanly and the
+  NameError fires when the widget is built. Reproduced by deleting the
+  import again -- compileall passed, the import check passed, and
+  `ruff --select F821` reported the undefined name.
+
+  So CI runs ruff F821,F811,F822,F823,E9, which is green today. Not the
+  whole F family: F401 fires on the tkinterdnd2 re-exports and F841 on the
+  Tk app object, both already adjudicated. The import check is kept for
+  the class it does cover -- a missing module, a bad `from X import Y` --
+  and lives in build-linux, because static-checks installs neither
+  python3-tk nor the requirements and snatch.app imports tkinter at module
+  level. The first gate run failed on exactly that.
+
+  Deliberately NOT done: no project-wide ruff ignore list. 25 of the 57
+  default findings are BLE001 and S110, which is SNAT-0045's whole
+  subject, and silencing them here would close that item by configuration
+  rather than by giving the app a logging path. The 10-file, 87-line
+  import-order reformat ruff offers is also left for its own change.
+
+  ruff pinned 0.16.4 and recorded in docs/building.md's pin table.
   **Layman:** Snatch writes down its own coding rules, but no tool is set up to check them, so nothing notices when they are broken.
   Kind: chore.
   Source: check-code-tree-2026-08-31.
