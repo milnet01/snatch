@@ -56,6 +56,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **The window no longer freezes while talking to the video player** (SNAT-0048)
+  Dragging the volume slider, pressing play or pause, or simply having
+  a video open made Snatch wait on the player before it could redraw --
+  up to half a second each time, and the position readout asked twice
+  every half-second. If the player stopped responding, the whole window
+  locked up. Those conversations now happen in the background, and a
+  volume drag sends once when you let go instead of on every step.
+
 - **Playlists containing deleted or private videos no longer break the results list** (SNAT-0050)
   A playlist with nothing listable in it, or one containing videos that
   have since been deleted, made private or blocked in your region, could

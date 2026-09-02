@@ -5,6 +5,7 @@ import json
 import socket
 import subprocess
 import tempfile
+import threading
 
 from .theme import get_theme
 from .utils import format_duration
@@ -73,6 +74,9 @@ class PlayerMixin:
     POLL_PAUSED_MS = 1000
     SOCKET_RECV_CAP = 65536
     SOCKET_CHUNK_SIZE = 4096
+    # A Scale `command` callback fires once per drag increment. Coalescing
+    # a drag into one send is both fewer round-trips and fewer threads.
+    VOLUME_DEBOUNCE_MS = 120
 
     def _play_in_mpv(self, url, title=""):
         """Launch mpv embedded in the player frame"""
@@ -234,16 +238,35 @@ class PlayerMixin:
             log.debug("mpv IPC command failed", exc_info=True)
             return None
 
+    def _mpv_command_async(self, command, on_result=None):
+        """Run one IPC round-trip off the GUI thread.
+
+        _mpv_command connects, sends and waits on a socket with a 0.5 s
+        timeout. Every caller used to run it on the main thread, so against a
+        wedged mpv the window froze for half a second per event -- and the
+        poller does two round-trips every 500 ms (STANDARDS.md 4.1 rule 1,
+        SNAT-0048).
+
+        `on_result` is called back on the MAIN thread through root.after, per
+        rule 2. Omit it for a write, which has nothing to marshal back.
+        """
+        def worker():
+            resp = self._mpv_command(command)
+            if on_result is not None:
+                self.root.after(0, lambda: on_result(resp))
+
+        threading.Thread(target=worker, daemon=True).start()
+
     def _mpv_get_property(self, prop):
-        """Get a property value from mpv"""
+        """Get a property value from mpv. Blocks -- call from a worker."""
         resp = self._mpv_command(["get_property", prop])
         if resp and "data" in resp:
             return resp["data"]
         return None
 
     def _mpv_set_property(self, prop, value):
-        """Set a property in mpv"""
-        self._mpv_command(["set_property", prop, value])
+        """Set a property in mpv. Returns immediately; the send is threaded."""
+        self._mpv_command_async(["set_property", prop, value])
 
     def _toggle_play_pause(self):
         """Toggle play/pause on the embedded player"""
@@ -259,6 +282,12 @@ class PlayerMixin:
         if self.player_update_id:
             self.root.after_cancel(self.player_update_id)
             self.player_update_id = None
+
+        # A volume send debounced by _on_volume_change would otherwise fire
+        # after the player is gone.
+        if getattr(self, "_volume_send_id", None) is not None:
+            self.root.after_cancel(self._volume_send_id)
+            self._volume_send_id = None
 
         if self.mpv_process:
             try:
@@ -287,28 +316,73 @@ class PlayerMixin:
         self.player_status_label.place(relx=0.5, rely=0.5, anchor="center")
 
     def _on_volume_change(self, value):
-        """Update mpv volume"""
+        """Update mpv volume, coalescing a drag into a single send.
+
+        This is the Scale's `command` callback, so it fires once per drag
+        increment -- dozens per drag, each formerly a blocking round-trip on
+        the GUI thread. Only the value the user settled on matters, so the
+        send is deferred and any pending one replaced (SNAT-0048).
+        """
+        self._pending_volume = int(float(value))
+        if getattr(self, "_volume_send_id", None) is not None:
+            self.root.after_cancel(self._volume_send_id)
+        self._volume_send_id = self.root.after(self.VOLUME_DEBOUNCE_MS,
+                                               self._send_pending_volume)
+
+    def _send_pending_volume(self):
+        """Send the volume the drag settled on."""
+        self._volume_send_id = None
         if self.mpv_process and self.mpv_process.poll() is None:
-            self._mpv_set_property("volume", int(float(value)))
+            self._mpv_set_property("volume", self._pending_volume)
 
     def _on_seek_release(self, event):
-        """Seek to position when user releases the seek bar"""
+        """Seek to position when user releases the seek bar.
+
+        The duration lookup and the seek both go on a worker; the seek bar is
+        already where the user put it, so there is nothing to marshal back.
+        seek_var is read here, on the main thread, per 4.1 rule 2.
+        """
         self._user_seeking = False
-        if self.mpv_process and self.mpv_process.poll() is None:
+        if not (self.mpv_process and self.mpv_process.poll() is None):
+            return
+        fraction = self.seek_var.get() / 100
+
+        def seek():
             duration = self._mpv_get_property("duration")
             if duration:
-                position = self.seek_var.get() / 100 * duration
-                self._mpv_command(["seek", position, "absolute"])
+                self._mpv_command(["seek", fraction * duration, "absolute"])
+
+        threading.Thread(target=seek, daemon=True).start()
 
     def _update_player_state(self):
-        """Poll mpv for position/duration and update the seek bar"""
+        """Poll mpv for position and duration, off the GUI thread.
+
+        The two round-trips run on a worker and the result is applied back on
+        the main thread, so a wedged mpv delays the next poll instead of
+        freezing the window twice every 500 ms (SNAT-0048).
+        """
         if not self.mpv_process or self.mpv_process.poll() is not None:
             if self.mpv_process and self.mpv_process.poll() is not None:
                 self._stop_player()
             return
 
-        pos = self._mpv_get_property("time-pos")
-        dur = self._mpv_get_property("duration")
+        def poll():
+            pos = self._mpv_get_property("time-pos")
+            dur = self._mpv_get_property("duration")
+            self.root.after(0, lambda: self._apply_player_state(pos, dur))
+
+        threading.Thread(target=poll, daemon=True).start()
+
+    def _apply_player_state(self, pos, dur):
+        """Update the seek bar and schedule the next poll. Main thread.
+
+        The next poll is scheduled from here rather than from
+        _update_player_state, so only one is ever in flight. The guard below
+        is what stops a reply that was already on its way from restarting the
+        loop after _stop_player, which sets mpv_process to None.
+        """
+        if not self.mpv_process or self.mpv_process.poll() is not None:
+            return
 
         if pos is not None and dur is not None and dur > 0:
             if not self._user_seeking:

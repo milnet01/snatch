@@ -18,8 +18,9 @@ log = get_logger(__name__)
 
 class SearchTabMixin:
     """Mixin providing the Search tab UI and logic.
-    Expects the host class to provide root, _get_base_cmd(), _get_cookie_args(),
-    _play_in_mpv(), url_var, notebook, and other shared state.
+    Expects the host class to provide root, _get_base_cmd(),
+    _get_cookie_args(), _cookie_state(), _play_in_mpv(), url_var, notebook,
+    and other shared state.
     """
 
     def _create_search_tab(self, parent):
@@ -302,16 +303,23 @@ class SearchTabMixin:
         self._start_search_anim()
 
         self.is_searching = True
-        thread = threading.Thread(target=self._search_thread,
-                                  args=(search_target, count))
+        # Read on this thread and passed in. Depending on the _tkinter build,
+        # a .get() from a worker either takes the Tcl lock or raises
+        # RuntimeError; STANDARDS.md 4.1 rule 2 forbids it either way, and
+        # search_target and count are already passed this way (SNAT-0048).
+        thread = threading.Thread(
+            target=self._search_thread,
+            args=(search_target, count, self.search_duration_var.get(),
+                  self._cookie_state()))
         thread.daemon = True
         thread.start()
 
-    def _search_thread(self, search_target, max_results):
+    def _search_thread(self, search_target, max_results, duration_filter,
+                       cookie_state):
         """Run yt-dlp search in background"""
         try:
             cmd = self._get_base_cmd()
-            cmd.extend(self._get_cookie_args())
+            cmd.extend(self._get_cookie_args(cookie_state))
             # --flat-playlist lists the results without fully extracting every
             # video. Measured 2026-08-19 on a 20-result search: 3.3s / 23 KB
             # with it, ~40s / 11.5 MB without. The slow path made the UI look
@@ -355,7 +363,6 @@ class SearchTabMixin:
                 self.root.after(0, lambda: self._search_error(result.stderr))
                 return
 
-            duration_filter = self.search_duration_var.get()
             if duration_filter != "Any":
                 filtered = []
                 for entry in entries:

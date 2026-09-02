@@ -2035,7 +2035,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: check-code-tree-2026-08-31.
   Lanes: ci, supply-chain.
 
-- 📋 [SNAT-0048] **Blocking work still runs on the GUI thread, and a Tk variable is still read from a worker.**
+- ✅ [SNAT-0048] **Blocking work still runs on the GUI thread, and a Tk variable is still read from a worker.**
   STANDARDS.md 4.1 rule 1 ("All blocking operations run in daemon
   threads") and rule 2 ("Never modify GUI from a thread") are both
   unconditional, and three lanes of the 2026-08-31 sweep found breaches
@@ -2066,6 +2066,52 @@ and application work. IDs are allocated from `.roadmap-counter`.
 
   Not done in the 2026-09-01 fix pass, which was scoped to CRITICAL and
   HIGH. These are the MEDIUM tail of the same contract.
+  Resolved (2026-09-02).
+
+  Correcting this bullet before recording the fix. It said
+  _fetch_formats_thread calls _extract_browser_cookies, whose
+  cookies_file_var.set() is then a write from a worker. It does not:
+  _extract_browser_cookies has one caller, a button handler in
+  download.py, and that runs on the main thread. What the workers really
+  shared was _get_cookie_args, which read cookies_file_var and
+  browser_var itself and is called from all three of them -- so the read
+  went wherever the call did.
+
+  An AST sweep over every function handed to threading.Thread found four
+  direct breaches. One was the search_duration_var read this bullet named.
+  The other three it did not: subtitle_var, sponsorblock_var and
+  speed_limit_var, all read inside _download_thread.
+
+  Fixes. _cookie_state() and _download_options() snapshot on the main
+  thread and are passed in; _get_cookie_args takes the snapshot as a
+  required argument, so a new worker cannot fall back to reading the
+  variables by omitting it.
+
+  _mpv_command_async runs one round-trip on a worker and calls back
+  through root.after(0, ...). _mpv_set_property, the seek handler and the
+  poller all use it. The poller was split: _update_player_state starts the
+  worker, _apply_player_state updates the bar and schedules the next poll,
+  so only one is ever in flight and a reply already in transit cannot
+  restart the loop after _stop_player.
+
+  Volume is debounced rather than threaded per event. It is a Scale
+  `command` callback firing once per drag increment, so the send is
+  deferred 120 ms and any pending one replaced -- fewer round-trips and
+  fewer threads than making each one async.
+
+  Verified by running. Against live mpv: the caller now returns in 0.3 ms
+  where it used to wait for the round-trip, a real read came back through
+  the after(0) path (volume = 100.0), and an async write landed (volume =
+  42.0). The real app launches clean under Xvfb.
+
+  The regression test is structural rather than a list of today's four
+  sites: it walks every threading.Thread target in the package and fails
+  on any Tk access not marshalled through root.after. On the pre-fix tree
+  it independently reports all four. Its blind spot -- a helper the worker
+  calls, which is where _get_cookie_args hid -- is stated in the test.
+
+  9 new tests in tests/test_thread_discipline.py, 7 failing pre-fix; suite
+  97 green; ruff unchanged at 36 lines.
   **Layman:** Some buttons talk to the video player in a way that can freeze the window, and one search setting is read from the wrong place, which can crash on some systems.
   Kind: fix.
   Source: review-code-sweep-2026-08-31.

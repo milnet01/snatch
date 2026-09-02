@@ -111,8 +111,37 @@ class DownloaderMixin:
             cmd.extend(["--js-runtimes", runtime])
         return cmd
 
-    def _get_cookie_args(self):
+    def _cookie_state(self):
+        """Snapshot the cookie Tk variables. Main thread only.
+
+        STANDARDS.md 4.1 rule 2 forbids a worker touching a Tk variable, and
+        depending on the _tkinter build a .get() from one either takes the
+        Tcl lock or raises RuntimeError. _get_cookie_args used to read these
+        two itself and is called from all three workers, so the read went
+        wherever the call did (SNAT-0048).
+        """
+        return (self.cookies_file_var.get().strip(), self.browser_var.get())
+
+    def _download_options(self):
+        """Snapshot every Tk variable a download worker needs. Main thread only.
+
+        Passed in rather than read on the worker, for the reason above. One
+        object rather than four parameters, because _download_thread already
+        takes eight.
+        """
+        return {
+            "cookie_state": self._cookie_state(),
+            "subtitles": self.subtitle_var.get() == 1,
+            "sponsorblock": self.sponsorblock_var.get() == 1,
+            "speed_limit": self.speed_limit_var.get(),
+        }
+
+    def _get_cookie_args(self, cookie_state):
         """Get the appropriate cookie arguments for yt-dlp.
+
+        `cookie_state` is a (cookies_file, browser) pair from _cookie_state().
+        It is required rather than optional so a new caller has to decide
+        which thread reads the variables.
 
         A cookie source this session has already proved unreadable is
         dropped. Without that, a fetch could recover by retrying without
@@ -123,8 +152,7 @@ class DownloaderMixin:
         Keyed on the arguments themselves rather than on a flag, so
         choosing a different browser is tried afresh with no reset step.
         """
-        cookies_file = self.cookies_file_var.get().strip()
-        browser = self.browser_var.get()
+        cookies_file, browser = cookie_state
         args = get_cookie_args(cookies_file, browser)
         if args and args == self.failed_cookie_args:
             return []
@@ -202,7 +230,8 @@ class DownloaderMixin:
         self.progress_bar.config(mode="indeterminate")
         self.progress_bar.start(15)
 
-        thread = threading.Thread(target=self._fetch_formats_thread, args=(url,))
+        thread = threading.Thread(target=self._fetch_formats_thread,
+                                  args=(url, self._cookie_state()))
         thread.daemon = True
         thread.start()
 
@@ -259,11 +288,11 @@ class DownloaderMixin:
         return (" No video formats came back, so only audio is listed. "
                 "If you expected video, try again in a moment.")
 
-    def _fetch_formats_thread(self, url):
+    def _fetch_formats_thread(self, url, cookie_state):
         try:
             self.cookie_fallback_used = False
             self.fetch_notes = []
-            cookie_args = self._get_cookie_args()
+            cookie_args = self._get_cookie_args(cookie_state)
             cookies_requested = bool(cookie_args)
 
             self.root.after(0, lambda: self.status_var.set("Fetching formats..."))
@@ -737,17 +766,18 @@ class DownloaderMixin:
 
         thread = threading.Thread(
             target=self._download_thread,
-            args=(url, save_path, format_spec, audio_only, merge, queue_mode,
-                  history_title, history_format))
+            args=(url, save_path, format_spec, self._download_options(),
+                  audio_only, merge, queue_mode, history_title,
+                  history_format))
         thread.daemon = True
         thread.start()
 
-    def _download_thread(self, url, save_path, format_spec, audio_only=False,
-                         merge=False, queue_mode=False, history_title=None,
-                         history_format=None):
+    def _download_thread(self, url, save_path, format_spec, options,
+                         audio_only=False, merge=False, queue_mode=False,
+                         history_title=None, history_format=None):
         try:
             cmd = self._get_base_cmd()
-            cmd.extend(self._get_cookie_args())
+            cmd.extend(self._get_cookie_args(options["cookie_state"]))
 
             cmd.extend([
                 "-f", format_spec,
@@ -762,13 +792,13 @@ class DownloaderMixin:
             if merge:
                 cmd.extend(["--merge-output-format", "mp4"])
 
-            if self.subtitle_var.get() == 1:
+            if options["subtitles"]:
                 cmd.extend(["--write-sub", "--write-auto-sub", "--sub-lang", "en"])
 
-            if self.sponsorblock_var.get() == 1:
+            if options["sponsorblock"]:
                 cmd.extend(["--sponsorblock-remove", "all"])
 
-            speed = self.speed_limit_var.get()
+            speed = options["speed_limit"]
             if speed and speed != "Unlimited":
                 cmd.extend(["--limit-rate", speed])
 
