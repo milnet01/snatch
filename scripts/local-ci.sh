@@ -78,6 +78,29 @@ fi
 # ── Execute the real workflow ─────────────────────────────────────────
 if [ "$MODE" = "full" ]; then
     if command -v act >/dev/null 2>&1; then
+        # act below 0.2.86 is vulnerable to CVE-2026-34041 and CVE-2026-34042,
+        # and act prints that warning itself. This is a hard failure rather
+        # than a warning: the gate runs untrusted workflow code in a container
+        # on this machine, and a warning printed 60 lines up a passing run is
+        # one nobody reads. openSUSE ships 0.2.84 and calls it current, so
+        # `zypper up` does NOT fix this -- install the upstream binary into
+        # ~/.local/bin, which precedes /usr/bin on PATH:
+        #   curl -fsSLO https://github.com/nektos/act/releases/download/v0.2.89/act_Linux_x86_64.tar.gz
+        #   # verify against the published checksums.txt, then:
+        #   tar -xzf act_Linux_x86_64.tar.gz act && install -m0755 act ~/.local/bin/act
+        act_ver="$(act --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+        act_min="0.2.86"
+        if [ -n "$act_ver" ] && \
+           [ "$(printf '%s\n%s\n' "$act_min" "$act_ver" | sort -V | head -1)" != "$act_min" ]; then
+            red "act $act_ver is below $act_min (CVE-2026-34041, CVE-2026-34042)"
+            echo "   see the comment above this check in $0 for the upgrade"
+            exit 1
+        elif [ -z "$act_ver" ]; then
+            # Not a silent pass: say the check did not run, rather than
+            # letting an unreadable version look like a cleared floor.
+            echo "   WARNING: could not read act's version; CVE floor unchecked"
+        fi
+
         # act talks to a Docker-compatible socket; podman provides one.
         if [ -z "${DOCKER_HOST:-}" ] && command -v podman >/dev/null 2>&1; then
             sock="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/podman/podman.sock"
