@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Automated tests now run on every change** (SNAT-0020)
+  Nothing checked automatically that Snatch still worked after an edit,
+  so a mistake could reach you unnoticed. There is now a test suite
+  covering version comparison, link checking, how Snatch finds its helper
+  programs, and the update path — and it runs on every change.
+
 - **The build now catches a whole class of crash before it ships** (SNAT-0044)
   A missing import used to reach users: the old check only proved each
   file could be read, never that the app could actually load. The build
@@ -40,6 +46,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   put things back.
 
 ### Fixed
+
+- **A history entry with an odd filename no longer crashes the open action** (SNAT-0020)
+  Opening a history entry whose stored path contained an invalid
+  character raised an error instead of simply reporting the file was not
+  found. Found by the new tests on their first run.
 
 - **The player's controls say when they cannot work**
   On Windows the play/pause, volume and seek controls could never do

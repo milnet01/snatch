@@ -917,7 +917,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: user-report-2026-08-19.
   Lanes: player, ui.
 
-- 📋 [SNAT-0020] **The app has no automated tests at all.**
+- ✅ [SNAT-0020] **The app has no automated tests at all.**
   3,865 lines of Python across four platforms' worth of behaviour, and
   the only Python check in CI is `python -m compileall`, which proves the
   files parse and nothing more.
@@ -1008,6 +1008,54 @@ and application work. IDs are allocated from `.roadmap-counter`.
   a guaranteed NameError at startup that survived two sessions. A single
   line, `python -c "import snatch, snatch.app, snatch.tabs.search"`,
   would have caught it. See SNAT-0044.
+  Resolved (2026-09-02): a first suite exists and CI runs it. 35 tests over
+  the three areas this bullet named, in its own value order.
+
+  Pure logic: _version_compare (numeric not lexicographic, missing
+  components, leading zeros), _is_valid_url (the rejections matter more
+  than the acceptances -- ftp, file, javascript, data, a bare hostname,
+  and a scheme that merely contains "http"), _safe_resolve_path.
+
+  Binary resolution: user_bin_dir from source lands in bin/updated rather
+  than the bin/ that holds the pinned copy, the Windows LOCALAPPDATA
+  fallback fires on unwritability and NOT merely on being Windows, and
+  find_ytdlp prefers an updated copy over the bundled one.
+
+  The promotion rule: _probe_version rejects a non-executable file, an
+  HTML error page saved under a binary's name, a non-zero exit, and an
+  empty version string; _expected_digest parses the published manifest and
+  raises on an absent or malformed entry.
+
+  Two findings matter more than the tests.
+
+  The suite found a real defect on its first run, which is what this
+  bullet predicted. _safe_resolve_path checked for a null byte AFTER
+  os.path.realpath, and realpath raises ValueError on one -- so the guard
+  was unreachable and the function raised where both callers test
+  `if resolved` and expect None. Fixed by checking the input.
+
+  And mutation testing found a defect in one of these tests. Seven
+  mutations were run against the targets; one survived. Removing
+  _probe_version's returncode check left the suite green, because that
+  test's script exited non-zero while printing nothing, so the
+  empty-stdout branch rejected it and the returncode check was never
+  exercised. It passed for the wrong reason. Fixed, and the mutation is
+  now caught. Without that pass this would have been reported as 35
+  passing tests with one asserting nothing.
+
+  Deliberately NOT covered, and this bullet's own scope says so: driving
+  the tkinter GUI. Also uncovered, and worth naming rather than implying
+  otherwise -- the config loader's corrupt shapes (SNAT-0051) and the
+  parser assumptions (SNAT-0050), both open items whose fixes are pending,
+  so tests now would encode behaviour that is about to change.
+
+  CI installs python3-tk for the step, because version.py, downloader.py
+  and tabs/history.py import tkinter at module level and
+  actions/setup-python does not bundle _tkinter. pytest pinned 9.1.1 --
+  the version these were run against.
+
+  The two scripts/verify_*.py checks stay: they run at build time on all
+  three platforms, which this job does not.
   **Layman:** Nothing automatically checks that Snatch still works after a change, so a mistake can reach users unnoticed.
   Kind: test.
   Source: in-session-2026-08-20.
