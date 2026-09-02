@@ -18,6 +18,10 @@ log = get_logger(__name__)
 class MediaInfoTabMixin:
     """Mixin providing the Media Info tab UI and logic."""
 
+    # Roughly 4000 lines of -pretty output. A media file needing more than
+    # that has more streams than the tab can usefully display.
+    MAX_MEDIA_INFO_CHARS = 256 * 1024
+
     def _create_media_info_tab(self, parent):
         """Build the media info tab contents"""
         # File selection
@@ -180,7 +184,19 @@ class MediaInfoTabMixin:
         return "\n".join(lines)
 
     def _set_media_info_text(self, text):
-        """Set the media info text widget content"""
+        """Set the media info text widget content, capped.
+
+        ffprobe output grows with the number of streams and chapters, and a
+        file with thousands of either produces far more than a person will
+        read -- all of it inserted into a tk.Text, which then has to lay it
+        out. The cap is on what reaches the widget; the process itself is
+        bounded by its 30 s timeout rather than by a byte limit (SNAT-0050).
+        """
+        text = str(text)
+        if len(text) > self.MAX_MEDIA_INFO_CHARS:
+            text = (text[:self.MAX_MEDIA_INFO_CHARS]
+                    + f"\n\n[output truncated at {self.MAX_MEDIA_INFO_CHARS} "
+                      "characters]")
         self.media_info_text.config(state=tk.NORMAL)
         self.media_info_text.delete("1.0", tk.END)
         self.media_info_text.insert("1.0", text)

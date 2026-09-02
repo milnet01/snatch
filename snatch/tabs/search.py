@@ -320,6 +320,10 @@ class SearchTabMixin:
             # that column stays blank; everything else the results table and
             # the Play/Download buttons need (title, channel, duration,
             # view_count, url) is present.
+            # Checked 2026-09-02 against both channel forms this builds
+            # (/@handle/videos and /@handle/search?query=): each returns flat
+            # `_type: url` video entries, not a nested tab playlist, so the
+            # one-level walk below is right for every target it is given.
             cmd.extend(["-J", "--flat-playlist", "--playlist-end", str(max_results),
                         "--", search_target])
 
@@ -337,7 +341,14 @@ class SearchTabMixin:
                 self.root.after(0, lambda: self._search_error(result.stderr))
                 return
 
-            entries = data.get("entries", [])
+            # yt-dlp emits JSON null here for a playlist with no listable
+            # children, so a [] default does not help: `for entry in entries`
+            # raises TypeError. Individual elements are null for deleted,
+            # private and region-blocked videos, and entry.get() then raises
+            # AttributeError -- in _display_search_results that is an
+            # unhandled Tk traceback with the tree half-populated (SNAT-0050).
+            entries = [e for e in (data.get("entries") or [])
+                       if isinstance(e, dict)]
             del data  # Free large JSON response
 
             if not entries and result.returncode != 0:

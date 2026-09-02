@@ -56,6 +56,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Playlists containing deleted or private videos no longer break the results list** (SNAT-0050)
+  A playlist with nothing listable in it, or one containing videos that
+  have since been deleted, made private or blocked in your region, could
+  end Snatch's search or format list in a raw error -- sometimes with the
+  results table left half filled in. Those entries are now skipped and
+  the rest are shown. Snatch also no longer loads an unlimited amount of
+  a thumbnail image or media report into memory.
+
 - **A damaged settings file no longer stops Snatch opening** (SNAT-0051)
   If config.json was corrupted -- half-written by a crash, edited by
   hand, or left unreadable -- Snatch could fail to start with a raw

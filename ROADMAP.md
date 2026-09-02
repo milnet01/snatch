@@ -2122,7 +2122,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: review-code-sweep-2026-08-31.
   Lanes: ui, search.
 
-- 📋 [SNAT-0050] **Parsers assume shapes that yt-dlp and ffprobe do not guarantee.**
+- ✅ [SNAT-0050] **Parsers assume shapes that yt-dlp and ffprobe do not guarantee.**
   search.py:311-332 makes two shape assumptions about
   `yt-dlp -J --flat-playlist` that the tool does not guarantee.
   `data.get("entries", [])` returns None rather than [] when a playlist
@@ -2149,6 +2149,39 @@ and application work. IDs are allocated from `.roadmap-counter`.
   The URL comes from remote JSON (:272) and the 10 s timeout at :287
   bounds latency, not size. STANDARDS.md 6.3 requires capping network
   buffers.
+  Resolved (2026-09-02). Every parse site now reads
+  `[e for e in (data.get(KEY) or []) if isinstance(e, dict)]`, so a null
+  list and a null element both collapse to "skip it".
+
+  Scope was widened past the one site this bullet named. downloader.py has
+  the same expression twice -- the playlist `entries` and the `formats`
+  list -- and _show_playlist runs on the main thread with no try, exactly
+  the shape that made the search one worse than a caught error. Fixing one
+  copy and leaving the others is how this class survives a fix pass.
+
+  The open question is settled by running it, not by reasoning. Both
+  channel forms this app builds -- /@handle/videos and
+  /@handle/search?query= -- return flat `_type: url` video entries, never a
+  nested tab playlist, so the one-level walk is right for every target it
+  is given. Recorded as a comment beside the assumption.
+
+  Two unbounded reads capped. The thumbnail read takes
+  MAX_THUMBNAIL_BYTES + 1 and rejects the overflow, so an oversized
+  response is detected rather than silently truncated into a corrupt image.
+
+  Stated plainly rather than overclaimed: the ffprobe cap is on what
+  reaches the tk.Text (MAX_MEDIA_INFO_CHARS), not on the subprocess. Its
+  output is still read whole into memory, bounded by the 30 s timeout. A
+  true byte cap needs Popen with a manual read, and reading one pipe while
+  the other fills can deadlock, so it was not worth the machinery for
+  output whose realistic worst case is a few MB.
+
+  Verified by running: the old expressions raise TypeError on a null list
+  and AttributeError on a null element, demonstrated directly. The changed
+  parse was then driven against live yt-dlp for both a ytsearch target and
+  a channel URL -- 3 rows each, results and tree in step. 10 new tests in
+  tests/test_parser_shapes.py, 5 of which fail on the pre-fix tree; suite
+  89 green; ruff unchanged at 36 lines.
   **Layman:** Some kinds of playlist or video make Snatch fail with a raw error instead of a clear message.
   Kind: fix.
   Source: review-code-sweep-2026-08-31.

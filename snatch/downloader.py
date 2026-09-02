@@ -35,6 +35,11 @@ class DownloaderMixin:
 
     PROGRESS_THROTTLE_SEC = 0.15
     THUMBNAIL_SIZE = (160, 120)
+    # The thumbnail URL comes out of remote JSON, so its size is not ours to
+    # trust and the 10 s timeout bounds latency rather than bytes. A YouTube
+    # maxresdefault.jpg is well under 1 MB; 8 MB leaves room for an unusual
+    # source without letting a hostile one decide our memory use.
+    MAX_THUMBNAIL_BYTES = 8 * 1024 * 1024
 
     # yt-dlp groups these as Chromium-based. On Windows their cookie
     # stores are sealed by App-Bound Encryption and cannot be decrypted
@@ -376,7 +381,13 @@ class DownloaderMixin:
                     req = urllib.request.Request(thumbnail_url,
                                                 headers={"User-Agent": "Snatch"})
                     with urllib.request.urlopen(req, timeout=10) as resp:
-                        img_data = resp.read()
+                        # Read one byte past the cap so an oversized response
+                        # is detected rather than silently truncated into a
+                        # corrupt image (STANDARDS.md 6.3, SNAT-0050).
+                        img_data = resp.read(self.MAX_THUMBNAIL_BYTES + 1)
+                    if len(img_data) > self.MAX_THUMBNAIL_BYTES:
+                        raise ValueError(
+                            f"thumbnail exceeds {self.MAX_THUMBNAIL_BYTES} bytes")
                     img = Image.open(BytesIO(img_data))
                     img.thumbnail(self.THUMBNAIL_SIZE, Image.LANCZOS)
                     photo = ImageTk.PhotoImage(img)
@@ -394,7 +405,13 @@ class DownloaderMixin:
                         image="", text="No thumbnail"))
 
             if data.get("_type") == "playlist" or "entries" in data:
-                entries = data.get("entries", [])
+                # Same guard as the search parser: yt-dlp emits null for
+                # entries with no listable children, and null elements for
+                # deleted or private videos. _show_playlist runs on the main
+                # thread with no try, so a null element there is an unhandled
+                # traceback (SNAT-0050).
+                entries = [e for e in (data.get("entries") or [])
+                           if isinstance(e, dict)]
                 if entries:
                     del data  # Free large JSON before scheduling UI updates
                     pl_title = title or "Playlist"
@@ -404,7 +421,8 @@ class DownloaderMixin:
                         f"Playlist: {len(entries)} videos found"))
                     return
 
-            formats = data.get("formats", [])
+            formats = [f for f in (data.get("formats") or [])
+                       if isinstance(f, dict)]
             del data  # Free large JSON — extracted fields are kept above
             self.formats = []
             for fmt in formats:
