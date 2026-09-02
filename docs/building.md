@@ -52,15 +52,31 @@ local run and hide the real build result.
 
 | Component | Pinned in | Current |
 |---|---|---|
-| yt-dlp (bundled binary) | `scripts/fetch-binaries.sh` | nightly `2026.08.30.232658` |
+| yt-dlp (bundled binary) | `scripts/fetch-binaries.sh` | nightly `2026.08.30.232658` (SHA-256 pinned) |
 | yt-dlp (Python library) | `requirements.txt` | 2026.7.4 |
-| ffmpeg + ffprobe | `scripts/fetch-binaries.sh` | ffmpeg-static `b6.1.1` |
-| QuickJS | `scripts/fetch-binaries.sh` | `v0.16.1` |
-| mpv (Windows only) | `scripts/fetch-binaries.sh` | `MPV_WIN_TAG=20260814` |
+| ffmpeg + ffprobe | `scripts/fetch-binaries.sh` | ffmpeg-static `b6.1.1` (SHA-256 pinned) |
+| QuickJS | `scripts/fetch-binaries.sh` | `v0.16.1` (SHA-256 pinned) |
+| mpv (Windows only) | `scripts/fetch-binaries.sh` | `MPV_WIN_TAG=20260814` (SHA-256 pinned) |
 | AppImage type2 runtime | `scripts/build-linux.sh` | `20251108` (SHA-256 pinned) |
 | appimagetool | `scripts/build-linux.sh` | `1.9.1` (SHA-256 pinned) |
 | PyInstaller | `.github/workflows/ci.yml` | 6.11.1 |
 | ruff (lint gate only, not bundled) | `.github/workflows/ci.yml` | 0.16.4 |
+
+**Every bundled binary is pinned by CONTENT, not just by tag (SNAT-0031).**
+`scripts/fetch-binaries.sh` carries the expected SHA-256 of each asset in
+`digest_for()` and verifies it before the file is made executable; the mpv
+archive is verified before it is unpacked. A tag pin does not pin content — a
+GitHub release asset can be replaced in place — so **bumping a version means
+updating its digest too**, and an asset with no recorded digest stops the build
+rather than being fetched unverified. Refresh one with:
+
+```bash
+gh api repos/<owner>/<repo>/releases/tags/<tag> \
+  --jq '.assets[] | select(.name=="<asset>") | .digest'
+```
+
+The runtime self-update is verified separately, against the `SHA2-256SUMS`
+manifest each nightly publishes (`snatch/version.py`).
 
 **The two yt-dlp pins are deliberately different versions, and do NOT move
 together.** The bundled binary is the one the app actually runs, and it comes

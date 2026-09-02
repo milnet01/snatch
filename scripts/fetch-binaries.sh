@@ -38,6 +38,51 @@ QUICKJS_TAG="${QUICKJS_TAG:-v0.16.1}"
 # filename inside it carries a build hash and is resolved at fetch time.
 MPV_WIN_TAG="${MPV_WIN_TAG:-20260814}"
 
+# ── Expected SHA-256 of every asset (SNAT-0031) ───────────────────────
+# HTTPS proves the bytes came from github.com unaltered in transit. It says
+# nothing about whether the asset behind a pinned TAG is still the artifact
+# that was reviewed: a GitHub release asset can be replaced in place, and an
+# account compromise upstream would reach every Snatch user through our own
+# release. Pinning the tag does not pin the CONTENT; this does.
+#
+# Captured 2026-09-02 from the GitHub API's own `digest` field for each asset,
+# spot-checked against a real download (qjs-linux-x86_64 matched exactly).
+#
+# BUMPING A PIN MEANS UPDATING A DIGEST. That is the point -- it makes an
+# upstream content change visible instead of automatic. To refresh one:
+#   gh api repos/<owner>/<repo>/releases/tags/<tag> \
+#     --jq '.assets[] | select(.name=="<asset>") | .digest'
+digest_for() {
+    case "$1" in
+        # yt-dlp ${YTDLP_VERSION}
+        yt-dlp)                 echo 3f1b267b4488f3aed3731a9e84a44011ca5569901868532e10ee11fd07d69707 ;;
+        yt-dlp_macos)           echo 868c2133b7968a7cfb6daccaad15eaee908077d12d16a58633ddafc7f2e97688 ;;
+        yt-dlp.exe)             echo a3a504c66e91f6474cef0be83b16aedfb7b42b9400a962242d0d433e98f67a70 ;;
+        # ffmpeg-static ${FFMPEG_STATIC_TAG}
+        ffmpeg-linux-x64)       echo e7e7fb30477f717e6f55f9180a70386c62677ef8a4d4d1a5d948f4098aa3eb99 ;;
+        ffprobe-linux-x64)      echo 4f231a1960d83e403d08f7971e271707bec278a9ae18e21b8b5b03186668450d ;;
+        ffmpeg-linux-arm64)     echo 6bb182d0d75d23028db82e9e4f723ca69b853d055698486e6984ddb2c06fb8ce ;;
+        ffprobe-linux-arm64)    echo d17ae9b4c297d48e2521ba14e417bb0537c6ff77c584cdbcd6bb0d8d0307a2e8 ;;
+        ffmpeg-darwin-arm64)    echo a90e3db6a3fd35f6074b013f948b1aa45b31c6375489d39e572bea3f18336584 ;;
+        ffprobe-darwin-arm64)   echo bb2db6f5d8cef919da12fbf592119a987202a8c060a886f3cab091f9cab90b64 ;;
+        ffmpeg-darwin-x64)      echo ebdddc936f61e14049a2d4b549a412b8a40deeff6540e58a9f2a2da9e6b18894 ;;
+        ffprobe-darwin-x64)     echo fa3add0ce901f7241abe0dfc0155d958fc834aca3f8ce61f87cc712ae669c1e0 ;;
+        ffmpeg-win32-x64)       echo 04e1307997530f9cf2fe35cba2ca7e8875ca91da02f89d6c7243df819c94ad00 ;;
+        ffprobe-win32-x64)      echo 3a7e2dc003dc2cd1472827e4c7c4f056ae1ae0ae7c5bbc580c99b49827351ba4 ;;
+        # quickjs ${QUICKJS_TAG}
+        qjs-linux-x86_64)       echo aae0d428c88bdd30fb490f54e616ebd4009ec279cc2a16ecebf0c3e17f7e76e7 ;;
+        qjs-linux-aarch64)      echo c1635453aa60a78ebc7f05b2b559e0e9e9eb7d55b4dfc4a6e71a07d9d10b8a89 ;;
+        qjs-darwin-arm64)       echo 9a24e7435036906c098d539daf47bcc8e7e8ad2f3aa084a0bce9313c6c3527e0 ;;
+        qjs-darwin-x86_64)      echo 5982a1ebb20e1a9bf6162bafd29d445823616084cfeddee8881f8d69d6e0fd74 ;;
+        qjs-windows-x86_64.exe) echo 55a1b69cd4fdb6b0d3f8fdd910d0e89519f5330e408462084140c7b3b964fdae ;;
+        # mpv ${MPV_WIN_TAG}. The asset NAME carries a build hash and is
+        # resolved from the API at fetch time, so the digest is what pins it.
+        mpv-x86_64-20260814-git-7b8915bc1d.7z)
+                                echo 1bf3b029da2c98e605e00e85f21ee3142f22a1dcc4ceb5c827b5c51e36e390f9 ;;
+        *) return 1 ;;
+    esac
+}
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BIN_DIR="$REPO_ROOT/bin"
 
@@ -97,20 +142,48 @@ stamp_matches() {
     [ -e "$dest" ] && [ -f "$stamp" ] && [ "$(cat "$stamp")" = "$url" ]
 }
 
+# True when $1 already exists with the SHA-256 $2 -- the cache is keyed on
+# CONTENT, so a tampered or truncated cached file is re-fetched rather than
+# trusted because a stamp file happens to agree.
+cached_ok() {
+    [ -s "$1" ] && [ "$(sha256sum "$1" | cut -d' ' -f1)" = "$2" ]
+}
+
 fetch() {
-    local url="$1" dest="$2"
-    if stamp_matches "$dest" "$url"; then
+    local url="$1" dest="$2" want got asset
+    asset="$(basename "$url")"
+
+    # An asset with no recorded digest is a hard stop, never a skipped check.
+    # Adding a platform means adding its hashes; silently downloading an
+    # unverified binary is the failure this whole table exists to prevent.
+    if ! want="$(digest_for "$asset")"; then
+        echo "no recorded SHA-256 for asset '$asset'" >&2
+        echo "add it to digest_for() above rather than removing the check" >&2
+        exit 1
+    fi
+
+    if cached_ok "$dest" "$want"; then
         echo "    cached: $(basename "$dest")"
         return
     fi
     if [ -e "$dest" ]; then
-        echo "    re-fetching $(basename "$dest") (pin changed)"
+        echo "    re-fetching $(basename "$dest") (pin or content changed)"
     else
         echo "    downloading $(basename "$dest")"
     fi
     curl --fail --location --silent --show-error --retry 3 --retry-delay 2 \
          --proto '=https' --proto-redir '=https' \
          --max-time 300 -o "$dest.part" "$url"
+
+    # Verified BEFORE chmod +x: an unverified file never becomes executable.
+    got="$(sha256sum "$dest.part" | cut -d' ' -f1)"
+    if [ "$got" != "$want" ]; then
+        rm -f "$dest.part"
+        echo "checksum mismatch for $url" >&2
+        echo "  expected $want" >&2
+        echo "  got      $got" >&2
+        exit 1
+    fi
     mv "$dest.part" "$dest"
     chmod +x "$dest"
     printf '%s' "$url" > "$(stamp_path "$dest")"
@@ -152,9 +225,28 @@ else:
     sys.exit('no mpv asset found in tag')
 ")"
         [ -n "$mpv_url" ] || { echo "could not resolve mpv asset" >&2; exit 1; }
-        echo "    downloading $(basename "$mpv_url")"
+        mpv_asset="$(basename "$mpv_url")"
+        if ! mpv_want="$(digest_for "$mpv_asset")"; then
+            echo "no recorded SHA-256 for mpv asset '$mpv_asset'" >&2
+            echo "the tag resolved to an asset this script has not pinned;" >&2
+            echo "add its digest to digest_for() rather than skipping the check" >&2
+            exit 1
+        fi
+        echo "    downloading $mpv_asset"
         curl --fail --location --silent --show-error --retry 3 --max-time 600 \
-             -o "$BIN_DIR/mpv.7z" "$mpv_url"
+             --proto '=https' --proto-redir '=https' \
+             -o "$BIN_DIR/mpv.7z.part" "$mpv_url"
+        # Verified before it is unpacked: 7z x on an unverified archive is
+        # already executing attacker-chosen paths.
+        mpv_got="$(sha256sum "$BIN_DIR/mpv.7z.part" | cut -d' ' -f1)"
+        if [ "$mpv_got" != "$mpv_want" ]; then
+            rm -f "$BIN_DIR/mpv.7z.part"
+            echo "checksum mismatch for $mpv_url" >&2
+            echo "  expected $mpv_want" >&2
+            echo "  got      $mpv_got" >&2
+            exit 1
+        fi
+        mv "$BIN_DIR/mpv.7z.part" "$BIN_DIR/mpv.7z"
         mkdir -p "$BIN_DIR/mpv"
         # 7z ships with the GitHub windows runner and with Git for Windows.
         7z x -y -o"$BIN_DIR/mpv" "$BIN_DIR/mpv.7z" > /dev/null
