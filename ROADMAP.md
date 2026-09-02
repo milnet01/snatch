@@ -2117,7 +2117,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: in-session-2026-09-01.
   Lanes: docs, process.
 
-- 📋 [SNAT-0058] **A failed JS challenge drops video formats with no sign to the user: the probe suppresses the warning and only reads stderr on failure.**
+- ✅ [SNAT-0058] **A failed JS challenge drops video formats with no sign to the user: the probe suppresses the warning and only reads stderr on failure.**
   Read out of yt-dlp's own source, 2026.08.19. When the n challenge
   cannot be solved the youtube extractor calls report_warning with "n
   challenge solving failed: Some formats may be missing" -- a WARNING.
@@ -2142,12 +2142,35 @@ and application work. IDs are allocated from `.roadmap-counter`.
   rots across updates. _has_video_format already exists: a non-playlist
   payload carrying no video format at all IS the signal, whatever yt-dlp
   calls it that release. Warn on that condition.
+  Resolved (2026-09-02). _probe_formats no longer passes --no-warnings,
+  so yt-dlp's account of a stripped answer survives, and
+  _fetch_formats_thread now checks the observable after both cookie
+  retries: a non-playlist payload carrying no video format at all adds a
+  note to the status line.
+
+  The trigger is the observable, never the wording. _no_video_note uses
+  yt-dlp's text only to SHARPEN the sentence -- "the site's JavaScript
+  challenge failed" when stderr says a solve failed, and an honest
+  generic line otherwise, since a source may genuinely offer audio only.
+  A reworded yt-dlp release costs the detail and not the warning.
+
+  Collateral handled in the same change: with warnings no longer
+  suppressed, the fatal branch's test for "n challenge solving failed"
+  would have blamed a missing runtime for any unrelated failure that
+  happened to carry the warning. A challenge failure exits 0, so it can
+  never be why a run failed; that branch now tests only for a missing
+  runtime.
+
+  Verified with stubbed probe results: a challenge warning is explained,
+  a quiet audio-only answer still warns without blaming, and a healthy
+  fetch stays silent. A live yt-dlp run confirmed stdout still parses as
+  JSON with warnings on stderr.
   **Layman:** When YouTube's puzzle-solving step fails, only the sound tracks come back and Snatch says nothing is wrong — so the user sees an audio-only list and no explanation.
   Kind: fix.
   Source: in-session-2026-09-02.
   Lanes: downloader.
 
-- 📋 [SNAT-0059] **The retry-without-cookies fallback cannot fire on a cookied probe that exits non-zero.**
+- ✅ [SNAT-0059] **The retry-without-cookies fallback cannot fire on a cookied probe that exits non-zero.**
   SNAT-0042's fallback sits AFTER the `returncode != 0` guard in
   _fetch_formats_thread, so it only runs when the cookied probe succeeded
   and came back without video. A cookied probe that fails outright skips
@@ -2163,12 +2186,29 @@ and application work. IDs are allocated from `.roadmap-counter`.
   retry once without them before reporting anything. Keyed on the exit
   code and on whether cookies were passed -- no message matching, so it
   survives yt-dlp rewording its errors.
+  Resolved (2026-09-02). _fetch_formats_thread retries once without
+  cookies when the cookied probe exits non-zero, before any error is
+  reported. Keyed on the exit code and on whether cookies were sent -- no
+  message matching, so no rewording of yt-dlp's errors can stop it.
+
+  One further gap closed to make the fix actually deliver: _download_thread
+  built its cookie arguments fresh, so a fetch could recover and the
+  download that followed would rebuild the same failing arguments and die
+  -- worse than not offering the source, because the format list looks
+  healthy first. _get_cookie_args now drops a cookie source this session
+  has proved unreadable. It is keyed on the arguments themselves rather
+  than a flag, so choosing a different browser is tried afresh with no
+  reset step.
+
+  Verified with stubbed probe results: the hard failure recovers, is
+  reported, raises no dialog, and the proven-bad source is absent from
+  the next command while a different browser is retried.
   **Layman:** Snatch knows to try again without your browser cookies when they cause trouble — but only if the first try half-worked. If it fails outright, the safety net never opens.
   Kind: fix.
   Source: in-session-2026-09-02.
   Lanes: downloader.
 
-- 📋 [SNAT-0060] **The age-restriction branch matches a string yt-dlp no longer emits, so it is unreachable.**
+- ✅ [SNAT-0060] **The age-restriction branch matches a string yt-dlp no longer emits, so it is unreachable.**
   _fetch_formats_thread tests stderr for "Sign in to confirm your age".
   That phrase does not occur anywhere in yt-dlp 2026.08.19 -- grepped the
   installed package including the whole youtube extractor. The extractor
@@ -2183,12 +2223,28 @@ and application work. IDs are allocated from `.roadmap-counter`.
   yt-dlp failures by matching human-readable prose, and that prose is not
   an interface. Whatever replaces this branch should key on something
   observable rather than on wording.
+  Resolved (2026-09-02). The dead branch is gone. Nothing replaced it as
+  a string test, because yt-dlp relays whatever the site said and there is
+  no stable phrase to match.
+
+  The generic error path now carries the useful half, gated on what the
+  app itself knows: the fetch failed and no cookie source was configured.
+  That covers age gates, sign-in walls and bot checks alike and cannot
+  rot on a rewording. Where cookies WERE tried it stays quiet rather than
+  suggesting what already failed.
+
+  _extract_browser_cookies keeps its other caller, the Refresh Cookies
+  button, so nothing was orphaned.
+
+  Verified with stubbed probe results: a failure with no cookie source
+  carries the suggestion, and a failure after cookies were tried does
+  not.
   **Layman:** Snatch watches for a specific YouTube error message to offer cookie help. yt-dlp stopped using that wording, so that help can never appear.
   Kind: fix.
   Source: in-session-2026-09-02.
   Lanes: downloader.
 
-- 📋 [SNAT-0061] **On Windows the browser dropdown offers Chromium browsers whose cookies yt-dlp cannot decrypt.**
+- ✅ [SNAT-0061] **On Windows the browser dropdown offers Chromium browsers whose cookies yt-dlp cannot decrypt.**
   Chrome's App-Bound Encryption puts Chromium cookie stores out of
   yt-dlp's reach on Windows (yt-dlp issue 10927). Measured on wintest
   2026-09-02 against the reported URL: chrome and edge both fail with
@@ -2203,6 +2259,18 @@ and application work. IDs are allocated from `.roadmap-counter`.
   yt-dlp's limitation to lift, and a blocklist would outlive it silently.
   The durable half is the graceful fallback in the sibling bullet. A hint
   naming the browser when that fallback fires is the useful addition.
+  Resolved (2026-09-02). No blocklist, as the bullet asked -- the dropdown
+  still offers every browser, because this is yt-dlp's limitation to lift
+  and a blocklist here would outlive the fix silently.
+
+  What landed is the wording. CHROMIUM_BROWSERS carries yt-dlp's own
+  grouping, and _cookie_failure_note names the browser and says Firefox is
+  unaffected when the failure happens on Windows with a Chromium browser
+  selected. It decides nothing: the recovery it reports was keyed on the
+  exit code, so an unrecognised browser still recovers and still gets a
+  note, just a generic one.
+
+  Verified both wordings by forcing the platform check.
   **Layman:** On Windows, picking Chrome or Edge for cookies simply cannot work — Chrome locks them in a way yt-dlp can't open — yet Snatch still offers both.
   Kind: fix.
   Source: in-session-2026-09-02.

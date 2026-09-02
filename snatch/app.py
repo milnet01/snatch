@@ -63,6 +63,8 @@ class SnatchApp(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
         # State variables
         self.video_title = ""
         self.cookie_fallback_used = False
+        self.fetch_notes = []
+        self.failed_cookie_args = None
         self.video_thumbnail = None
         self.subtitle_var = tk.IntVar(value=saved_config.get("subtitles", 0))
         self.sponsorblock_var = tk.IntVar(value=saved_config.get("sponsorblock", 0))

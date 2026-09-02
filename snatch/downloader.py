@@ -33,6 +33,15 @@ class DownloaderMixin:
     PROGRESS_THROTTLE_SEC = 0.15
     THUMBNAIL_SIZE = (160, 120)
 
+    # yt-dlp groups these as Chromium-based. On Windows their cookie
+    # stores are sealed by App-Bound Encryption and cannot be decrypted
+    # at all (yt-dlp issue 10927), so a browser cookie fetch there fails
+    # outright rather than returning less. Used ONLY to word a message;
+    # nothing is blocked on it, because this is yt-dlp's limitation to
+    # lift and a blocklist here would outlive the fix silently.
+    CHROMIUM_BROWSERS = frozenset(
+        ("brave", "chrome", "chromium", "edge", "opera", "vivaldi", "whale"))
+
     RESOLUTION_RANGES = {
         "480p": (0, 480),
         "720p": (481, 720),
@@ -95,10 +104,23 @@ class DownloaderMixin:
         return cmd
 
     def _get_cookie_args(self):
-        """Get the appropriate cookie arguments for yt-dlp"""
+        """Get the appropriate cookie arguments for yt-dlp.
+
+        A cookie source this session has already proved unreadable is
+        dropped. Without that, a fetch could recover by retrying without
+        cookies and the download that followed would rebuild the same
+        failing arguments and die -- which is worse than not offering the
+        source at all, because the format list looks healthy first.
+
+        Keyed on the arguments themselves rather than on a flag, so
+        choosing a different browser is tried afresh with no reset step.
+        """
         cookies_file = self.cookies_file_var.get().strip()
         browser = self.browser_var.get()
-        return get_cookie_args(cookies_file, browser)
+        args = get_cookie_args(cookies_file, browser)
+        if args and args == self.failed_cookie_args:
+            return []
+        return args
 
     def _extract_browser_cookies(self):
         """Extract cookies and update the cookies_file_var"""
@@ -184,10 +206,15 @@ class DownloaderMixin:
         audio-only streams aborts the whole dump with "Requested format is
         not available" and the user sees no formats at all rather than the
         audio ones that do exist.
+
+        Warnings are deliberately NOT suppressed. A failed JS challenge is
+        reported by yt-dlp as a warning -- it still exits 0 and still
+        returns a payload, just without the video formats -- so
+        --no-warnings threw away the only account of why they were gone.
         """
         cmd = self._get_base_cmd()
         cmd.extend(cookie_args)
-        cmd.extend(["-J", "--no-warnings", "--ignore-no-formats-error", "--", url])
+        cmd.extend(["-J", "--ignore-no-formats-error", "--", url])
         return subprocess.run(cmd, capture_output=True, text=True, timeout=60)
 
     @staticmethod
@@ -196,18 +223,75 @@ class DownloaderMixin:
         return any(fmt.get("vcodec", "none") != "none"
                    for fmt in (data.get("formats") or []))
 
+    def _cookie_failure_note(self):
+        """Word the note for cookies the app tried, failed on, and skipped.
+
+        The browser name only chooses the sentence. It decides nothing:
+        the retry that produced this note was keyed on the exit code, so
+        an unrecognised browser still recovers and still gets told.
+        """
+        browser = self.browser_var.get()
+        if is_windows() and browser in self.CHROMIUM_BROWSERS:
+            return (f" {browser.capitalize()} cookies cannot be read on "
+                    "Windows, so they were skipped. Firefox is not affected.")
+        return " Cookies could not be read, so they were skipped."
+
+    @staticmethod
+    def _no_video_note(stderr):
+        """Say that nothing carrying video came back, and why when known.
+
+        Triggered by the observable -- a payload with no video format --
+        and never by yt-dlp's wording, because the source may genuinely
+        offer audio only. yt-dlp's text merely SHARPENS the sentence, so
+        a reworded release costs the detail and not the warning.
+        """
+        if "solving failed" in (stderr or "").lower():
+            return (" No video formats came back: the site's JavaScript "
+                    "challenge failed, so only audio is listed.")
+        return (" No video formats came back, so only audio is listed. "
+                "If you expected video, try again in a moment.")
+
     def _fetch_formats_thread(self, url):
         try:
             self.cookie_fallback_used = False
+            self.fetch_notes = []
             cookie_args = self._get_cookie_args()
+            cookies_requested = bool(cookie_args)
 
             self.root.after(0, lambda: self.status_var.set("Fetching formats..."))
 
             result = self._probe_formats(url, cookie_args)
 
+            # A cookied probe that fails OUTRIGHT used to skip the
+            # fallback below, which sits behind the success path -- and
+            # an outright failure is precisely what Windows produces,
+            # where Chromium cookie stores cannot be decrypted at all.
+            # Retry without cookies before reporting anything. Keyed on
+            # the exit code and on whether cookies were sent, so no
+            # rewording of yt-dlp's errors can stop it firing.
+            if result.returncode != 0 and cookie_args:
+                self.root.after(0, lambda: self.status_var.set(
+                    "Cookies failed - retrying without them..."))
+                try:
+                    retry = self._probe_formats(url, [])
+                    if retry.returncode == 0:
+                        self.failed_cookie_args = list(cookie_args)
+                        result = retry
+                        cookie_args = []
+                        self.cookie_fallback_used = True
+                        self.fetch_notes.append(self._cookie_failure_note())
+                except subprocess.TimeoutExpired:
+                    pass  # Report the original failure below.
+
             if result.returncode != 0:
                 error_msg = result.stderr
-                if "n challenge solving failed" in error_msg or "JavaScript runtime" in error_msg:
+                # Only a MISSING runtime is fatal. A challenge that fails
+                # with a runtime present is a warning and exits 0, so it
+                # cannot be why this run failed -- and since warnings are
+                # no longer suppressed, testing for it here would blame
+                # the runtime for an unrelated failure. That case is now
+                # reported from the success path instead.
+                if "JavaScript runtime" in error_msg:
                     self.root.after(0, lambda: self._show_error(
                         "YouTube JS challenge failed.\n\n"
                         "Install Deno (recommended):\n"
@@ -216,35 +300,24 @@ class DownloaderMixin:
                         "sudo apt install nodejs\n\n"
                         "Then restart this app and try again."
                     ))
-                elif "Sign in to confirm your age" in error_msg:
-                    browser = self.browser_var.get()
-                    if browser and browser != "none":
-                        self.root.after(0, lambda: self.status_var.set("Refreshing cookies from browser..."))
-                        extracted = self._extract_browser_cookies()
-                        if extracted:
-                            self.root.after(0, lambda: self._show_error(
-                                "Age-restricted video.\n\n"
-                                "Cookies have been refreshed from your browser.\n"
-                                "Please try again."
-                            ))
-                        else:
-                            self.root.after(0, lambda: self._show_error(
-                                "Age-restricted video.\n\n"
-                                "Could not extract cookies from your browser.\n"
-                                "Make sure you are logged into YouTube in your browser,\n"
-                                "then click 'Refresh Cookies' and try again."
-                            ))
-                    else:
-                        self.root.after(0, lambda: self._show_error(
-                            "Age-restricted video. Please:\n\n"
-                            "1. Select your browser from the dropdown, OR\n"
-                            "2. Export cookies.txt from YouTube while logged in"
-                        ))
                 else:
-                    self.root.after(0, lambda e=error_msg: self._show_error(f"Error fetching formats:\n{e}"))
+                    # There is no stable phrase to test for an age gate or
+                    # a sign-in wall: yt-dlp relays whatever the site said.
+                    # So the hint is keyed on what this app already knows
+                    # -- the fetch failed and no cookie source was set --
+                    # which covers age gates, sign-in walls and bot checks
+                    # alike and cannot rot when yt-dlp rewords an error.
+                    hint = "" if cookies_requested else (
+                        "\n\nIf this video is age-restricted or asks you to "
+                        "sign in, choose your browser next to 'Cookies' and "
+                        "try again."
+                    )
+                    self.root.after(0, lambda e=error_msg, h=hint:
+                                    self._show_error(f"Error fetching formats:\n{e}{h}"))
                 return
 
             data = json.loads(result.stdout)
+            probe_stderr = result.stderr
 
             # YouTube answers some cookied requests with audio-only streams,
             # which reads as "this video has no video". The cookies are worth
@@ -262,9 +335,24 @@ class DownloaderMixin:
                         if self._has_video_format(retry_data):
                             del data
                             data = retry_data
+                            probe_stderr = retry.stderr
                             self.cookie_fallback_used = True
+                            self.fetch_notes.append(
+                                " Cookies returned audio only, so they were"
+                                " skipped.")
                 except (subprocess.TimeoutExpired, json.JSONDecodeError):
                     pass  # Keep the cookied answer; it is all we have.
+
+            # A failed JS challenge is a WARNING in yt-dlp: it exits 0 and
+            # simply leaves the video formats out, so a stripped answer was
+            # indistinguishable from a complete one and the user was shown
+            # audio and storyboards with nothing said. The trigger is the
+            # observable -- a non-playlist payload carrying no video at all
+            # -- so it holds however yt-dlp words the warning, and it stays
+            # honest about a source that really does offer audio only.
+            if ("entries" not in data and data.get("_type") != "playlist"
+                    and not self._has_video_format(data)):
+                self.fetch_notes.append(self._no_video_note(probe_stderr))
 
             title = data.get("title", "")
             uploader = data.get("uploader", data.get("channel", ""))
@@ -402,7 +490,7 @@ class DownloaderMixin:
         self._populate_filter_options()
         self._apply_filters()
         self._auto_select_preferred()
-        note = " Cookies returned audio only, so they were skipped." if self.cookie_fallback_used else ""
+        note = "".join(self.fetch_notes)
         self.status_var.set(
             f"Found {len(self.formats)} formats. "
             f"Video-only formats will auto-merge with best audio.{note}")
