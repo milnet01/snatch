@@ -62,11 +62,38 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Lanes: release, ci.
   Resolved (2026-08-19): published at https://github.com/milnet01/snatch/releases/tag/v1.0.0 — not a draft, not a prerelease, with all three artefacts attached: snatch.exe (93 MB), Snatch-x86_64.AppImage (92 MB), Snatch-arm64.dmg (86 MB). Release notes came from the CHANGELOG [1.0.0] section rather than generated from the commit log. The release job needs all three builds to succeed, so a partial set cannot be published; this was its first ever execution and it passed unchanged.
 
-- 📋 [SNAT-0008] **Upgrade act past CVE-2026-34041 and CVE-2026-34042.**
+- ✅ [SNAT-0008] **Upgrade act past CVE-2026-34041 and CVE-2026-34042.**
   scripts/local-ci.sh drives `act`, and act 0.2.84 on this machine prints
   its own warning: vulnerable to CVE-2026-34041 and CVE-2026-34042,
   fixed in 0.2.86. Latest at time of writing is 0.2.89. The gate works,
   but it is running a tool that is telling us to upgrade it.
+  Resolved (2026-09-02): upgraded to act 0.2.89, and the gate now refuses
+  to run below the fixed version.
+
+  The distro is the reason this needed more than an upgrade. openSUSE
+  ships act 0.2.84 and reports it up-to-date, so `zypper up` does not fix
+  it and never will on this release. The upstream binary is installed to
+  ~/.local/bin/act, which precedes /usr/bin on PATH; the rpm copy is
+  untouched, so zypper stays consistent and reverting is deleting one
+  file. The download was checked against the published checksums.txt
+  before installing -- installing an unverified binary while SNAT-0031 is
+  open about exactly that would be poor form.
+
+  A hand-fix on one machine is not a fix. scripts/local-ci.sh now reads
+  act's version and exits non-zero below 0.2.86, rather than warning: the
+  gate runs untrusted workflow code in a container on this machine, and a
+  warning printed partway up a passing run is one nobody reads. The
+  comment above the check carries the upgrade recipe, because the obvious
+  remedy does not work here.
+
+  Verified by running the comparison, including the cases that would
+  refute it: 0.2.84 and 0.2.85 blocked, 0.2.86, 0.2.89, 0.2.100, 0.3.0 and
+  1.0.0 allowed. 0.2.100 is the one that matters -- a lexical compare
+  rejects it, sort -V does not. An unreadable version warns that the check
+  did not run instead of passing silently.
+
+  Full local-ci.sh passes under 0.2.89, including the AppImage build, so
+  the upgrade does not break the pipeline it gates.
   **Layman:** The tool that runs our checks locally has a known security hole and should be updated.
   Kind: security.
   Source: in-session-2026-08-19.
@@ -580,6 +607,31 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Added as a static-checks step in .github/workflows/ci.yml, verified
   through act rather than by reading the YAML: the step ran inside the
   real job and passed.
+  Windows verification (2026-09-02): the skip is now confirmed by running
+  it, which the original note could not claim.
+
+  The Windows branch of tighten_user_data_permissions was argued from
+  S_IMODE behaviour and never executed on Windows -- CI proved the build
+  compiled and packaged, not that the app starts or that the pass is
+  harmless there.
+
+  Tested on the real machine (ssh wintest, Windows 10) using the
+  snatch.exe artifact from the CI run for 993058b, which contains this
+  change. All three user-data files were pre-created next to the .exe so
+  the pass would walk existing files rather than find nothing. The app
+  launched, ran 45 seconds with empty stderr, and all three files came
+  back byte-for-byte unchanged in length and content. So the import of
+  is_windows into utils resolves in the frozen build, the pass takes its
+  early return, and it modifies nothing.
+
+  A first run also created bin/ alongside the executable, which
+  independently confirms the Windows row of STANDARDS 14: app_data_dir()
+  is the directory holding the .exe.
+
+  What this does NOT cover: an SSH session has no interactive desktop, so
+  this is not evidence the GUI draws correctly -- only that startup
+  completes and the permission pass is inert. SNAT-0007 owns the render
+  check.
 
 - ✅ [SNAT-0007] **Verify the GUI renders on Windows from a real desktop session.**
   The 2026-08-19 test reached the Tk main loop over SSH, but SSH runs in
@@ -2102,12 +2154,37 @@ and application work. IDs are allocated from `.roadmap-counter`.
   CLAUDE.md rule 14's gate. Most of these are corrections of false claims
   and sit in its exemption; item 6 is a genuine rule change and item 2
   turns on a code decision first.
+  Progress (2026-09-02): three of the eight are fixed, as collateral of
+  SNAT-0056's review gate rather than by working this list.
+
+  Item 1 (5.1 quoted without the empty-URL guard) is fixed. A lane made
+  the case this list did not: re.match raises TypeError on None rather
+  than rejecting it, so a validator re-derived from the snippet fails open
+  into an exception instead of returning False.
+
+  Item 4 (12.3's cookie priority) is fixed, and it was the largest single
+  finding of that gate. Two lanes found it; the section now states the
+  code's real order, verified by calling get_cookie_args -- a Firefox
+  selection with a cached file present returns the browser flag.
+
+  Item 5 is HALF fixed. The last_tab row is in 7.1's table. The
+  window_geometry label still says "Window size (WxH)" where geometry()
+  returns WxH+X+Y, and no lane raised it.
+
+  Five remain: 2, 3, 5's label half, 6, 7 and 8.
+
+  Worth recording about item 2: HAS_MPV having zero readers went unfound
+  by all nine lanes across three loops, though every loop read 8.2. A
+  cold read is good at contradiction and bad at absence -- nothing in the
+  document points at the missing thing, so there is no passage to
+  disbelieve. Items 7 and 8 are the same shape and should be expected to
+  survive a review gate too; they need this list, not another lane.
   **Layman:** The project's own rulebook is wrong in eight places, so anyone following it writes the wrong thing.
   Kind: doc-fix.
   Source: review-code-sweep-2026-08-31.
   Lanes: docs.
 
-- 📋 [SNAT-0056] **STANDARDS.md 5.3 changed direction without the review gate rule 14 asks for.**
+- ✅ [SNAT-0056] **STANDARDS.md 5.3 changed direction without the review gate rule 14 asks for.**
   On 2026-09-01, STANDARDS.md 5.3 was rewritten to prescribe
   utils.atomic_private_write / write_private_json in place of
   os.open(path, O_WRONLY|O_CREAT|O_TRUNC, 0o600). The old form does not
@@ -2134,6 +2211,43 @@ and application work. IDs are allocated from `.roadmap-counter`.
   decide on the record that the edit does not warrant it and say why.
   Either is a legitimate outcome; the current state -- gated branch,
   no gate, no visible record outside a commit message -- is not.
+  Resolved (2026-09-02): the gate ran. Three cold loops, three lanes each,
+  genre pinned standard. 27 verified findings, 27 fixed; cap reached at
+  loop 3, which for a standard is the exit rather than a question.
+
+  The Q3 this bullet predicted was real and was found on loop 1. 5.3
+  stated the whole obligation for a sensitive file as "write it through
+  atomic_private_write", when the guarantee for a file that already exists
+  comes from PRIVATE_DATA_FILES driving a startup repair pass the section
+  never mentioned. A conformer adding a fourth sensitive file was fully
+  compliant as written and silently outside that pass. That is exactly the
+  "cannot tell they have breached" shape, and it existed because the
+  2026-09-01 rewrite changed direction without this review.
+
+  What the bullet did not predict is how little of the run was about 5.3.
+  Roughly 3 of the 27 findings landed inside the span that armed the gate;
+  the rest were pre-existing defects elsewhere in a 577-line document that
+  had never been reviewed. Rule 14 fires on a change of direction, and
+  every lane reads the whole document, so this was a gate and an audit at
+  once -- and the audit was where the value was.
+
+  The largest single defect was not in 5.3 at all. 12.3 stated the cookie
+  priority in exactly the reverse of the code: a selected browser wins for
+  every browser, Firefox included, before the cached cookies.txt is
+  considered. No lane in loops 1 or 2 read that section -- all six said so
+  -- so a third loop bought coverage rather than repair. At 630 lines this
+  document is large enough that two cold reads did not reach parts of it.
+
+  A recurring theme worth carrying forward: the document repeatedly
+  generalises to Windows what only holds on POSIX. Three separate findings
+  were that shape, including a snippet that calls os.getuid on the build
+  14 documents.
+
+  Closes three of SNAT-0055's eight recorded items (1, 4, 5); five remain,
+  and item 2 went unfound by all nine lanes.
+
+  Loop log: docs/standards-review-log.md. The code-side defect the run
+  surfaced but did not fix is SNAT-0063.
   **Layman:** A rule in the project's own standards was rewritten, and the independent check that is supposed to run on such a change did not.
   Kind: doc.
   Source: in-session-2026-09-01.
@@ -2372,3 +2486,32 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: chore.
   Source: user-request-2026-09-02.
   Lanes: packaging.
+
+- 📋 [SNAT-0063] **The permission test's fixture cannot grow with the list it tests.**
+  scripts/verify_permissions.py builds its fixture with
+  zip(PRIVATE_DATA_FILES, (0o664, 0o644, 0o664)) -- a hardcoded
+  three-element tuple of modes paired against a registry meant to grow.
+  zip stops at the shorter side, so adding a fourth private file creates
+  three fixture files while the assertion below still compares against the
+  full PRIVATE_DATA_FILES.
+
+  CI runs this script, so the pipeline goes red -- but on an assertion
+  about a file the fixture never created, which reads as "the permission
+  pass is broken" when the pass is fine and the test is short. That is the
+  expensive kind of failure: it points at the wrong subsystem.
+
+  Found by the third lane of the STANDARDS.md review gate, in a script
+  written the same morning. It surfaced as a documentation question --
+  5.3 said a new sensitive file must be registered in two places, and this
+  fixture is a third -- so the doc was corrected to name all three. This
+  bullet is the code half, deliberately not fixed inside a documentation
+  review.
+
+  The fix is to derive the mode rather than index it: give every fixture
+  file the same loose mode, or map name to mode and assert the map covers
+  PRIVATE_DATA_FILES. That removes the silent truncation and the third
+  registration point with it, which would let 5.3 go back to naming two.
+  **Layman:** A safety check quietly stops covering a new private file, and the build then fails in a way that points at the wrong thing.
+  Kind: test.
+  Source: review-contract-standards-2026-09-02.
+  Lanes: testing, security.
