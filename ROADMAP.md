@@ -2293,7 +2293,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: review-code-sweep-2026-08-31.
   Lanes: config.
 
-- 📋 [SNAT-0052] **The mpv socket lands in a shared /tmp with a predictable name.**
+- ✅ [SNAT-0052] **The mpv socket lands in a shared /tmp with a predictable name.**
   CLAUDE.md's mandatory rules say "Validate directory ownership for
   security-sensitive paths (mpv socket)" without qualification.
   player.py:100-102 validates only the XDG_RUNTIME_DIR branch: the
@@ -2327,6 +2327,35 @@ and application work. IDs are allocated from `.roadmap-counter`.
   argv, readable from /proc/<pid>/cmdline by any local user, against
   STANDARDS.md 5.2. A comma anywhere in that path also silently breaks
   mpv's option parsing.
+  Resolved (2026-09-02). The socket now lives inside its own
+  tempfile.mkdtemp directory: 0700 by construction and unpredictably
+  named, so neither the ownership question nor the mode question the old
+  check got wrong can arise. _stop_player shutil.rmtree's it with
+  ignore_errors, which also removes the unguarded os.unlink that raised
+  PermissionError out of _play_in_mpv on a squatted path.
+
+  The comma hazard is fixed by --ytdl-raw-options-append, which takes one
+  key=value pair where the plain option is a comma-separated list -- a
+  comma in the cookie path silently corrupted the parse and dropped the
+  cookies with no error.
+
+  NOT fixed, and deliberately: the cookie path still appears in mpv's
+  argv and so in /proc/<pid>/cmdline. Moving it into an --include config
+  file would take it out of argv, but the path is not the secret -- the
+  cookies are, and the file is 0600. Any local user can already guess
+  that path from app_data_dir(), so the indirection buys nothing for the
+  machinery it adds. Recorded here rather than left as a silent decision.
+
+  Verified by running, with real mpv on this machine. With XDG_RUNTIME_DIR
+  set: /run/user/1000/snatch-mpv-o8racxn9, mode 0o700, socket created, mpv
+  started and embedded, whole directory gone after _stop_player. With it
+  unset -- the non-systemd / su / container case the old ownership check
+  never reached -- the directory lands in /tmp and is still 0o700, where
+  the old path was /tmp/snatch-mpv-<pid> with the socket's mode left to
+  the umask.
+
+  6 new tests in tests/test_mpv_socket.py, all 6 failing pre-fix; suite
+  103 green; ruff unchanged at 36 lines.
   **Layman:** On a computer shared with other people, another user could in principle send commands to Snatch's video player.
   Kind: security.
   Source: review-code-sweep-2026-08-31.

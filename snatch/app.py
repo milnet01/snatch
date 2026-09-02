@@ -98,6 +98,7 @@ class SnatchApp(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
         self.search_results = []
         self.mpv_process = None
         self.mpv_socket_path = ""
+        self._mpv_socket_dir = None
         self.player_update_id = None
         self.player_paused = False
         self._user_seeking = False

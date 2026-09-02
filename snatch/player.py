@@ -2,6 +2,7 @@
 
 import os
 import json
+import shutil
 import socket
 import subprocess
 import tempfile
@@ -103,14 +104,29 @@ class PlayerMixin:
 
         self._stop_player()
 
-        runtime_dir = os.environ.get("XDG_RUNTIME_DIR", tempfile.gettempdir())
-        # Validate the runtime dir is owned by us and not a symlink
-        runtime_dir = os.path.realpath(runtime_dir)
-        if is_windows() or not os.path.isdir(runtime_dir) or os.stat(runtime_dir).st_uid != os.getuid():
+        # The socket goes inside a directory of its own. tempfile.mkdtemp is
+        # 0700 by construction and names it unpredictably, so no other local
+        # user can reach the socket or squat the path ahead of us -- and
+        # mpv's IPC accepts every input command, loadfile and run included,
+        # so whoever can connect owns the player's command surface.
+        #
+        # What this replaces: snatch-mpv-<pid>, fully predictable, placed
+        # directly in XDG_RUNTIME_DIR -- or, where that is unset (a
+        # non-systemd box, an su session, a container), in a shared
+        # world-writable /tmp, on a branch the ownership check never reached.
+        # The check also tested st_uid but not mode, so a self-owned 0777
+        # runtime dir passed. mkdtemp makes both questions moot (SNAT-0052).
+        if is_windows():
             runtime_dir = tempfile.gettempdir()
-        self.mpv_socket_path = os.path.join(runtime_dir, f"snatch-mpv-{os.getpid()}")
-        if os.path.exists(self.mpv_socket_path):
-            os.unlink(self.mpv_socket_path)
+        else:
+            runtime_dir = os.path.realpath(
+                os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir())
+            if (not os.path.isdir(runtime_dir)
+                    or os.stat(runtime_dir).st_uid != os.getuid()):
+                runtime_dir = tempfile.gettempdir()
+        self._mpv_socket_dir = tempfile.mkdtemp(prefix="snatch-mpv-",
+                                                dir=runtime_dir)
+        self.mpv_socket_path = os.path.join(self._mpv_socket_dir, "ipc")
 
         wid = str(self.player_frame.winfo_id())
 
@@ -135,7 +151,11 @@ class PlayerMixin:
         # Pass cookies to mpv's yt-dlp
         cookies_file = self.cookies_file_var.get().strip()
         if cookies_file and os.path.isfile(cookies_file):
-            cmd.append(f"--ytdl-raw-options=cookies={cookies_file}")
+            # -append rather than plain --ytdl-raw-options: that option is
+            # a comma-separated key/value LIST, so a comma anywhere in the
+            # path silently corrupts the parse and the cookies are lost
+            # with no error. The append form takes one pair (SNAT-0052).
+            cmd.append(f"--ytdl-raw-options-append=cookies={cookies_file}")
 
         cmd.extend(["--", url])
 
@@ -299,12 +319,15 @@ class PlayerMixin:
                 log.debug("Tearing down the mpv process failed", exc_info=True)
             self.mpv_process = None
 
-        if self.mpv_socket_path and os.path.exists(self.mpv_socket_path):
-            try:
-                os.unlink(self.mpv_socket_path)
-            except Exception:
-                log.debug("Removing the mpv IPC socket %s failed",
-                          self.mpv_socket_path, exc_info=True)
+        # The socket and its private directory go together. The old code
+        # unlinked the socket unguarded here, so a squatted path in a sticky
+        # /tmp raised PermissionError out of _play_in_mpv -- a traceback and
+        # no player. rmtree(ignore_errors) cannot (SNAT-0052).
+        socket_dir = getattr(self, "_mpv_socket_dir", None)
+        if socket_dir:
+            shutil.rmtree(socket_dir, ignore_errors=True)
+            self._mpv_socket_dir = None
+        self.mpv_socket_path = ""
 
         self.player_paused = False
         self.play_pause_btn.config(text="Play")

@@ -229,6 +229,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Security
 
+- **The built-in player can no longer be reached by other users on a shared computer** (SNAT-0052)
+  Snatch talks to its video player through a small control channel. On
+  a computer shared with other people that channel could sit in a public
+  folder under a name anyone could work out, and the player accepts any
+  command sent to it. It now lives in a private folder only you can
+  open, and is removed when playback stops. Separately, a cookie file
+  whose name contains a comma is now passed to the player correctly
+  instead of being silently ignored.
+
 - **Every bundled helper program is now checked against a known fingerprint** (SNAT-0031)
   Snatch ships five helper programs it downloads at build time. It
   checked they came from the right website, but not that they were the
