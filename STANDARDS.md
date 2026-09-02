@@ -378,7 +378,10 @@ Each entry:
 ### 7.3 Save/Load Lifecycle
 
 - **Load:** `_load_config()` called in `__init__`, before widget creation
-- **Save:** `_save_config()` called on window close and after download completion
+- **Save:** `_save_config()` is called from exactly two places — the theme
+  change handler and `_on_close()`. **Nothing saves after a download
+  completes**, so a value that must survive a kill rather than a clean quit
+  needs its own save call
 - **Graceful fallback:** Returns `{}` on missing/corrupt config
 
 ---
@@ -397,7 +400,7 @@ Each entry:
 
 | Dependency | Purpose | Detection |
 |------------|---------|-----------|
-| Deno, Node.js, QuickJS or Bun | YouTube JS challenge solving | `shutil.which()`, then the bundled copy |
+| Deno, Node.js, QuickJS or Bun | YouTube JS challenge solving | bundled copy **and** every one on PATH — all enabled, yt-dlp chooses |
 | ffmpeg/ffprobe | Media merging + analysis | Subprocess call |
 | mpv | Embedded video player | `shutil.which("mpv")` → `HAS_MPV` |
 | Pillow (PIL) | Thumbnail display | `import PIL` → `HAS_PIL` |
@@ -449,8 +452,12 @@ except ImportError:
 - **PEP 8** style with 100-char line limit (soft)
 - **Docstrings** on all public methods and classes (one-line or multi-line)
 - **Type hints** not required but welcomed on utility functions
-- **No module-level mutable state.** Instance state lives on `self`; a cache
-  that is deliberately process-wide is a class variable, per §6.1
+- **No mutable state shared across modules.** Instance state lives on `self`.
+  A process-wide cache is a class variable inside a mixin (§6.1), or — in the
+  class-free helper modules — a module-private value set through the module's
+  own accessor: `theme.active_theme` via `set_theme()`, and
+  `platform_utils._USER_BIN_DIR` via `user_bin_dir()`. Never a module value a
+  caller mutates directly
 
 ### 10.2 Naming Conventions
 
@@ -525,7 +532,7 @@ toggle.label.pack(side=tk.RIGHT, padx=(6, 0))
 
 ```python
 cmd = self._get_base_cmd()          # ["yt-dlp", "--ignore-config", ...]
-cmd.extend(self._get_cookie_args()) # ["--cookies", "path"] or []
+cmd.extend(self._get_cookie_args()) # ["--cookies-from-browser", b], ["--cookies", path], or []
 cmd.extend(["-f", format_spec, ...])
 cmd.extend(["--", url])             # URL always after "--" separator
 ```
@@ -557,10 +564,16 @@ this project probes are `deno`, `node`, `quickjs` and `bun`, and the bundled
 
 ### 12.3 Cookie Strategy
 
-Priority order:
-1. Cached `cookies.txt` file (if exists)
-2. Extract from browser SQLite DB (Firefox direct, others via yt-dlp)
-3. `--cookies-from-browser` flag (non-Firefox fallback)
+Priority order, as `cookies.get_cookie_args` implements it:
+1. A selected browser wins — `--cookies-from-browser <browser>`, for **every**
+   browser including Firefox.
+2. Only when no browser is selected (`"none"`) is the cached `cookies.txt`
+   used, via `--cookies <path>`.
+3. Otherwise no cookie arguments at all.
+
+Firefox SQLite extraction is not a step in this chain. `extract_browser_cookies`
+is the explicit "refresh cookies" action, which *writes* `cookies.txt`; that
+file is then ignored until the browser selection is set back to `none`.
 
 ---
 
@@ -607,10 +620,11 @@ Running from source it is the project root. In a packaged build it is not:
 | macOS `.app` | `~/Library/Application Support/Snatch` | Writing inside the bundle breaks on upgrade and on a read-only mount. |
 | Linux AppImage | `$XDG_DATA_HOME/snatch` | `sys.executable` is a temp dir that is deleted on exit. |
 
-`app_data_dir()` creates the directory `0o700` on the macOS and Linux packaged
-builds only. On Windows and when running from source it returns a directory that
-already exists and does not change its mode. On macOS and Linux the per-file `0o600` is then the only permission guarantee
-that holds — never treat the containing directory as private. **On Windows
-neither guarantee holds**: POSIX mode bits are not the access-control mechanism
-there, so a file that must be private on Windows needs ACL work this document
+**Never treat the containing directory as private.** `_ensure_dir` passes
+`mode=0o700` to `os.makedirs`, which applies only when the directory is
+created — a directory that already exists keeps its mode, which is the normal
+case after first launch. The Windows and source branches do not call it at all.
+So the per-file `0o600` is the only permission guarantee on every branch, and
+on Windows not even that: POSIX mode bits are not the access-control mechanism
+there, and a file that must be private on Windows needs ACL work this document
 does not cover.
