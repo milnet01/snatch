@@ -56,7 +56,7 @@ need() {
 bold "Snatch local CI — mirrors $WORKFLOW by executing it"
 
 # ── Static checks ─────────────────────────────────────────────────────
-if need actionlint; then step "actionlint (workflow syntax + action pinning)" \
+if need actionlint; then step "actionlint (workflow syntax; NOT action pinning — see SNAT-0035)" \
     actionlint "$WORKFLOW"; fi
 if need yamllint; then step "yamllint (workflow YAML)" \
     yamllint -d "{extends: relaxed, rules: {line-length: disable}}" "$WORKFLOW"; fi

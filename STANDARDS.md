@@ -15,7 +15,7 @@ A modular tkinter GUI frontend for [yt-dlp](https://github.com/yt-dlp/yt-dlp), p
 ```
 snatch.py                  # Thin launcher (imports __main__.main)
 snatch/
-├── __init__.py                # Package init, feature detection (HAS_DND, HAS_MPV)
+├── __init__.py                # Package init, HAS_DND; HAS_MPV is legacy, unread
 ├── __main__.py                # CLI entry point, creates root Tk window
 ├── app.py                     # SnatchApp class — composes all mixins
 ├── theme.py                   # Theme definitions + style setup
@@ -347,7 +347,7 @@ MAX_HISTORY_ENTRIES = 200
 |-----|------|---------|-------------|
 | `save_path` | string | `~/Downloads` | Download output directory |
 | `media_file` | string | `""` | Last analyzed media file path |
-| `window_geometry` | string | `"1200x900"` | Window size (WxH) |
+| `window_geometry` | string | `"1200x900"` | Whatever `root.geometry()` returns — `WxH+X+Y`, so position too. The default seeds size only |
 | `preferred_resolution` | string | `""` | Last-used format resolution |
 | `preferred_ext` | string | `""` | Last-used format extension |
 | `browser` | string | `"none"` | Browser for cookie extraction |
@@ -402,7 +402,7 @@ Each entry:
 |------------|---------|-----------|
 | Deno, Node.js, QuickJS or Bun | YouTube JS challenge solving | bundled copy **and** every one on PATH — all enabled, yt-dlp chooses |
 | ffmpeg/ffprobe | Media merging + analysis | Subprocess call |
-| mpv | Embedded video player | `shutil.which("mpv")` → `HAS_MPV` |
+| mpv | Embedded video player | `platform_utils.find_mpv()` — prefers the bundled copy. **Not `HAS_MPV`**, which nothing reads |
 | Pillow (PIL) | Thumbnail display | `import PIL` → `HAS_PIL` |
 
 ### 8.3 Optional Enhancements
@@ -415,15 +415,18 @@ Each entry:
 ### 8.4 Feature Detection Pattern
 
 ```python
-# In __init__.py — detected once at import
-HAS_MPV = shutil.which("mpv") is not None
-
+# In __init__.py — an optional import, resolved once at import time
 try:
     from tkinterdnd2 import TkinterDnD
     HAS_DND = True
 except ImportError:
     HAS_DND = False
 ```
+
+**A binary on PATH is not detected this way.** `HAS_MPV` is still defined in
+`__init__.py` and nothing reads it: `shutil.which` at import time misses the
+copy bundled into a packaged build. Use `platform_utils.find_mpv()` — and the
+`find_*` helpers generally — which check the bundled copy first.
 
 ---
 

@@ -1,8 +1,10 @@
 # -*- mode: python ; coding: utf-8 -*-
 """PyInstaller spec for the self-contained Windows, Linux and macOS builds.
 
-Invoked by .github/workflows/build.yml after it downloads yt-dlp, ffmpeg and
-ffprobe into the ./bin/ directory of the build checkout. One spec serves all
+Invoked by scripts/build-linux.sh, build-windows.sh and build-macos.sh, each of
+which runs scripts/fetch-binaries.sh first to download yt-dlp, ffmpeg and ffprobe
+into the ./bin/ directory of the build checkout. .github/workflows/ci.yml calls
+those scripts; it does not invoke this spec directly. One spec serves all
 three platforms; the differences are the binary file extensions and the macOS
 .app bundle at the bottom.
 

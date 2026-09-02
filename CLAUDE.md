@@ -40,7 +40,11 @@ Modular tkinter GUI frontend for yt-dlp. Entry point: `snatch.py`. Package: `sna
 - **Use named constants** for magic numbers (timeouts, buffer sizes, thresholds)
 - **Extract duplicated logic** into helper methods
 - **PEP 8 import ordering** — stdlib, third-party, local (separated by blank lines)
-- **All subprocess calls need `timeout`** — handle `TimeoutExpired`
+- **Every `subprocess.run` needs `timeout`** — handle `TimeoutExpired`. The one
+  carve-out is the download itself: `Popen` plus an unbounded `wait()`, because
+  its duration is the user's file size and any fixed value would be wrong.
+  Cancellation is what bounds it — `terminate()`, `wait(timeout=3)`, then
+  `kill()` and `wait(timeout=2)`
 
 ## Before Pushing
 
@@ -68,7 +72,9 @@ platform builds, change the script — never the workflow step that calls it.
   source it *is* the project root; in a packaged build it is not — see
   STANDARDS.md 14.
 - Themes: `theme.py` — Dark, Nord, Monokai, YouTube, Dracula, Gruvbox, Solarized (registry: `THEMES`)
-- Feature flags: `HAS_DND`, `HAS_MPV`, `HAS_PIL` (detected at import)
+- Feature flags: `HAS_DND` (`snatch/__init__.py`), `HAS_PIL` (`snatch/downloader.py`)
+- **mpv is gated by `platform_utils.find_mpv()`, not by `HAS_MPV`** — that
+  constant still exists in `__init__.py` and nothing reads it (SNAT-0055)
 - Verify changes: `python3 -m py_compile snatch/<file>.py`
 - Pre-push gate: `scripts/local-ci.sh` (`--lint` for docs-only)
 - Roadmap: `ROADMAP.md`, ants-v1 format, store-backed (project `snatch`)

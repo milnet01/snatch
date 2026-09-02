@@ -9,7 +9,9 @@ and application work. IDs are allocated from `.roadmap-counter`.
 - ✅ [SNAT-0001] **Windows one-file build via GitHub Actions.**
   PyInstaller `--onefile` on a `windows-latest` runner, bundling
   `yt-dlp.exe` and `ffmpeg.exe` downloaded at build time. Spec in
-  `pyinstaller.spec`; workflow in `.github/workflows/build-windows.yml`.
+  `pyinstaller.spec`; built by `scripts/build-windows.sh`, called from
+  `.github/workflows/ci.yml`. The plan is
+  `docs/plans/SNAT-0001-windows-onefile-build.md`.
   Verified 2026-08-19 on real hardware (Windows 10 22H2, no Python
   installed): the .exe reaches the Tk main loop without crashing.
   Layman: Windows users get one file they can double-click, with no
@@ -2100,7 +2102,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: review-code-sweep-2026-08-31.
   Lanes: security, docs.
 
-- 📋 [SNAT-0055] **Eight places where STANDARDS.md or CLAUDE.md describe code that no longer works that way.**
+- ✅ [SNAT-0055] **Eight places where STANDARDS.md or CLAUDE.md describe code that no longer works that way.**
   Each was verified against current source by a lane of the 2026-08-31
   sweep. Three sibling defects of the same class WERE fixed on
   2026-09-01 -- STANDARDS 4.1/4.2 (the lambda binding), 5.3 (the file
@@ -2179,6 +2181,51 @@ and application work. IDs are allocated from `.roadmap-counter`.
   document points at the missing thing, so there is no passage to
   disbelieve. Items 7 and 8 are the same shape and should be expected to
   survive a review gate too; they need this list, not another lane.
+  Resolved (2026-09-02): all eight are addressed. Three fell out of
+  SNAT-0056's review gate; the other five were worked from this list
+  afterwards, and that split is the useful part of the record.
+
+  Items 1, 4 and 5's table half were found by cold lanes. Items 2, 3, 5's
+  label half, 6, 7 and 8 were not, by any of the nine lanes across three
+  loops -- and they are all the same shape. Each is an ABSENCE or a
+  mis-attribution: a constant nothing reads, a symbol living in a
+  different module, a label that understates, a rule with no carve-out, a
+  citation to a file that was never created. A cold reader is good at two
+  passages contradicting each other and poor at a claim with nothing
+  behind it, because there is no second passage to disbelieve. A written
+  list is the right instrument for that class, and running a review gate
+  is not a substitute for one.
+
+  What changed:
+
+  2. STANDARDS 2.1, 8.2 and 8.4 and CLAUDE.md now say find_mpv() is the
+  gate and that HAS_MPV is a legacy constant nothing reads. The code half
+  -- delete it or adopt it -- is deliberately NOT done here; the documents
+  are true either way, and they were teaching the wrong gate meanwhile.
+  Verified: find_mpv() checks the bundled copy first, which is exactly
+  what a shutil.which at import time misses.
+
+  3. CLAUDE.md now names where each flag lives rather than implying both
+  sit in __init__.py.
+
+  5. The last_tab row landed during the gate. The label half is fixed
+  here: root.geometry() returns WxH+X+Y, measured under Xvfb, so "Window
+  size (WxH)" understated what is stored.
+
+  6. The timeout rule now carries its carve-out. Every subprocess.run
+  does have a timeout -- a first grep here said otherwise and was wrong,
+  having missed one split across two lines. The real exception is the
+  download: Popen plus an unbounded wait(), bounded by terminate/kill
+  rather than by a duration.
+
+  7. pyinstaller.spec cited .github/workflows/build.yml, which has never
+  existed. It is invoked by the three build scripts, which fetch binaries
+  first; ci.yml calls those scripts. SNAT-0001's own body cited a
+  build-windows.yml that does not exist either, and was corrected with it.
+
+  8. local-ci.sh's actionlint step no longer claims to check action
+  pinning. It never did, and the gate does not run zizmor; the label now
+  points at SNAT-0035 instead of implying coverage.
   **Layman:** The project's own rulebook is wrong in eight places, so anyone following it writes the wrong thing.
   Kind: doc-fix.
   Source: review-code-sweep-2026-08-31.
