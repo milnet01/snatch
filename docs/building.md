@@ -52,7 +52,7 @@ local run and hide the real build result.
 
 | Component | Pinned in | Current |
 |---|---|---|
-| yt-dlp (bundled binary) | `scripts/fetch-binaries.sh` | nightly `2026.08.18.122307` |
+| yt-dlp (bundled binary) | `scripts/fetch-binaries.sh` | nightly `2026.08.30.232658` |
 | yt-dlp (Python library) | `requirements.txt` | 2026.7.4 |
 | ffmpeg + ffprobe | `scripts/fetch-binaries.sh` | ffmpeg-static `b6.1.1` |
 | QuickJS | `scripts/fetch-binaries.sh` | `v0.16.1` |
@@ -67,6 +67,22 @@ from the NIGHTLY channel because stable does not play YouTube (SNAT-0014).
 The `requirements.txt` entry is not imported as a library at all — the header
 of that file explains why it is there — so it tracks stable and lags. Bumping
 one because the other moved is the mistake this note exists to prevent.
+
+### Before publishing a release: bump the bundled yt-dlp
+
+Run `scripts/update-ytdlp-pin.sh`, then build. It re-resolves the pin to the
+newest nightly and rewrites both `scripts/fetch-binaries.sh` and the table
+above, so the two cannot drift into disagreeing about what a build ships.
+`--check` reports without writing and exits non-zero when the pin is behind.
+
+The reason it is a release step rather than an occasional chore: the app
+offers the user an update only when the latest nightly is newer than the copy
+in use. A release bundling the latest therefore asks the user for nothing on
+first launch, while one bundling anything older prompts immediately. Leaving
+the bump to whoever remembered is what shipped a build a fortnight behind.
+
+The bundled binary only. The `requirements.txt` entry stays on stable, for
+the reason in the note above.
 
 One source (`eugeneware/ffmpeg-static`) provides ffmpeg and ffprobe for all
 three platforms, so there is a single pin to move.

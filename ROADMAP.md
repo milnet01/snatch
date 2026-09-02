@@ -2275,3 +2275,40 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: fix.
   Source: in-session-2026-09-02.
   Lanes: downloader, ui.
+
+- ✅ [SNAT-0062] **A published build must bundle the newest yt-dlp, so the app asks the user for nothing on first launch.**
+  User request. The update machinery was already correct: the app offers an
+  update only when the latest nightly is NEWER than the copy in use. What
+  was wrong was its input -- YTDLP_VERSION was pinned by hand with a comment
+  saying to bump it when playback started failing, so a release cut today
+  shipped whatever tag was last remembered. Measured at the time of this
+  change: the pin was 2026.08.18.122307 against a latest of
+  2026.08.30.232658, twelve days behind. A user downloading that build was
+  prompted to update immediately, which is precisely the ask this item
+  removes.
+
+  scripts/update-ytdlp-pin.sh re-resolves the pin to the newest nightly and
+  rewrites both scripts/fetch-binaries.sh and the versions table in
+  docs/building.md, so the two cannot drift into disagreeing about what a
+  build ships. --check reports without writing and exits non-zero when the
+  pin is behind, so the condition is testable before publishing.
+
+  The pin is kept rather than floated. It records exactly what a given build
+  shipped, which is what makes a build reproducible and what allows a bad
+  nightly to be identified afterwards; what changed is that publishing
+  re-resolves it instead of trusting recall. The stale comment above the pin
+  was rewritten in the same change, since it prescribed the old policy.
+
+  Scope: the bundled binary only. requirements.txt tracks stable yt-dlp
+  deliberately and is not imported as a library -- docs/building.md already
+  carries that note, and moving one pin because the other moved is the
+  mistake it exists to prevent.
+
+  Verified: bumped 2026.08.18.122307 -> 2026.08.30.232658, re-run reports
+  nothing to do, the fetched binary reports the new version, and a probe
+  with the app's own flags returns the same 188 formats / 37 video with no
+  warnings.
+  **Layman:** Every release now ships the newest downloader, so the app does not immediately ask you to download an update the moment you install it.
+  Kind: chore.
+  Source: user-request-2026-09-02.
+  Lanes: packaging.

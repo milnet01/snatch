@@ -18,9 +18,12 @@ set -euo pipefail
 # stable channel ships, so a stable pin here means a player that does not
 # play.
 #
-# Pinned to an exact nightly tag, so the build stays reproducible; bump it
-# when playback or downloads start failing.
-YTDLP_VERSION="${YTDLP_VERSION:-2026.08.18.122307}"
+# Pinned to an exact nightly tag, so a build records exactly what it
+# shipped. scripts/update-ytdlp-pin.sh re-resolves it to the newest nightly
+# and is run before building a release: the app offers the user an update
+# only when the latest is newer than the copy in use, so a release that
+# bundles anything older asks the user to download on first launch.
+YTDLP_VERSION="${YTDLP_VERSION:-2026.08.30.232658}"
 YTDLP_REPO="${YTDLP_REPO:-yt-dlp/yt-dlp-nightly-builds}"
 # One source for all three platforms, so there is one pin to bump.
 FFMPEG_STATIC_TAG="${FFMPEG_STATIC_TAG:-b6.1.1}"
