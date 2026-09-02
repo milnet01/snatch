@@ -56,7 +56,7 @@ local run and hide the real build result.
 | yt-dlp (Python library) | `requirements.txt` | 2026.7.4 |
 | ffmpeg + ffprobe | `scripts/fetch-binaries.sh` | ffmpeg-static `b6.1.1` (SHA-256 pinned) |
 | QuickJS | `scripts/fetch-binaries.sh` | `v0.16.1` (SHA-256 pinned) |
-| mpv (Windows only) | `scripts/fetch-binaries.sh` | `MPV_WIN_TAG=20260814` (SHA-256 pinned) |
+| mpv (Windows only) | `scripts/fetch-binaries.sh` | `MPV_WIN_TAG=20260814` + `MPV_WIN_ASSET` (SHA-256 pinned) |
 | AppImage type2 runtime | `scripts/build-linux.sh` | `20251108` (SHA-256 pinned) |
 | appimagetool | `scripts/build-linux.sh` | `1.9.1` (SHA-256 pinned) |
 | PyInstaller | `.github/workflows/ci.yml` | 6.11.1 |
@@ -75,6 +75,16 @@ rather than being fetched unverified. Refresh one with:
 gh api repos/<owner>/<repo>/releases/tags/<tag> \
   --jq '.assets[] | select(.name=="<asset>") | .digest'
 ```
+
+**mpv is pinned by three things, not two: tag, asset NAME, and digest.** Its
+asset name carries a build hash, so it used to be looked up through
+`api.github.com` at fetch time — an endpoint that is rate-limited per IP for
+unauthenticated callers. A Windows CI build failed on that with
+`curl: (22) ... error: 403` and a `JSONDecodeError` on the empty body. The
+lookup was never needed, since a pinned tag has a fixed asset, so the name is
+pinned too and the API call is gone. **Bumping `MPV_WIN_TAG` therefore means
+updating `MPV_WIN_ASSET` and its digest as well** — a stale name stops the
+build rather than fetching something unverified.
 
 The runtime self-update is verified separately, against the `SHA2-256SUMS`
 manifest each nightly publishes (`snatch/version.py`).

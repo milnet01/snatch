@@ -47,6 +47,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Windows builds failed intermittently on a GitHub API rate limit.** (SNAT-0064)
+  Windows builds sometimes failed for no reason anyone could see; they no longer make the call that was failing.
+
 - **A history entry with an odd filename no longer crashes the open action** (SNAT-0020)
   Opening a history entry whose stored path contained an invalid
   character raised an error instead of simply reporting the file was not

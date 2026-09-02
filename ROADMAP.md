@@ -484,6 +484,42 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: in-session-2026-08-20.
   Lanes: security, release, supply-chain.
 
+- ✅ [SNAT-0064] **Windows builds failed intermittently on a GitHub API rate limit.**
+  Recorded because the cause is invisible from the code and the failure
+  hid behind green runs.
+
+  scripts/fetch-binaries.sh resolved the mpv asset name through
+  api.github.com at fetch time, because that name carries a build hash.
+  That endpoint is rate-limited per IP for unauthenticated callers. On
+  2026-09-02 at 06:32 UTC a Windows CI run failed with
+
+    curl: (22) The requested URL returned error: 403
+    json.decoder.JSONDecodeError: Expecting value: line 1 column 1
+
+  -- the throttled response, handed to a JSON parser as an empty body.
+  Windows-only, since that block runs nowhere else, and intermittent, so
+  every later run passed and it read as a blip rather than a defect.
+
+  The lookup was never needed: a pinned tag has a fixed asset. Once
+  SNAT-0031 gave that asset a recorded digest, the name could be pinned
+  beside the tag, removing a network call, a JSON parse and the whole
+  failure class. A stale name now stops the build rather than fetching
+  something unverified.
+
+  Verified on the only platform that can verify it: pushed and the real
+  build-windows job went green, with the archive downloaded directly and
+  its digest checked before 7z unpacked it. A local gate could not test
+  this -- act runs Linux containers and the mpv block only executes on
+  Windows.
+
+  TRAP for anyone bumping the pin: MPV_WIN_TAG, MPV_WIN_ASSET and the
+  digest in digest_for() now move together. docs/building.md says so in
+  the pin table.
+  **Layman:** Windows builds sometimes failed for no reason anyone could see; they no longer make the call that was failing.
+  Kind: fix.
+  Source: ci-failure-2026-09-02.
+  Lanes: ci, packaging.
+
 ## Application
 
 - ✅ [SNAT-0006] **Write user data files with 0600 permissions.**
