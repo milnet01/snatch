@@ -46,8 +46,8 @@ The rules that follow are the part worth remembering:
 1. **A digest mismatch is a hard failure.** It is never skipped, never warned
    past, and the check is never removed to make a build go green. The scripts
    say so at the point of failure: *"add it to `digest_for()` above rather than
-   removing the check"*. The one path that reaches a tool without a digest is
-   a caller setting `SNATCH_APPIMAGETOOL`, which § Known exceptions records.
+   removing the check"*. Where a path does reach a tool without comparing a
+   digest, § Known exceptions names it.
 2. **A pin moves only by a deliberate commit.** Change the version, run the
    build, and replace the digest with the one the mismatch message prints.
    Both halves move in the same commit, because a version without its matching
@@ -108,10 +108,12 @@ dependency question rather than a pinning one.
 
 **2. Python tooling from PyPI is pinned by version, not by hash.** CI installs
 `ruff`, `pytest` and `pyinstaller` at exact versions and `requirements.txt` by
-version, with no `--require-hashes`. So a version pin here is a weaker control
-than a recorded digest, and the Decision above is scoped to exclude it rather
-than quietly claiming it. Closing this means a hash-pinned lock file and a
-routine for regenerating it; nothing is tracking that yet.
+version, with no `--require-hashes` — and each build job additionally runs
+`pip install --upgrade pip`, which is pinned by nothing at all. So a version
+pin here is a weaker control than a recorded digest, and the Decision above is
+scoped to exclude it rather than quietly claiming it. Closing this means a
+hash-pinned lock file and a routine for regenerating it, and it has to cover
+the `pip` self-upgrade too; nothing is tracking that yet.
 
 **3. `SNATCH_APPIMAGETOOL` reaches `chmod +x` with no digest compared.** Setting
 it substitutes a caller's own `appimagetool` for the pinned download. That is
@@ -122,11 +124,24 @@ in the build log, printing `(unverified, caller's choice)`. CI never sets it.
 Do not add a digest check to that branch; it would defeat the purpose. Do not
 delete the branch either.
 
+**4. The mpv cache is keyed on the tag, not on content.** Every other asset's
+reuse path is `cached_ok "$dest" "$want"`, a SHA-256 comparison whose comment
+says why: "a tampered or truncated cached file is re-fetched rather than
+trusted because a stamp file happens to agree". mpv's is
+`stamp_matches "$BIN_DIR/mpv/mpv.exe" "mpv:${MPV_WIN_TAG}"`, so a cached
+`mpv.exe` whose stamp matches is used with no digest compared. A fresh fetch is
+still verified; it is the reuse that is not. Unlike the exception above this
+looks like an inconsistency rather than a decision, and is filed as SNAT-0065
+rather than defended. Until it closes, do not copy the stamp pattern for a
+new binary.
+
 ## Consequences
 
-- A release build downloads its dependencies fresh rather than reusing a cache
-  a pull-request run could have written (SNAT-0047). Pinning decides *what* is
-  fetched; that decides *from where*.
+- Pinned binaries are still reused from the local `bin/` cache — but keyed on
+  content, so a tampered or truncated file is re-fetched rather than trusted.
+  That is the cache this decision governs. The cache SNAT-0047 dealt with is a
+  different one, GitHub's pip cache, which is outside this decision's scope and
+  is no longer restored on a tag build.
 - Bumping a bundled tool is a two-step edit — version, then digest — and cannot
   be done from a version number alone. For mpv it is three: tag, asset name and
   digest, per the bullet above. This is the intended friction.
@@ -135,6 +150,13 @@ delete the branch either.
   has a `--check` mode that exits non-zero when the pin is behind; running it is
   a release step in `docs/building.md`, not something that happens on its own.
   Reach for that script rather than writing a second resolver.
+- **That script moves the version half only.** It rewrites `YTDLP_VERSION` and
+  the version named in `docs/building.md`, and does not touch `digest_for()`,
+  which holds a digest per yt-dlp asset. So a bump is the script plus a digest
+  refresh in the same commit, and rule 2 is discharged by the pair. Running the
+  script alone produces exactly the state rule 2 calls a build that cannot
+  succeed — the next build hard-stops on the digest compare, which is the
+  failure working as intended rather than a fault to route around.
 - A future security review will re-derive the `unpinned-uses` findings above.
   They are expected. SNAT-0035 is where that conversation belongs.
 - **This policy governs the build, not the running app, and the difference is

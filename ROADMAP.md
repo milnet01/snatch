@@ -520,6 +520,40 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: ci-failure-2026-09-02.
   Lanes: ci, packaging.
 
+- 📋 [SNAT-0065] **The mpv cache is reused on a tag stamp, so a cached copy skips the digest check.**
+  Found by two of three lanes during the ADR-0001 gate.
+
+  Every asset in scripts/fetch-binaries.sh reuses a cached file through
+  `cached_ok "$dest" "$want"`, a SHA-256 comparison. Its comment states
+  the reason outright: the cache is keyed on CONTENT "so a tampered or
+  truncated cached file is re-fetched rather than trusted because a stamp
+  file happens to agree".
+
+  mpv is the exception. Its reuse test is
+  `stamp_matches "$BIN_DIR/mpv/mpv.exe" "mpv:${MPV_WIN_TAG}"`, which
+  compares a stamp file against the tag string. A cached bin/mpv/mpv.exe
+  whose stamp matches is used with no digest compared at all -- exactly
+  the case the cached_ok comment says a stamp must not be trusted for.
+
+  Scope of the exposure is small and worth stating plainly: a FRESH fetch
+  is still verified, and the stamp lives in bin/.stamps on the build
+  machine, so reaching it means already having write access to the build
+  tree. This is a consistency and defence-in-depth gap rather than a live
+  hole.
+
+  Fix: give mpv a content-keyed reuse test like every other asset. The
+  digest is already recorded in digest_for() under the asset filename, so
+  the check has everything it needs; the stamp exists because the asset
+  name carries a build hash, which is a naming problem rather than a
+  reason to skip the compare.
+
+  Recorded as a known exception in
+  docs/decisions/ADR-0001-supply-chain-pinning.md until this closes, so
+  nobody copies the stamp pattern for a new binary.
+  **Layman:** A copy of the video player already on the build machine is trusted because its label matches, without re-checking the file itself.
+  Kind: security.
+  Source: review-contract-adr-0001-2026-09-03.
+
 ## Application
 
 - ✅ [SNAT-0006] **Write user data files with 0600 permissions.**
