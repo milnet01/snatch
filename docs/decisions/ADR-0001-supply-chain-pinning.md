@@ -2,7 +2,8 @@
 
 - **Status:** Accepted
 - **Date:** 2026-09-03
-- **Roadmap:** SNAT-0057 (this record). Open exceptions: SNAT-0035, SNAT-0065
+- **Roadmap:** SNAT-0057 (this record).
+  Open items this record names: SNAT-0035, SNAT-0065, SNAT-0066, SNAT-0067
 - **Review history:** `docs/adr-0001-review-log.md`
 
 ## Context
@@ -43,15 +44,22 @@ fetch; § Known exceptions has the rest.
 
 The rules that follow are the part worth remembering:
 
-1. **A digest mismatch is a hard failure.** It is never skipped, never warned
-   past, and the check is never removed to make a build go green. The scripts
-   say so at the point of failure: *"add it to `digest_for()` above rather than
-   removing the check"*. Where a path does reach a tool without comparing a
-   digest, § Known exceptions names it.
-2. **A pin moves only by a deliberate commit.** Change the version, run the
-   build, and replace the digest with the one the mismatch message prints.
-   Both halves move in the same commit, because a version without its matching
-   digest is a build that cannot succeed.
+1. **A failed or absent digest is a hard failure.** Never skipped, never
+   warned past, and the check is never removed to make a build go green. There
+   are two stops, and they print differently: a *mismatch* prints the expected
+   and computed hashes, while an asset with no recorded digest at all prints
+   *"add it to `digest_for()` above rather than removing the check"*. Where a
+   path does reach a tool without comparing a digest, § Known exceptions names
+   it.
+2. **A pin moves only by a deliberate commit**, version and digest together.
+   Where to get the digest depends on the pin. If the asset's *filename* is
+   unchanged the build reaches a mismatch and prints the computed hash. If the
+   filename also changes — mpv, or a new platform — `digest_for` has no entry,
+   so the stop is the missing-digest one and prints no hash to copy; there the
+   digest comes from upstream's published `.digest` field, via the `gh api`
+   query in `docs/building.md`. Prefer that query in either case: it records
+   what upstream vouches for rather than what this machine happened to
+   receive.
 3. **Nothing is resolved at build time that can be written down instead.** The
    mpv asset name is a literal in `scripts/fetch-binaries.sh`, not the result
    of an API query, because a query is a runtime dependency on a service that
@@ -88,7 +96,9 @@ These look wrong at a glance. Each is deliberate.
 Each is recorded here rather than quietly tolerated.
 
 **1. `actions/*` steps are pinned to major-version tags, not commit SHAs.**
-`zizmor` reports each as `unpinned-uses`, and the reports are correct.
+Run by hand, `zizmor` reports each as `unpinned-uses`, and the reports are
+correct. It is not wired into any job or into the local gate, so nothing
+reports this on its own today.
 
 This is a known gap, tracked as SNAT-0035, and left open rather than closed
 quietly. **It is a sequencing decision, not a judgement that the risk is
@@ -113,7 +123,7 @@ version, with no `--require-hashes` — and each build job additionally runs
 pin here is a weaker control than a recorded digest, and the Decision above is
 scoped to exclude it rather than quietly claiming it. Closing this means a
 hash-pinned lock file and a routine for regenerating it, and it has to cover
-the `pip` self-upgrade too; nothing is tracking that yet.
+the `pip` self-upgrade too. Tracked as SNAT-0066.
 
 **3. `SNATCH_APPIMAGETOOL` reaches `chmod +x` with no digest compared.** Setting
 it substitutes a caller's own `appimagetool` for the pinned download. That is
@@ -137,12 +147,15 @@ new binary.
 
 ## Consequences
 
-- Pinned binaries are still reused from the local `bin/` cache — keyed on
-  content, so a tampered or truncated file is re-fetched rather than trusted.
-  Except mpv, which is keyed on the tag; that is known exception 4. This is the
-  cache the decision governs. The cache SNAT-0047 dealt with is a different
-  one, GitHub's pip cache, outside this decision's scope and no longer restored
-  on a tag build.
+- Pinned artifacts are reused from local caches, keyed on content so a
+  tampered or truncated file is re-fetched rather than trusted. There are two
+  locations, not one: `bin/` for what `fetch-binaries.sh` downloads, and
+  `.cache/runtime-*` plus the repo-root `appimagetool` for what
+  `build-linux.sh` does. Anything that cleans, ignores or audits these caches
+  has to cover both. mpv is the exception, keyed on the tag rather than
+  content — known exception 4. The cache SNAT-0047 dealt with is a different
+  thing again, GitHub's pip cache, outside this decision's scope and no longer
+  restored on a tag build.
 - Bumping a bundled tool is a two-step edit — version, then digest — and cannot
   be done from a version number alone. For mpv it is three: tag, asset name and
   digest, per the bullet above. This is the intended friction.
@@ -154,11 +167,16 @@ new binary.
 - **That script moves the version half only.** It rewrites `YTDLP_VERSION` and
   the version named in `docs/building.md`, and does not touch `digest_for()`,
   which holds a digest per yt-dlp asset. So a bump is the script plus a digest
-  refresh in the same commit, and rule 2 is discharged by the pair. Running the
-  script alone produces exactly the state rule 2 calls a build that cannot
-  succeed — the next build hard-stops on the digest compare, which is the
-  failure working as intended rather than a fault to route around.
-- A future security review will re-derive the `unpinned-uses` findings above.
+  refresh in the same commit, and rule 2 is discharged by the pair.
+- **Running the script alone fails safely on a clean checkout and silently on a
+  warm one.** `digest_for` is keyed on the asset filename and the destination
+  is version-independent, so with a populated `bin/` the previous binary still
+  matches the still-unchanged digest: `cached_ok` succeeds, nothing is fetched,
+  and the build goes green having bundled the old nightly. A clean checkout —
+  which is what CI runs — has nothing cached, downloads the new version and
+  hard-stops on the compare. So CI catches a version-only bump and a local
+  rebuild does not. Tracked as SNAT-0067.
+- A future security review will derive the `unpinned-uses` findings above.
   They are expected. SNAT-0035 is where that conversation belongs.
 - **This policy governs the build, not the running app, and the difference is
   deliberate.** A build-time fetch is for a version chosen here, so a digest can

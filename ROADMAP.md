@@ -554,6 +554,63 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: security.
   Source: review-contract-adr-0001-2026-09-03.
 
+- 📋 [SNAT-0066] **Python tooling from PyPI is pinned by version, never by hash.**
+  Recorded as a known exception in ADR-0001 and, until now, tracked by
+  nothing -- which the ADR's own argument against partial coverage says is
+  the thing that makes a gap worse than a weak control.
+
+  CI installs ruff, pytest and pyinstaller at exact versions and
+  requirements.txt by version, with no --require-hashes. Each of the three
+  build jobs additionally runs `pip install --upgrade pip`, which is pinned
+  by nothing at all. A version pin resolves to whatever PyPI serves under
+  that version today; a hash pin does not.
+
+  This is weaker than what every bundled BINARY gets, where the digest is
+  recorded in digest_for() and a mismatch is a hard stop.
+
+  Fix, in rough order of value: pin the pip self-upgrade or drop it; then a
+  hash-pinned requirements file (pip-compile --generate-hashes, or uv) plus
+  --require-hashes on the install, and a routine for regenerating it when a
+  version moves.
+
+  Worth stating the limit honestly: this protects against a compromised or
+  substituted artifact on PyPI, not against a malicious release the
+  maintainer publishes deliberately.
+  **Layman:** The build downloads Python helper programs by version number only, so it cannot tell if what arrives is what was published.
+  Kind: security.
+  Source: review-contract-adr-0001-2026-09-03.
+
+- 📋 [SNAT-0067] **A version-only yt-dlp bump builds green locally and ships the old binary.**
+  Found by one lane during the ADR-0001 gate and confirmed by reading
+  fetch-binaries.sh.
+
+  scripts/update-ytdlp-pin.sh -- the endorsed release step -- rewrites
+  YTDLP_VERSION and the version in docs/building.md, and does not touch
+  digest_for(). fetch() keys its cache on the ASSET FILENAME, and the
+  destination is version-independent ("$BIN_DIR/yt-dlp${exe_suffix}").
+
+  So on a machine with a populated bin/, after a version-only bump the old
+  binary still matches the still-unchanged digest, cached_ok returns true,
+  nothing is downloaded, and the build succeeds having bundled the previous
+  nightly. The version recorded in the script and the binary actually
+  shipped disagree, silently.
+
+  CI is not affected: a clean checkout has nothing cached, downloads the
+  new version, and hard-stops on the digest compare. So the failure is
+  local-only, which is worse than it sounds -- a developer testing the
+  bump locally sees green.
+
+  Cheapest fix: have update-ytdlp-pin.sh say what it did NOT do, printing
+  that the three yt-dlp digests must be refreshed and the build re-run.
+  Stronger: have it refresh them, since the gh api query that returns them
+  is already in docs/building.md. Either closes it; the second removes the
+  two-step from a step the script already owns.
+
+  Documented in ADR-0001 under Consequences until this closes.
+  **Layman:** Updating the bundled downloader without also updating its checksum leaves the old copy in place, and the build does not complain.
+  Kind: fix.
+  Source: review-contract-adr-0001-2026-09-03.
+
 ## Application
 
 - ✅ [SNAT-0006] **Write user data files with 0600 permissions.**
