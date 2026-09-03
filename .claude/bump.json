@@ -1,0 +1,35 @@
+{
+  "$": "Version-bearing files for Snatch, enumerated once here rather than rediscovered under release pressure (releases.md section 1). Consumed by the cut-release skill. Adding a version surface means adding it BOTH to files[] below and to scripts/check-version-drift.sh, which is what proves the bump reached everything.",
+
+  "version_source": "snatch/__init__.py",
+  "version_pattern": "__version__ = \"([0-9]+\\.[0-9]+\\.[0-9]+)\"",
+
+  "files": [
+    {
+      "$": "The single source of truth. app.py imports __version__ from here for the window title, and the About text reads the same value, so nothing else needs a copy.",
+      "path": "snatch/__init__.py",
+      "pattern": "__version__ = \"{OLD}\"",
+      "replace": "__version__ = \"{NEW}\""
+    },
+    {
+      "$": "macOS bundle metadata. Two keys, both carrying the plain triple; Finder shows the first and the second is what an upgrade compares.",
+      "path": "pyinstaller.spec",
+      "pattern": "\"CFBundleShortVersionString\": \"{OLD}\"",
+      "replace": "\"CFBundleShortVersionString\": \"{NEW}\""
+    },
+    {
+      "path": "pyinstaller.spec",
+      "pattern": "\"CFBundleVersion\": \"{OLD}\"",
+      "replace": "\"CFBundleVersion\": \"{NEW}\""
+    }
+  ],
+
+  "tag": "v{NEW}",
+
+  "$todos": "The changelog cut is a todo rather than the author's step because changelog_log op:\"release\" performs it mechanically -- it closes [Unreleased] into the dated section and opens a fresh empty one, moving text that already exists rather than authoring any. cut-release recognises that op as the recipe performing the cut, and hands the section check to post_check, which is why check-version-drift.sh asserts the section too.",
+  "todos": [
+    "changelog_log op:\"release\" version:\"{NEW}\" date:\"{TODAY}\" caller_cwd:<project root> -- closes [Unreleased] into ## [{NEW}] - {TODAY} and opens a fresh empty [Unreleased] above it"
+  ],
+
+  "post_check": "bash scripts/check-version-drift.sh"
+}

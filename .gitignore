@@ -17,8 +17,15 @@ __pycache__/
 *~
 .DS_Store
 
-# Local Claude Code config
-.claude/
+# Local Claude Code config -- session state, hooks and per-machine settings.
+# Written as .claude/* rather than .claude/ because git cannot re-include a
+# file whose PARENT DIRECTORY is excluded, and the next line needs to.
+.claude/*
+# ...except the release recipe, which is project configuration rather than
+# local state: releases.md section 1 wants the version-bearing files
+# enumerated once and RECORDED, and a recipe only one machine can see records
+# nothing. cut-release reads it from the repo.
+!.claude/bump.json
 
 # Virtual environments
 .venv/
