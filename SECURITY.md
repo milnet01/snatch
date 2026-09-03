@@ -49,13 +49,12 @@ publisher's own manifest. `docs/decisions/ADR-0001-supply-chain-pinning.md`
 holds both the policy and the gaps in it, which are enumerated there rather
 than implied away here.
 
-**The Python packages Snatch ships.** Pillow and tkinterdnd2 are bundled into
-every release and run in the app's process, and Pillow is what decodes remote
-image bytes. A known advisory in one of these is in scope here, not upstream's
-to worry about on our behalf — see the bundled-dependency bullet under § Out of
-scope for where the line falls. Nothing currently watches for such an advisory:
-SNAT-0037 is that gap, and it is open because a real one was missed once
-already.
+**A vulnerable or compromised package Snatch ships.** Pillow and tkinterdnd2
+are bundled into every release and run inside the app's process, and Pillow is
+what decodes remote image bytes. Shipping one with a known advisory is in scope
+here — see the bundled-dependency bullet under § Out of scope for which half of
+that is ours. Nothing currently watches for one: SNAT-0037 is that gap, open
+because a real advisory was missed once already.
 
 **The content Snatch is asked to handle.** yt-dlp parses the page and the
 media file; Snatch handles the URL the user pasted, the JSON and progress
@@ -64,13 +63,14 @@ thumbnail images in its own process, through Pillow, from a URL that arrived
 in that JSON. That decode is the shortest path from a remote server into this
 app's memory and it is in scope; SNAT-0030 was exactly that report and was
 fixed here rather than forwarded. None of these may become command execution,
-an unbounded read, or a write outside the download folder. The defences are URL validation, a `--`
-separator before any URL or path argument, never using a shell, and bounding
-what is read into memory.
+an unbounded read, or a write outside the download folder. The defences are URL
+validation, a `--` separator before any URL or path argument, never using a
+shell, and bounding what is read into memory.
 
-Where this meets the bundled-dependency bullet under § Out of scope: a page that exploits
-yt-dlp's own extraction is upstream's. The same page reaching Snatch's argument
-construction, its output parsing or its destination paths is ours.
+Where this meets the bundled-dependency bullet under § Out of scope: a page
+that exploits yt-dlp's own extraction is upstream's. The same page reaching
+Snatch's argument construction, its output parsing or its destination paths is
+ours.
 
 ### Real but secondary
 
