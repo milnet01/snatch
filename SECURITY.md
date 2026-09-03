@@ -29,9 +29,9 @@ patched.
 
 This model settles **scope**: whether a finding is something Snatch defends
 against, and roughly how much weight it carries. It does not define a severity
-scale, and no document here does — reviews use CRITICAL/HIGH/MEDIUM informally
-and the reviewing tool supplies the ranking. What this file removes is the
-step before that, which the 2026-08-31 review had to guess at and said so.
+scale, and no document here does — reviews use CRITICAL/HIGH/MEDIUM
+informally and nothing defines them. What this file settles is the step before
+that, which the 2026-08-31 review had to guess at and said so.
 
 **What Snatch is.** A desktop program with a window, run by the person who
 installed it, under their own account, on their own machine. It is not a
@@ -49,15 +49,26 @@ publisher's own manifest. `docs/decisions/ADR-0001-supply-chain-pinning.md`
 holds both the policy and the gaps in it, which are enumerated there rather
 than implied away here.
 
-**The content Snatch is asked to handle.** Snatch itself does not parse the
-page or the media file — yt-dlp does. What Snatch handles is the URL the user
-pasted, the JSON and progress output yt-dlp returns, and the paths it is told
-to write to. None of those may become command execution, an unbounded read, or
-a write outside the download folder. The defences are URL validation, a `--`
+**The Python packages Snatch ships.** Pillow and tkinterdnd2 are bundled into
+every release and run in the app's process, and Pillow is what decodes remote
+image bytes. A known advisory in one of these is in scope here, not upstream's
+to worry about on our behalf — see the bundled-dependency bullet under § Out of
+scope for where the line falls. Nothing currently watches for such an advisory:
+SNAT-0037 is that gap, and it is open because a real one was missed once
+already.
+
+**The content Snatch is asked to handle.** yt-dlp parses the page and the
+media file; Snatch handles the URL the user pasted, the JSON and progress
+output yt-dlp returns, the paths it is told to write to — and it decodes
+thumbnail images in its own process, through Pillow, from a URL that arrived
+in that JSON. That decode is the shortest path from a remote server into this
+app's memory and it is in scope; SNAT-0030 was exactly that report and was
+fixed here rather than forwarded. None of these may become command execution,
+an unbounded read, or a write outside the download folder. The defences are URL validation, a `--`
 separator before any URL or path argument, never using a shell, and bounding
 what is read into memory.
 
-Where this meets the yt-dlp bullet under § Out of scope: a page that exploits
+Where this meets the bundled-dependency bullet under § Out of scope: a page that exploits
 yt-dlp's own extraction is upstream's. The same page reaching Snatch's argument
 construction, its output parsing or its destination paths is ours.
 
@@ -65,10 +76,18 @@ construction, its output parsing or its destination paths is ours.
 
 **Another person logged into the same computer.** Snatch is built for a
 single-user desktop, so this is not the case it is designed around — but the
-cheap defences are taken anyway: user data files are owner-only, the player's
-control socket lives in a private directory, and symlinks are resolved before
-a path is opened. A finding that requires a hostile local user on a shared
-machine is graded below one that does not; it is not dismissed.
+cheap defences are taken anyway: user data files are written owner-only, the
+player's control socket lives in a directory of its own, and symlinks are
+resolved before a path is opened.
+
+Two of those are weaker on Windows and the difference is stated rather than
+glossed. The startup pass that repairs a file already on disk with loose
+permissions is a no-op there (`STANDARDS.md` § 5.3), and the socket directory
+gets its mode from POSIX bits that Windows does not enforce — though the IPC
+socket is not used on that platform at all, so nothing listens on it.
+
+A finding that requires a hostile local user on a shared machine is graded
+below one that does not; it is not dismissed.
 
 ### Out of scope
 
@@ -83,11 +102,16 @@ machine is graded below one that does not; it is not dismissed.
   unsigned is accurate and will be closed as known. What is in scope is a way
   to *check* a download that this project has and does not offer; the release
   checksums SNAT-0036 asks for are that gap.
-- **Flaws inside yt-dlp's own parsing and extraction.** Snatch bundles it and
-  updates the pin; those are reported upstream. How Snatch *invokes* it and
-  consumes its output is not covered by this bullet — see the boundary note
-  above. If an upstream flaw changes what Snatch should do, say so and it will
-  be treated as in scope.
+- **Defects inside a bundled dependency's own code** — yt-dlp's parsing and
+  extraction, a decoder bug in Pillow. Those are reported upstream, and the
+  bullet covers every bundled component rather than yt-dlp alone.
+
+  Two things it does *not* cover, both in scope here. How Snatch **invokes**
+  yt-dlp and consumes its output — argument construction, output parsing,
+  destination paths — is ours; the boundary note above draws that line. And
+  **shipping a version with a known advisory** is ours whoever wrote the code:
+  that is the split SNAT-0030 applied, closing twelve Pillow advisories by
+  moving the pin rather than forwarding them.
 
 ### If you think this model is wrong
 
@@ -103,5 +127,7 @@ elsewhere, and is not repeated here:
 - `STANDARDS.md` § 5.1 to § 5.5 — the rules code must follow: URL validation,
   subprocess safety, file permissions, player socket, path validation. The
   HTTPS-only rule is a bullet inside § 5.2, not a subsection of its own.
+- `STANDARDS.md` § 6.3 — bounding what is read into memory. The recv-buffer
+  cap is there, not in § 5, and this file names it as a defence.
 - `docs/decisions/ADR-0001-supply-chain-pinning.md` — why every fetched binary
   is pinned and checksummed, and which gaps are known.

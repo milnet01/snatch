@@ -3133,3 +3133,35 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: test.
   Source: review-contract-standards-2026-09-02.
   Lanes: testing, security.
+
+- 📋 [SNAT-0068] **STANDARDS 5.4 still shows the mpv socket code SNAT-0052 replaced.**
+  Collateral from SNAT-0052, found by a cold lane during the SECURITY.md
+  gate two items later.
+
+  SNAT-0052 moved the mpv IPC socket into a tempfile.mkdtemp directory --
+  0700 by construction, unpredictably named -- and removed the old
+  arrangement, which put a predictable snatch-mpv-<pid> directly in
+  XDG_RUNTIME_DIR with an ownership check whose fallback branch was never
+  checked at all.
+
+  STANDARDS.md 5.4 still documents that old arrangement, code block and
+  all, including the `if is_windows() or not os.path.isdir(runtime_dir)
+  or os.stat(runtime_dir).st_uid != os.getuid():` line. It does not
+  mention the private directory.
+
+  Why this matters more than a stale snippet: a conformer reading 5.4
+  today writes the pattern SNAT-0052 removed for being insecure, and
+  believes they are following the standard. A reviewing lane did exactly
+  that -- it reasoned from 5.4 and reported SECURITY.md as overstating a
+  defence, when the defence is real and it is 5.4 that is out of date.
+
+  Fix: rewrite 5.4 to describe the mkdtemp directory, the reason (a
+  tag-predictable socket in a shared /tmp is reachable, and mpv's IPC
+  accepts every input command), and the shutil.rmtree teardown.
+
+  Note this re-arms CLAUDE.md rule 14's cold-read gate on STANDARDS.md --
+  a conformer would write different code afterwards -- so the edit and its
+  gate belong together rather than being slipped in.
+  **Layman:** The written rule for where the video player's control channel goes describes the old, less safe arrangement that has already been changed.
+  Kind: doc-fix.
+  Source: review-contract-security-md-2026-09-03.
