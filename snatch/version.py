@@ -9,6 +9,7 @@ import threading
 import tkinter as tk
 from tkinter import messagebox
 import tempfile
+import urllib.error
 import urllib.request
 
 from .platform_utils import (find_ytdlp, is_windows, is_macos,
@@ -16,6 +17,11 @@ from .platform_utils import (find_ytdlp, is_windows, is_macos,
 from .logging_setup import get_logger
 
 log = get_logger(__name__)
+
+# `yt-dlp --version` is a local exec that answers immediately or not at all.
+VERSION_PROBE_TIMEOUT_SEC = 10
+# One HTTPS round-trip to the GitHub releases API, on a background thread.
+UPDATE_CHECK_TIMEOUT_SEC = 10
 
 # yt-dlp's NIGHTLY channel, matching scripts/fetch-binaries.sh.
 #
@@ -111,24 +117,38 @@ class VersionMixin:
     def _check_version_thread(self):
         # Get current installed version
         try:
-            result = subprocess.run([find_ytdlp(), "--version"], capture_output=True, text=True, timeout=10)
+            result = subprocess.run([find_ytdlp(), "--version"],
+                                    capture_output=True, text=True,
+                                    timeout=VERSION_PROBE_TIMEOUT_SEC)
             if result.returncode == 0:
                 self.current_version = result.stdout.strip()
                 self.root.after(0, lambda: self.version_var.set(f"v{self.current_version}"))
             else:
                 self.root.after(0, lambda: self.version_var.set("Version unknown"))
                 return
-        except Exception:
-            log.warning("Could not read the installed yt-dlp version",
-                        exc_info=True)
+        except FileNotFoundError:
+            log.warning("yt-dlp binary not found", exc_info=True)
             self.root.after(0, lambda: self.version_var.set("yt-dlp not found"))
+            return
+        except subprocess.TimeoutExpired:
+            log.warning("yt-dlp --version did not answer in %ss",
+                        VERSION_PROBE_TIMEOUT_SEC)
+            self.root.after(0, lambda: self.version_var.set("Version check timed out"))
+            return
+        except OSError:
+            # A binary that exists but cannot be executed: wrong architecture,
+            # missing exec bit, a truncated download. Reporting that as "not
+            # found" sent people looking for a file that is right there.
+            log.warning("yt-dlp is present but would not run", exc_info=True)
+            self.root.after(0, lambda: self.version_var.set("yt-dlp will not run"))
             return
 
         # Check latest version from GitHub
         try:
             req = urllib.request.Request(YTDLP_RELEASE_API,
                                          headers={"User-Agent": "Snatch"})
-            with urllib.request.urlopen(req, timeout=10) as response:
+            with urllib.request.urlopen(
+                    req, timeout=UPDATE_CHECK_TIMEOUT_SEC) as response:
                 data = json.loads(response.read().decode())
                 self.latest_version = data.get("tag_name", "").lstrip("v")
                 del data  # Free API response JSON
@@ -138,8 +158,23 @@ class VersionMixin:
                         self.root.after(0, self._show_update_available)
                     else:
                         self.root.after(0, self._refresh_idle_button)
-        except Exception:
-            log.warning("Update check failed", exc_info=True)
+        except urllib.error.HTTPError as exc:
+            # 403 and 429 here are GitHub's unauthenticated rate limit, not a
+            # broken app -- observed on this machine 2026-09-02. Saying so
+            # stops the user chasing a fault that will clear on its own.
+            rate_limited = exc.code in (403, 429)
+            log.warning("Update check got HTTP %s from GitHub", exc.code)
+            label = "Rate limited" if rate_limited else "Check failed"
+            self.root.after(0, lambda: self.update_btn.config(
+                text=label, state=tk.DISABLED))
+        except (urllib.error.URLError, TimeoutError):
+            log.warning("Update check could not reach GitHub", exc_info=True)
+            self.root.after(0, lambda: self.update_btn.config(
+                text="No connection", state=tk.DISABLED))
+        except ValueError:
+            # json.JSONDecodeError and UnicodeDecodeError are both ValueError:
+            # something answered, but not the JSON this expects.
+            log.warning("Update check got an unreadable response", exc_info=True)
             self.root.after(0, lambda: self.update_btn.config(
                 text="Check failed", state=tk.DISABLED))
 
@@ -161,7 +196,12 @@ class VersionMixin:
                 elif p1 < p2:
                     return -1
             return 0
-        except Exception:
+        except (ValueError, TypeError):
+            # normalize() strips to digits and dots and then int()s each part,
+            # so a version with no digits at all yields '' -> ValueError, and a
+            # non-string argument fails in re.sub -> TypeError. Both mean "this
+            # is not a dotted numeric version", which is what the string
+            # comparison below is for.
             log.debug("Falling back to string comparison for %r vs %r",
                       v1, v2, exc_info=True)
             return (v1 > v2) - (v1 < v2)
@@ -351,6 +391,14 @@ class VersionMixin:
             tmp_path = None
             self.root.after(0, lambda: self._update_complete(new_version))
         except Exception as e:
+            # Deliberately broad, unlike the two handlers above (SNAT-0053).
+            # This wraps download, checksum, chmod, probe and replace, and
+            # every one of them failing means the same thing: do not install
+            # this file, keep the copy we have, tell the user why. Narrowing
+            # it would let an unnamed failure escape into a daemon thread,
+            # where nothing reports it and the temp file is never cleaned up.
+            # The exception object is reported rather than discarded, which
+            # is what made the other two misleading.
             log.exception("yt-dlp self-update failed")
             detail = str(e) or e.__class__.__name__
             self.root.after(0, lambda: self._update_failed(

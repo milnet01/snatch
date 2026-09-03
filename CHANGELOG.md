@@ -56,6 +56,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Install instructions now match the computer you are actually on** (SNAT-0053)
+  When ffmpeg or a JavaScript runtime was missing, Snatch told everyone
+  who was not on Windows to run an Ubuntu command -- wrong on a Mac, and
+  wrong on Fedora, Arch and openSUSE. Each message now gives the right
+  command for your system. Snatch is also clearer about why a check
+  failed: a yt-dlp that is installed but will not run no longer reports
+  as missing, and a version check blocked by GitHub's hourly limit now
+  says so instead of just "failed".
+
 - **The window no longer freezes while talking to the video player** (SNAT-0048)
   Dragging the volume slider, pressing play or pause, or simply having
   a video open made Snatch wait on the player before it could redraw --

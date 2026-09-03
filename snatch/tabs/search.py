@@ -15,6 +15,14 @@ from ..logging_setup import get_logger
 
 log = get_logger(__name__)
 
+# A --flat-playlist search measured 3.3 s for 20 results on 2026-08-19.
+# This bounds a search that has stopped answering, not a normal one.
+SEARCH_TIMEOUT_SEC = 120
+# Duration filter boundaries, in seconds, matching the combobox labels:
+# Short (< 4 min), Medium (4-20 min), Long (> 20 min).
+SHORT_MAX_SEC = 4 * 60
+LONG_MIN_SEC = 20 * 60
+
 
 class SearchTabMixin:
     """Mixin providing the Search tab UI and logic.
@@ -335,7 +343,8 @@ class SearchTabMixin:
             cmd.extend(["-J", "--flat-playlist", "--playlist-end", str(max_results),
                         "--", search_target])
 
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+            result = subprocess.run(cmd, capture_output=True, text=True,
+                                    timeout=SEARCH_TIMEOUT_SEC)
 
             # Try parsing results even on non-zero exit (partial failures
             # like age-restricted videos still yield valid JSON output)
@@ -367,11 +376,12 @@ class SearchTabMixin:
                 filtered = []
                 for entry in entries:
                     dur = entry.get("duration") or 0
-                    if duration_filter.startswith("Short") and dur < 240:
+                    if duration_filter.startswith("Short") and dur < SHORT_MAX_SEC:
                         filtered.append(entry)
-                    elif duration_filter.startswith("Medium") and 240 <= dur <= 1200:
+                    elif (duration_filter.startswith("Medium")
+                          and SHORT_MAX_SEC <= dur <= LONG_MIN_SEC):
                         filtered.append(entry)
-                    elif duration_filter.startswith("Long") and dur > 1200:
+                    elif duration_filter.startswith("Long") and dur > LONG_MIN_SEC:
                         filtered.append(entry)
                 entries = filtered
 

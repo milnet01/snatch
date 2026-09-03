@@ -2411,7 +2411,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: review-code-sweep-2026-08-31.
   Lanes: security.
 
-- 📋 [SNAT-0053] **Install advice, exception handling and constants have drifted apart across modules.**
+- ✅ [SNAT-0053] **Install advice, exception handling and constants have drifted apart across modules.**
   Three related classes from the 2026-08-31 sweep, none individually
   worth its own item.
 
@@ -2445,6 +2445,52 @@ and application work. IDs are allocated from `.roadmap-counter`.
   with `print()`, which in a packaged windowed build goes nowhere -- and
   the printed text carries the sqlite path, against STANDARDS.md 5.2. See
   SNAT-0045 for the underlying absence of any logging path.
+  Resolved (2026-09-03), all three classes.
+
+  DIVERGED INSTALL ADVICE. platform_utils.install_hint(tool) is one table,
+  three platforms, three tools. Each value is the install step alone; the
+  framing stays at the call site, which is what lets one table serve
+  messages that read quite differently. Scope was wider than the bullet:
+  it named the ffmpeg copy, and downloader.py had the same apt-only defect
+  twice for the JS runtime. All four sites now share the table.
+
+  BROAD EXCEPT. Seven handlers narrowed to what they can name. The two the
+  bullet called out by consequence are the interesting ones. The yt-dlp
+  probe now separates FileNotFoundError, TimeoutExpired and OSError, so a
+  binary that is present but will not run -- wrong architecture, no exec
+  bit, truncated download -- no longer reports "yt-dlp not found" and send
+  the user hunting for a file that is right there. The GitHub check
+  separates HTTPError, URLError/TimeoutError and ValueError, and calls a
+  403 or 429 "Rate limited" rather than "Check failed": that is not a
+  fault and it clears on its own. This project's own log carried that 403
+  on 2026-09-02.
+
+  One handler stays broad ON PURPOSE and now says so in a comment: the
+  self-update at version.py. It wraps download, checksum, chmod, probe and
+  replace, and every failure means the same thing -- do not install this
+  file, keep the one we have, say why. Narrowing it would let an unnamed
+  failure escape into a daemon thread with nothing reporting it and the
+  temp file never cleaned up. It already reports the exception rather than
+  discarding it, which is what made the other two misleading.
+
+  MAGIC NUMBERS. Every bare timeout in snatch/ is now a named constant
+  with a comment saying what it bounds -- twelve, where the bullet listed
+  six. Naming half of them would have left exactly the inconsistency this
+  item is about. Each value is unchanged, asserted against the old literal
+  one by one.
+
+  The cookies.py print() the bullet mentions was already replaced by a log
+  call under SNAT-0045.
+
+  Verified by running. install_hint returns the right advice on all three
+  platforms with no apt on macOS or Windows and no Debian-only advice on
+  Linux. The real version check ran against live GitHub: yt-dlp
+  v2026.08.30.232658 read, API queried, "Up to date" -- so narrowing did
+  not break the success path. The 403 branch is covered by unit test
+  rather than live, because forcing a real rate limit means hammering the
+  API. 32 new tests across two files, and 7 of the 11 error-path tests
+  fail pre-fix; suite 135 green; ruff unchanged at 36 lines; app launches
+  clean under Xvfb with an empty log.
   **Layman:** Snatch tells Mac and Linux users the wrong command to install a missing tool, and hides the reason when something fails.
   Kind: fix.
   Source: review-code-sweep-2026-08-31.

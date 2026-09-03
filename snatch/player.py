@@ -10,7 +10,8 @@ import threading
 
 from .theme import get_theme
 from .utils import format_duration
-from .platform_utils import open_path, is_windows, is_macos, find_mpv, find_ytdlp
+from .platform_utils import (open_path, is_windows, is_macos, find_mpv,
+                             find_ytdlp, install_hint)
 from .logging_setup import get_logger
 
 log = get_logger(__name__)
@@ -23,22 +24,16 @@ def _no_player_message():
     back to opening the video in the default browser. The advice here used to
     be "sudo apt install mpv" on every platform, which is wrong on Windows and
     macOS -- exactly the machines least likely to have mpv already.
+
+    The per-platform step now comes from platform_utils.install_hint, which
+    two other messages share. This function had the only correct three-way
+    branch in the codebase and the others never got it (SNAT-0053).
     """
-    if is_windows():
-        return ("No in-app player.\n\n"
-                "Snatch opened the video in your browser instead.\n\n"
-                "For playback inside Snatch, install mpv from\n"
-                "https://mpv.io/installation/ and restart the app.")
-    if is_macos():
-        return ("No in-app player.\n\n"
-                "Snatch opened the video in your browser instead.\n\n"
-                "For playback inside Snatch:\nbrew install mpv\n"
-                "then restart the app.")
     return ("No in-app player.\n\n"
             "Snatch opened the video in your browser instead.\n\n"
-            "For playback inside Snatch, install mpv:\n"
-            "sudo zypper install mpv   (or apt/dnf/pacman)\n"
-            "then restart the app.")
+            "For playback inside Snatch:\n"
+            f"{install_hint('mpv')}\n\n"
+            "Then restart the app.")
 
 
 def _embedding_env():
@@ -78,6 +73,8 @@ class PlayerMixin:
     # A Scale `command` callback fires once per drag increment. Coalescing
     # a drag into one send is both fewer round-trips and fewer threads.
     VOLUME_DEBOUNCE_MS = 120
+    # How long mpv gets to exit on terminate() before it is killed.
+    TERMINATE_GRACE_SEC = 3
 
     def _play_in_mpv(self, url, title=""):
         """Launch mpv embedded in the player frame"""
@@ -96,7 +93,9 @@ class PlayerMixin:
         if not mpv_bin:
             try:
                 open_path(url)
-            except Exception:
+            except OSError:
+                # open_path is os.startfile or a Popen of open/xdg-open, so a
+                # missing opener or a refused exec both arrive as OSError.
                 log.warning("Handing %s to the system player failed",
                             url, exc_info=True)
                 messagebox.showerror("Error", _no_player_message())
@@ -254,7 +253,11 @@ class PlayerMixin:
                     except json.JSONDecodeError:
                         continue
             return None
-        except Exception:
+        except (OSError, ValueError):
+            # socket.timeout, ConnectionRefusedError and every other socket
+            # failure are OSError; a reply that is not decodable UTF-8 raises
+            # UnicodeDecodeError, which is a ValueError. json.JSONDecodeError
+            # is already handled per line above.
             log.debug("mpv IPC command failed", exc_info=True)
             return None
 
@@ -312,10 +315,12 @@ class PlayerMixin:
         if self.mpv_process:
             try:
                 self.mpv_process.terminate()
-                self.mpv_process.wait(timeout=3)
+                self.mpv_process.wait(timeout=self.TERMINATE_GRACE_SEC)
             except subprocess.TimeoutExpired:
                 self.mpv_process.kill()
-            except Exception:
+            except OSError:
+                # terminate() on a process that has already gone, or a kill
+                # we are not permitted to send.
                 log.debug("Tearing down the mpv process failed", exc_info=True)
             self.mpv_process = None
 

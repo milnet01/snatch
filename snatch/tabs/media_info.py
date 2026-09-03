@@ -9,10 +9,14 @@ from tkinter import ttk, filedialog, messagebox
 from ..theme import get_theme
 from ..widgets import attach_context_menu
 from ..utils import zenity_file_dialog
-from ..platform_utils import find_ffprobe, is_windows
+from ..platform_utils import find_ffprobe, install_hint
 from ..logging_setup import get_logger
 
 log = get_logger(__name__)
+
+# ffprobe reads container metadata, not the media itself, so this bounds a
+# stalled read off a network mount rather than a long analysis.
+FFPROBE_TIMEOUT_SEC = 30
 
 
 class MediaInfoTabMixin:
@@ -116,7 +120,8 @@ class MediaInfoTabMixin:
                 "-pretty",
                 "--", filepath
             ]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            result = subprocess.run(cmd, capture_output=True, text=True,
+                                    timeout=FFPROBE_TIMEOUT_SEC)
 
             if result.returncode != 0:
                 output = result.stderr.strip() or "ffprobe returned an error."
@@ -126,14 +131,12 @@ class MediaInfoTabMixin:
             self.root.after(0, lambda: self._set_media_info_text(output))
 
         except FileNotFoundError:
-            install_hint = (
-                "Install ffmpeg from https://www.gyan.dev/ffmpeg/builds/ "
-                "and add it to your PATH."
-                if is_windows()
-                else "Install ffmpeg:\n  sudo apt install ffmpeg"
-            )
+            # Was a two-way branch telling every non-Windows user to run
+            # apt -- wrong on macOS and on every non-Debian Linux
+            # (SNAT-0053).
+            hint = install_hint("ffmpeg")
             self.root.after(0, lambda: self._set_media_info_text(
-                f"ffprobe not found.\n\n{install_hint}"))
+                f"ffprobe not found.\n\n{hint}"))
         except subprocess.TimeoutExpired:
             self.root.after(0, lambda: self._set_media_info_text("Analysis timed out."))
         except Exception as e:

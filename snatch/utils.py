@@ -9,6 +9,10 @@ import tempfile
 
 from .platform_utils import is_windows
 
+# zenity blocks until the user picks a file or cancels, so this bounds how
+# long a dialog may sit open, not any work Snatch is doing.
+ZENITY_DIALOG_TIMEOUT_SEC = 300
+
 
 @contextlib.contextmanager
 def atomic_private_write(path):
@@ -151,7 +155,8 @@ def zenity_file_dialog(*, directory=False, initial_dir="", title="", file_filter
         for f in file_filter:
             cmd.extend(["--file-filter", f])
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        result = subprocess.run(cmd, capture_output=True, text=True,
+                                timeout=ZENITY_DIALOG_TIMEOUT_SEC)
         if result.returncode == 0 and result.stdout.strip():
             return result.stdout.strip()
     except (FileNotFoundError, subprocess.TimeoutExpired):

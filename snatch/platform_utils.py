@@ -20,6 +20,61 @@ def is_macos():
     return sys.platform == "darwin"
 
 
+# Per-tool install advice, one entry per platform. Kept here rather than at
+# each call site because the same tool is recommended from more than one
+# place and the copies drifted: _no_player_message() branched three ways
+# while media_info.py and downloader.py still told every non-Windows user to
+# run apt -- wrong on macOS, and wrong on the openSUSE, Fedora and Arch
+# machines this project is actually developed on (SNAT-0053).
+#
+# Each value is the install step alone. The framing around it ("ffprobe not
+# found", "No in-app player") belongs to the caller, which is what makes one
+# table serve messages that read quite differently.
+_INSTALL_HINTS = {
+    "ffmpeg": {
+        "windows": ("Install ffmpeg from https://www.gyan.dev/ffmpeg/builds/\n"
+                    "and add it to your PATH."),
+        "macos": "brew install ffmpeg",
+        "linux": "sudo zypper install ffmpeg   (or apt/dnf/pacman)",
+    },
+    "mpv": {
+        "windows": ("Install mpv from https://mpv.io/installation/\n"
+                    "and restart the app."),
+        "macos": "brew install mpv",
+        "linux": "sudo zypper install mpv   (or apt/dnf/pacman)",
+    },
+    # Deno first: yt-dlp prefers it, and its installer needs no package
+    # manager. Windows gets Node.js because the Deno line is a shell script.
+    "jsruntime": {
+        "windows": ("Install Node.js from https://nodejs.org/\n"
+                    "(the LTS installer is fine)."),
+        "macos": ("Install Deno (recommended):\n"
+                  "curl -fsSL https://deno.land/install.sh | sh\n\n"
+                  "Or install Node.js:\n"
+                  "brew install node"),
+        "linux": ("Install Deno (recommended):\n"
+                  "curl -fsSL https://deno.land/install.sh | sh\n\n"
+                  "Or install Node.js:\n"
+                  "sudo zypper install nodejs   (or apt/dnf/pacman)"),
+    },
+}
+
+
+def install_hint(tool):
+    """Return install advice for `tool` on the platform we are running on.
+
+    Raises KeyError for an unknown tool rather than returning a vague
+    fallback -- a message telling the user to install nothing in particular
+    is worse than a crash in a test.
+    """
+    hints = _INSTALL_HINTS[tool]
+    if is_windows():
+        return hints["windows"]
+    if is_macos():
+        return hints["macos"]
+    return hints["linux"]
+
+
 def is_frozen():
     """True when running inside a PyInstaller bundle."""
     return getattr(sys, "frozen", False)

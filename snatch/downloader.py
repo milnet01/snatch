@@ -14,7 +14,8 @@ from io import BytesIO
 
 from .utils import format_duration, format_filesize, clear_treeview
 from .cookies import extract_browser_cookies, get_cookie_args
-from .platform_utils import find_ytdlp, find_ffmpeg, find_jsruntime, is_windows
+from .platform_utils import (find_ytdlp, find_ffmpeg, find_jsruntime,
+                             is_windows, install_hint)
 from .logging_setup import get_logger
 
 log = get_logger(__name__)
@@ -40,6 +41,16 @@ class DownloaderMixin:
     # maxresdefault.jpg is well under 1 MB; 8 MB leaves room for an unusual
     # source without letting a hostile one decide our memory use.
     MAX_THUMBNAIL_BYTES = 8 * 1024 * 1024
+    # One metadata probe. Long enough for a slow extractor, short enough
+    # that a wedged one does not look like a hung app.
+    PROBE_TIMEOUT_SEC = 60
+    # One HTTPS GET for the preview image, on a worker thread.
+    THUMBNAIL_TIMEOUT_SEC = 10
+    # Cancellation ladder: ask, then insist. The download itself is
+    # deliberately unbounded -- its duration is the user's file size --
+    # so these two are what actually bound it (CLAUDE.md).
+    TERMINATE_GRACE_SEC = 3
+    KILL_GRACE_SEC = 2
 
     # yt-dlp groups these as Chromium-based. On Windows their cookie
     # stores are sealed by App-Bound Encryption and cannot be decrypted
@@ -181,27 +192,17 @@ class DownloaderMixin:
     def _warn_no_jsruntime(self):
         """Show warning about missing JavaScript runtime."""
         self.status_var.set("No JS runtime found - required for YouTube downloads")
-        if is_windows():
-            body = (
-                "No JavaScript runtime found.\n\n"
-                "YouTube needs one to solve download challenges.\n\n"
-                "Downloaded releases of Snatch include one, so if you are\n"
-                "seeing this you are running from source. Install Node.js\n"
-                "from https://nodejs.org/ (the LTS installer is fine), then\n"
-                "restart this app."
-            )
-        else:
-            body = (
-                "No JavaScript runtime found.\n\n"
-                "YouTube needs one to solve download challenges. Downloaded\n"
-                "releases of Snatch include one, so if you are seeing this\n"
-                "you are running from source.\n\n"
-                "Install Deno (recommended):\n"
-                "curl -fsSL https://deno.land/install.sh | sh\n\n"
-                "Or install Node.js:\n"
-                "sudo apt install nodejs\n\n"
-                "Then restart this app."
-            )
+        # The per-platform step is shared with the two other install
+        # messages. The non-Windows branch used to hardcode apt
+        # (SNAT-0053).
+        body = (
+            "No JavaScript runtime found.\n\n"
+            "YouTube needs one to solve download challenges. Downloaded\n"
+            "releases of Snatch include one, so if you are seeing this\n"
+            "you are running from source.\n\n"
+            f"{install_hint('jsruntime')}\n\n"
+            "Then restart this app."
+        )
         messagebox.showwarning("JavaScript Runtime Required", body)
 
     # ── Format fetching ─────────────────────────────────────────────
@@ -252,7 +253,8 @@ class DownloaderMixin:
         cmd = self._get_base_cmd()
         cmd.extend(cookie_args)
         cmd.extend(["-J", "--ignore-no-formats-error", "--", url])
-        return subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        return subprocess.run(cmd, capture_output=True, text=True,
+                              timeout=self.PROBE_TIMEOUT_SEC)
 
     @staticmethod
     def _has_video_format(data):
@@ -331,10 +333,7 @@ class DownloaderMixin:
                 if "JavaScript runtime" in error_msg:
                     self.root.after(0, lambda: self._show_error(
                         "YouTube JS challenge failed.\n\n"
-                        "Install Deno (recommended):\n"
-                        "curl -fsSL https://deno.land/install.sh | sh\n\n"
-                        "Or install Node.js:\n"
-                        "sudo apt install nodejs\n\n"
+                        f"{install_hint('jsruntime')}\n\n"
                         "Then restart this app and try again."
                     ))
                 else:
@@ -409,7 +408,8 @@ class DownloaderMixin:
                 try:
                     req = urllib.request.Request(thumbnail_url,
                                                 headers={"User-Agent": "Snatch"})
-                    with urllib.request.urlopen(req, timeout=10) as resp:
+                    with urllib.request.urlopen(
+                            req, timeout=self.THUMBNAIL_TIMEOUT_SEC) as resp:
                         # Read one byte past the cap so an oversized response
                         # is detected rather than silently truncated into a
                         # corrupt image (STANDARDS.md 6.3, SNAT-0050).
@@ -964,10 +964,10 @@ class DownloaderMixin:
             try:
                 self.download_process.terminate()
                 try:
-                    self.download_process.wait(timeout=3)
+                    self.download_process.wait(timeout=self.TERMINATE_GRACE_SEC)
                 except subprocess.TimeoutExpired:
                     self.download_process.kill()
-                    self.download_process.wait(timeout=2)
+                    self.download_process.wait(timeout=self.KILL_GRACE_SEC)
             except Exception:
                 log.debug("Tearing down the yt-dlp process on cancel failed",
                           exc_info=True)

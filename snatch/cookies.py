@@ -112,7 +112,11 @@ def extract_browser_cookies(browser, cookies_out):
                     p = tmp_path + ext
                     if os.path.isfile(p):
                         os.unlink(p)
-        except Exception:
+        except (OSError, sqlite3.Error):
+            # The copy, the temp write and the cleanup unlinks raise OSError;
+            # a locked, encrypted or corrupt cookies.sqlite raises
+            # sqlite3.Error. Those are the two things that go wrong here.
+            #
             # Was a print(), which reaches nobody in a windowed build and can
             # itself raise when there is no stdout to write to.
             log.warning("Cookie extraction failed", exc_info=True)
