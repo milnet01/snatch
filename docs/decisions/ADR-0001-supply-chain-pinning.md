@@ -1,8 +1,9 @@
-# ADR-0001: Pin and checksum everything the build fetches
+# ADR-0001: Pin and checksum the binaries the build fetches
 
 - **Status:** Accepted
 - **Date:** 2026-09-03
-- **Roadmap:** SNAT-0057 (this record), SNAT-0035 (the one open exception)
+- **Roadmap:** SNAT-0057 (this record), SNAT-0035 (the largest open exception)
+- **Review history:** `docs/adr-0001-review-log.md`
 
 ## Context
 
@@ -32,15 +33,21 @@ checksum is the whole of the defence.
 
 ## Decision
 
-**Every artifact the build downloads is pinned to an immutable identifier and
+**Every binary the build scripts fetch is pinned to a fixed identifier and
 verified against a recorded SHA-256 before it is used.**
 
-Three rules follow from that, and they are the part worth remembering:
+Deliberately narrower than "everything the build downloads": CI also installs
+Python tooling from PyPI, pinned by version and not by hash. The scope of this
+decision is what `scripts/fetch-binaries.sh` and `scripts/build-linux.sh`
+fetch; § Known exceptions has the rest.
+
+The rules that follow are the part worth remembering:
 
 1. **A digest mismatch is a hard failure.** It is never skipped, never warned
    past, and the check is never removed to make a build go green. The scripts
    say so at the point of failure: *"add it to `digest_for()` above rather than
-   removing the check"*.
+   removing the check"*. The one path that reaches a tool without a digest is
+   a caller setting `SNATCH_APPIMAGETOOL`, which § Known exceptions records.
 2. **A pin moves only by a deliberate commit.** Change the version, run the
    build, and replace the digest with the one the mismatch message prints.
    Both halves move in the same commit, because a version without its matching
@@ -56,12 +63,14 @@ only why the policy exists.
 
 ### The pins a future reader will want to "fix", and why not to
 
-These four look wrong at a glance. Each is deliberate.
+These look wrong at a glance. Each is deliberate.
 
 - **`TYPE2_RUNTIME_VERSION` is a dated tag older than `continuous`.** That is
-  the point. `continuous` is mutable; the dated tag is the only immutable
-  identifier that repository offers. An older immutable pin is worth more here
-  than a newer moving one.
+  the point. `continuous` is rewritten on every upstream build, where a dated
+  release tag is not expected to move — and a tag is not immutable either way,
+  which is why the runtime also carries a recorded digest. The digest is what
+  makes the pin binding; the dated tag is what makes it stable enough to be
+  worth recording. An older stable pin beats a newer moving one.
 - **`APPIMAGETOOL_VERSION` is a fixed release, and a system `appimagetool` on
   the build host is deliberately not preferred over it.** Whatever is installed
   on a given machine is not a thing this repository controls.
@@ -74,11 +83,12 @@ These four look wrong at a glance. Each is deliberate.
   from being changed underneath us. Read the SHA as a pin, not as something
   behind and due a bump.
 
-### The exception
+### Known exceptions
 
-The `actions/*` steps in `.github/workflows/ci.yml` are pinned to major-version
-tags rather than commit SHAs. `zizmor` reports each as `unpinned-uses`, and the
-reports are correct.
+Each is recorded here rather than quietly tolerated.
+
+**1. `actions/*` steps are pinned to major-version tags, not commit SHAs.**
+`zizmor` reports each as `unpinned-uses`, and the reports are correct.
 
 This is a known gap, tracked as SNAT-0035, and left open rather than closed
 quietly. **It is a sequencing decision, not a judgement that the risk is
@@ -96,18 +106,45 @@ non-GitHub action here, and it runs in the one job that holds
 a pin, not a bump. A newer major version exists, and whether to move to it is a
 dependency question rather than a pinning one.
 
+**2. Python tooling from PyPI is pinned by version, not by hash.** CI installs
+`ruff`, `pytest` and `pyinstaller` at exact versions and `requirements.txt` by
+version, with no `--require-hashes`. So a version pin here is a weaker control
+than a recorded digest, and the Decision above is scoped to exclude it rather
+than quietly claiming it. Closing this means a hash-pinned lock file and a
+routine for regenerating it; nothing is tracking that yet.
+
+**3. `SNATCH_APPIMAGETOOL` reaches `chmod +x` with no digest compared.** Setting
+it substitutes a caller's own `appimagetool` for the pinned download. That is
+deliberate — it is the supported way to build with a specific packer — and it is
+not a hole in rule 1 so much as an opt-out from it. Two things keep it honest:
+it is off unless explicitly set, and `scripts/build-linux.sh` announces itself
+in the build log, printing `(unverified, caller's choice)`. CI never sets it.
+Do not add a digest check to that branch; it would defeat the purpose. Do not
+delete the branch either.
+
 ## Consequences
 
 - A release build downloads its dependencies fresh rather than reusing a cache
   a pull-request run could have written (SNAT-0047). Pinning decides *what* is
   fetched; that decides *from where*.
 - Bumping a bundled tool is a two-step edit — version, then digest — and cannot
-  be done from a version number alone. This is the intended friction.
-- A pinned tool goes stale silently. Nothing in this repository watches for a
-  newer yt-dlp, so `docs/building.md` makes bumping it a step in the release
-  procedure rather than something that happens on its own.
+  be done from a version number alone. For mpv it is three: tag, asset name and
+  digest, per the bullet above. This is the intended friction.
+- A pinned tool goes stale silently, and nothing here runs on a schedule to
+  notice. `scripts/update-ytdlp-pin.sh` re-resolves the yt-dlp pin on demand and
+  has a `--check` mode that exits non-zero when the pin is behind; running it is
+  a release step in `docs/building.md`, not something that happens on its own.
+  Reach for that script rather than writing a second resolver.
 - A future security review will re-derive the `unpinned-uses` findings above.
   They are expected. SNAT-0035 is where that conversation belongs.
+- **This policy governs the build, not the running app, and the difference is
+  deliberate.** A build-time fetch is for a version chosen here, so a digest can
+  be recorded here. The in-app yt-dlp self-update is for a version chosen at run
+  time, where no digest could have been written down in advance, so it verifies
+  against the `SHA2-256SUMS` manifest the same release publishes
+  (`snatch/version.py`). A new runtime download follows that second model.
+  Conforming it to this ADR's recorded-digest rule is not possible and not
+  wanted.
 
 ## Alternatives considered
 
@@ -119,7 +156,9 @@ dependency question rather than a pinning one.
   they cannot be removed, and updating one rewrites the repository's size
   forever.
 - **Verify signatures rather than digests.** Stronger, and the right answer if
-  every upstream signed its releases. They do not, so it would apply to some
-  artifacts and not others — and a rule that covers only part of the surface is
-  worse than a uniform weaker one, because nobody can tell from the outside
-  which artifacts are covered.
+  every upstream signed its releases. They do not, so it would cover some
+  artifacts and not others, with nothing saying which — and an unmapped gap is
+  worse than a uniform weaker control, because no reader can tell what is
+  protected. Not an argument against partial coverage as such — this decision
+  has gaps of its own — but for the gaps being enumerable, which
+  § Known exceptions is.
