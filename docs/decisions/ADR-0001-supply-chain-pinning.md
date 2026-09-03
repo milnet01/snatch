@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-09-03
-- **Roadmap:** SNAT-0057 (this record), SNAT-0035 (the largest open exception)
+- **Roadmap:** SNAT-0057 (this record). Open exceptions: SNAT-0035, SNAT-0065
 - **Review history:** `docs/adr-0001-review-log.md`
 
 ## Context
@@ -137,11 +137,12 @@ new binary.
 
 ## Consequences
 
-- Pinned binaries are still reused from the local `bin/` cache — but keyed on
+- Pinned binaries are still reused from the local `bin/` cache — keyed on
   content, so a tampered or truncated file is re-fetched rather than trusted.
-  That is the cache this decision governs. The cache SNAT-0047 dealt with is a
-  different one, GitHub's pip cache, which is outside this decision's scope and
-  is no longer restored on a tag build.
+  Except mpv, which is keyed on the tag; that is known exception 4. This is the
+  cache the decision governs. The cache SNAT-0047 dealt with is a different
+  one, GitHub's pip cache, outside this decision's scope and no longer restored
+  on a tag build.
 - Bumping a bundled tool is a two-step edit — version, then digest — and cannot
   be done from a version number alone. For mpv it is three: tag, asset name and
   digest, per the bullet above. This is the intended friction.
