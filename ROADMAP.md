@@ -2819,7 +2819,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: in-session-2026-09-01.
   Lanes: docs, process.
 
-- 📋 [SNAT-0057] **The project has no specs directory, no decision records and no declared test root.**
+- ✅ [SNAT-0057] **The project has no specs directory, no decision records and no declared test root.**
   Found while running Phase 0 of write-code on 2026-09-01.
   invariant_check returned scanned_nothing:true with the hint
   "docs/specs does not exist", and there is no docs/decisions/ either.
@@ -2852,6 +2852,35 @@ and application work. IDs are allocated from `.roadmap-counter`.
   test root. Every declared path must resolve or the write is rejected, so
   those two cannot be declared until they exist. Revisit alongside
   SNAT-0020.
+  Resolved (2026-09-03) at the cheapest useful version this bullet named:
+  docs/decisions/ exists and holds ADR-0001, the supply-chain pinning
+  policy -- the decision the bullet called most likely to be reopened by a
+  session that sees an old pin and helpfully bumps it.
+
+  It went through CLAUDE.md rule 14's gate, genre adr, three cold loops to
+  the cap. Fifteen verified findings, all fixed; log in
+  docs/adr-0001-review-log.md. The gate was worth more than the document:
+  it found a live code defect (SNAT-0067, a version-only yt-dlp bump builds
+  green locally and ships the old binary) and two recorded gaps nothing was
+  tracking (SNAT-0065, SNAT-0066).
+
+  Correcting this bullet: test_roots was already declared in
+  .ants/project.json by the time this was picked up, so only specs_dir
+  remains undeclared -- correctly, since there is no docs/specs/ and the
+  verb requires a path that resolves. Nothing to do there, and creating an
+  empty directory to satisfy a verb would be the wrong reason.
+
+  Still only in commit bodies, and deliberately not written up here: why
+  the mpv named-pipe path was scoped out, and why the Revert button lost
+  its is_frozen() guard. Neither is a supply-chain decision, so neither
+  belonged in ADR-0001, and this bullet asked for somewhere to put an ADR
+  rather than for every decision to get one. File a follow-up if either is
+  reopened.
+
+  Collateral fixed in the same run: scripts/fetch-binaries.sh's digest_for
+  comment still said the mpv asset name is "resolved from the API at fetch
+  time", which SNAT-0064 removed. All three lanes of loop 1 raised it.
+  shellcheck clean.
   **Layman:** There is nowhere in this project to write down a design decision, so they only exist in commit messages and chat.
   Kind: doc.
   Source: in-session-2026-09-01.

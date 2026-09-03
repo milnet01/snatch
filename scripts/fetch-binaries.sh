@@ -85,8 +85,10 @@ digest_for() {
         qjs-darwin-arm64)       echo 9a24e7435036906c098d539daf47bcc8e7e8ad2f3aa084a0bce9313c6c3527e0 ;;
         qjs-darwin-x86_64)      echo 5982a1ebb20e1a9bf6162bafd29d445823616084cfeddee8881f8d69d6e0fd74 ;;
         qjs-windows-x86_64.exe) echo 55a1b69cd4fdb6b0d3f8fdd910d0e89519f5330e408462084140c7b3b964fdae ;;
-        # mpv ${MPV_WIN_TAG}. The asset NAME carries a build hash and is
-        # resolved from the API at fetch time, so the digest is what pins it.
+        # mpv ${MPV_WIN_TAG}. The asset NAME carries a build hash, so the
+        # key here is a literal filename and MPV_WIN_ASSET must move with the
+        # tag. It was resolved from the API until SNAT-0064; that lookup is
+        # gone, and rule 3 of ADR-0001 is why.
         mpv-x86_64-20260814-git-7b8915bc1d.7z)
                                 echo 1bf3b029da2c98e605e00e85f21ee3142f22a1dcc4ceb5c827b5c51e36e390f9 ;;
         *) return 1 ;;
