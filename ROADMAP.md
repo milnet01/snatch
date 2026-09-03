@@ -1480,7 +1480,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: in-session-2026-08-20.
   Lanes: security, packaging, supply-chain.
 
-- 📋 [SNAT-0037] **Nothing watches for vulnerabilities, and nobody can report one privately.**
+- 📋 [SNAT-0037] **Nothing watches for vulnerabilities in what Snatch ships.**
   Two gaps in one item, because they are the same gap from opposite
   directions: nothing tells us about a vulnerability, and nobody can tell
   us either.
@@ -1530,7 +1530,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Related and filed since: SNAT-0066 covers the PyPI installs being pinned
   by version and not by hash, which is the same surface from the other
   direction.
-  **Layman:** We have no early warning when a part we use turns out to be unsafe, and a person who spots a problem has nowhere private to tell us.
+  **Layman:** We have no early warning when a part we ship turns out to be unsafe.
   Kind: security.
   Source: in-session-2026-08-20.
   Lanes: security, process.
