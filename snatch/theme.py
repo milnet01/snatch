@@ -5,7 +5,6 @@ from tkinter import ttk
 
 class DarkTheme:
     """Deep blue/purple dark theme with red accent"""
-    NAME = "Dark"
     BG = "#1a1a2e"
     BG_LIGHT = "#16213e"
     BG_LIGHTER = "#1f3460"
@@ -32,7 +31,6 @@ class DarkTheme:
 
 class NordTheme:
     """Nord-inspired dark theme with cool blue tones"""
-    NAME = "Nord"
     BG = "#2e3440"
     BG_LIGHT = "#3b4252"
     BG_LIGHTER = "#434c5e"
@@ -59,7 +57,6 @@ class NordTheme:
 
 class MonokaiTheme:
     """Monokai-inspired dark theme with vibrant accents"""
-    NAME = "Monokai"
     BG = "#272822"
     BG_LIGHT = "#2d2e27"
     BG_LIGHTER = "#3e3d32"
@@ -86,7 +83,6 @@ class MonokaiTheme:
 
 class YouTubeTheme:
     """YouTube dark mode colour scheme"""
-    NAME = "YouTube"
     BG = "#0f0f0f"
     BG_LIGHT = "#1a1a1a"
     BG_LIGHTER = "#272727"
@@ -113,7 +109,6 @@ class YouTubeTheme:
 
 class DraculaTheme:
     """Dracula colour palette — dark with pastel accents"""
-    NAME = "Dracula"
     BG = "#282a36"
     BG_LIGHT = "#2d303d"
     BG_LIGHTER = "#44475a"
@@ -140,7 +135,6 @@ class DraculaTheme:
 
 class GruvboxTheme:
     """Gruvbox dark — warm retro colour scheme"""
-    NAME = "Gruvbox"
     BG = "#282828"
     BG_LIGHT = "#3c3836"
     BG_LIGHTER = "#504945"
@@ -167,7 +161,6 @@ class GruvboxTheme:
 
 class SolarizedTheme:
     """Solarized Dark — Ethan Schoonover's precision colour scheme"""
-    NAME = "Solarized"
     BG = "#002b36"
     BG_LIGHT = "#073642"
     BG_LIGHTER = "#0a4352"

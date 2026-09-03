@@ -1984,7 +1984,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: check-code-tree-2026-08-31.
   Lanes: diagnostics.
 
-- 📋 [SNAT-0046] **Every theme class carries a NAME attribute that nothing reads.**
+- ✅ [SNAT-0046] **Every theme class carries a NAME attribute that nothing reads.**
   vulture flags `NAME` as unused on all seven theme classes
   (theme.py:8, 35, 62, 89, 116, 143, 170). Verified during the 2026-08-31
   check-code triage: nothing in the tree reads `.NAME`, and STANDARDS.md
@@ -2003,6 +2003,27 @@ and application work. IDs are allocated from `.roadmap-counter`.
   becomes an internal id. The second is the better shape if a theme should
   ever display differently from its key; the first is correct if it should
   not.
+  Resolved (2026-09-03). The seven NAME attributes are deleted. The
+  bullet left this open because it is a design call rather than an edit;
+  the user chose deletion over making the registry read them. The THEMES
+  dict key stays the single place a theme's name lives, which is where the
+  combobox and set_theme already read it from.
+
+  The other option -- a theme owning a display name distinct from its
+  internal id -- is the right shape only if the two would ever differ, and
+  today every key equals its NAME exactly. Reopen this if a theme ever
+  wants a label the code should not use as a key.
+
+  STANDARDS.md 3.1's table of required theme attributes never listed NAME,
+  so no documentation change was owed. Confirmed: STANDARDS.md has no
+  occurrence of the string at all.
+
+  Verified by running. vulture reported NAME on all seven classes before
+  and reports none now. Every theme was then applied in the real app under
+  Xvfb through _change_theme, which destroys and rebuilds every widget:
+  all seven load and set their own background (Dark #1a1a2e through
+  Solarized #002b36), and an unknown name still falls back to DarkTheme.
+  Suite 103 green.
   **Layman:** Each colour scheme stores its own name twice, and the app only ever uses one of the two copies.
   Kind: refactor.
   Source: check-code-tree-2026-08-31.
