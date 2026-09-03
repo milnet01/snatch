@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **A private way to report a security problem, and a written statement of what Snatch defends against** (SNAT-0054)
+  If you find a security problem you can now report it privately through
+  GitHub's Security tab, instead of having to open an issue everyone can
+  read. A new SECURITY.md also writes down, for the first time, who
+  Snatch is defending against and what counts as in scope -- so a report
+  gets a consistent answer rather than one that depends on who reads it.
+
 - **Snatch can now record why something failed** (SNAT-0045)
   Snatch now has somewhere to write down what went wrong. It stays
   silent unless you ask for it: start it with SNATCH_LOG=1 and it

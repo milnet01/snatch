@@ -1510,6 +1510,26 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Worth being honest about scope: this is a small project and a
   vulnerability report may never arrive. The monitoring half is what
   earns its keep -- it has already missed something real once.
+  Progress (2026-09-03): the REPORTING half is closed; the monitoring half
+  is not, and it is the half this bullet says earns its keep.
+
+  GitHub private vulnerability reporting was disabled -- checked, not
+  assumed -- and is now enabled, so a researcher has a private route that
+  needs no published email address. SECURITY.md exists at the repo root and
+  covers what this bullet asked of it: what is in scope, which versions are
+  supported, and how to make contact. It went through rule 14's gate
+  (docs/security-md-review-log.md).
+
+  Still open, unchanged: no .github/dependabot.yml, and CI runs no
+  dependency audit. Nothing watches for a new advisory against Pillow,
+  tkinterdnd2 or the pinned CI tooling. That is what missed SNAT-0030's
+  twelve Pillow advisories, and SECURITY.md now names this item as the gap
+  in its own defended-adversary tier -- so the document points at an
+  absence rather than implying cover.
+
+  Related and filed since: SNAT-0066 covers the PyPI installs being pinned
+  by version and not by hash, which is the same surface from the other
+  direction.
   **Layman:** We have no early warning when a part we use turns out to be unsafe, and a person who spots a problem has nowhere private to tell us.
   Kind: security.
   Source: in-session-2026-08-20.
@@ -2587,7 +2607,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: review-code-sweep-2026-08-31.
   Lanes: consistency.
 
-- 📋 [SNAT-0054] **There is no written threat model, so every security judgement is derived rather than read.**
+- ✅ [SNAT-0054] **There is no written threat model, so every security judgement is derived rather than read.**
   The project has no SECURITY.md, no threat-model section in README.md or
   STANDARDS.md, and no .semgrep.yml threat block. STANDARDS.md section 5
   states security RULES -- validate URLs, use --, no shell=True, 0o600,
@@ -2616,6 +2636,43 @@ and application work. IDs are allocated from `.roadmap-counter`.
   security judgement in this project from a guess into a lookup. It also
   gives review-code's threat-model calibration step something to read,
   which is the specific thing it went without.
+  Resolved (2026-09-03). SECURITY.md exists at the repo root and carries
+  the threat model, confirmed by the user rather than derived: a
+  single-user desktop app run by its owner, where the real adversaries are
+  the endpoints it fetches from and the content it is asked to handle, and
+  a hostile local user is real but secondary. That is the model this
+  bullet described, so the review's calibration of the four findings it
+  names stands.
+
+  The reporting half of SNAT-0037 is closed with it. GitHub private
+  vulnerability reporting was OFF; it is now enabled and SECURITY.md points
+  at it. The monitoring half -- dependabot, pip-audit -- stays open there.
+
+  Through rule 14's gate, genre standard, three cold loops to the cap.
+  Thirteen verified findings, all fixed; log in
+  docs/security-md-review-log.md. Every one of the last loop's findings
+  landed on text the run itself wrote, which the skill calls a violent cap:
+  the document ships and gets no further gate as it stands.
+
+  What that cost bought is worth recording. Loop 1 wrote that "Snatch
+  itself does not parse the page or the media file", which is false --
+  Pillow decodes remote thumbnail bytes in-process, and SNAT-0030 called
+  that the one finding on the roadmap with a live attack path. Loop 2
+  caught that and introduced two more: a Pillow disposition contradicting
+  its own out-of-scope bullet, and a claim that nothing listens on the mpv
+  IPC endpoint on Windows when --input-ipc-server is passed there
+  unconditionally.
+
+  The root cause was structural rather than careless: the boundary between
+  a bundled dependency's defects and this project's had accumulated three
+  copies across two loops, and any two could drift. It is now stated in
+  one place, with the other sections pointing at it and saying they do not
+  restate it.
+
+  Filed rather than fixed: SNAT-0068, STANDARDS.md 5.4 still showing the
+  mpv socket code SNAT-0052 replaced. A lane reasoned from it and reported
+  this document as overstating a defence. Correcting 5.4 re-arms rule 14's
+  gate on STANDARDS.md, so that edit and its gate belong together.
   **Layman:** Nobody has written down who Snatch is defending against, so each person deciding whether something is a security problem has to guess.
   Kind: doc.
   Source: review-code-sweep-2026-08-31.

@@ -51,26 +51,25 @@ than implied away here.
 
 **A vulnerable or compromised package Snatch ships.** Pillow and tkinterdnd2
 are bundled into every release and run inside the app's process, and Pillow is
-what decodes remote image bytes. Shipping one with a known advisory is in scope
-here — see the bundled-dependency bullet under § Out of scope for which half of
-that is ours. Nothing currently watches for one: SNAT-0037 is that gap, open
-because a real advisory was missed once already.
+what decodes remote image bytes. Which half of that is ours is settled in the
+bundled-dependency bullet under § Out of scope and not repeated here. Nothing
+currently watches for such an advisory: SNAT-0037 is that gap, open because a
+real one was missed once already.
 
 **The content Snatch is asked to handle.** yt-dlp parses the page and the
 media file; Snatch handles the URL the user pasted, the JSON and progress
 output yt-dlp returns, the paths it is told to write to — and it decodes
 thumbnail images in its own process, through Pillow, from a URL that arrived
-in that JSON. That decode is the shortest path from a remote server into this
-app's memory and it is in scope; SNAT-0030 was exactly that report and was
-fixed here rather than forwarded. None of these may become command execution,
-an unbounded read, or a write outside the download folder. The defences are URL
-validation, a `--` separator before any URL or path argument, never using a
-shell, and bounding what is read into memory.
+in that JSON — the shortest path there is from a remote server into this app's
+memory. None of these may become command execution, an unbounded read, or a
+write outside the download folder. The defences are URL validation, a `--`
+separator before any URL or path argument, never using a shell, and bounding
+what is read into memory.
 
-Where this meets the bundled-dependency bullet under § Out of scope: a page
-that exploits yt-dlp's own extraction is upstream's. The same page reaching
-Snatch's argument construction, its output parsing or its destination paths is
-ours.
+Two of those inputs are handed to a bundled dependency — yt-dlp parses the
+page, Pillow decodes the image — and the line between their bugs and ours is
+drawn once, in the bundled-dependency bullet under § Out of scope. It is not
+restated here, so the two cannot drift apart.
 
 ### Real but secondary
 
@@ -80,11 +79,14 @@ cheap defences are taken anyway: user data files are written owner-only, the
 player's control socket lives in a directory of its own, and symlinks are
 resolved before a path is opened.
 
-Two of those are weaker on Windows and the difference is stated rather than
-glossed. The startup pass that repairs a file already on disk with loose
-permissions is a no-op there (`STANDARDS.md` § 5.3), and the socket directory
-gets its mode from POSIX bits that Windows does not enforce — though the IPC
-socket is not used on that platform at all, so nothing listens on it.
+**On Windows those defences are weaker, and two are absent.** POSIX mode bits
+are not the access-control mechanism there, so neither the 0o600 write nor the
+startup pass that repairs an already-loose file does anything
+(`STANDARDS.md` § 5.3 and § 14). And the player is not covered by the socket
+defence either: Snatch never connects to mpv's IPC on Windows, but it still
+launches mpv with `--input-ipc-server`, which there is a named pipe rather
+than a file. That endpoint exists and this project has not assessed who can
+reach it — say so if you know.
 
 A finding that requires a hostile local user on a shared machine is graded
 below one that does not; it is not dismissed.
@@ -102,16 +104,24 @@ below one that does not; it is not dismissed.
   unsigned is accurate and will be closed as known. What is in scope is a way
   to *check* a download that this project has and does not offer; the release
   checksums SNAT-0036 asks for are that gap.
-- **Defects inside a bundled dependency's own code** — yt-dlp's parsing and
-  extraction, a decoder bug in Pillow. Those are reported upstream, and the
-  bullet covers every bundled component rather than yt-dlp alone.
+- **Defects inside a bundled dependency's own code** — a parser bug in
+  yt-dlp, a decoder bug in Pillow. Those are upstream's to fix, for every
+  bundled component and not yt-dlp alone. **This is the whole boundary; no
+  other section restates it.**
 
-  Two things it does *not* cover, both in scope here. How Snatch **invokes**
-  yt-dlp and consumes its output — argument construction, output parsing,
-  destination paths — is ours; the boundary note above draws that line. And
-  **shipping a version with a known advisory** is ours whoever wrote the code:
-  that is the split SNAT-0030 applied, closing twelve Pillow advisories by
-  moving the pin rather than forwarding them.
+  Three things stay ours, and none of them is a defect in someone else's code:
+
+  - **How Snatch reaches that code.** Which URL is fetched, over what
+    transport, how many bytes are read in, which path is written to. A crafted
+    page reaching Snatch's argument construction, its output parsing or its
+    destination paths is in scope.
+  - **Which version we ship.** A dependency with a published advisory is ours
+    to move off, whoever wrote the bug. SNAT-0030 is the precedent and it was
+    closed exactly that way — by moving the Pillow pin, not by changing how
+    Snatch handles content.
+  - **Telling you.** A report about an unpatched defect on a path Snatch
+    reaches is worth sending even though the fix is upstream's: it decides
+    whether we ship, pin back, or disable the feature meanwhile.
 
 ### If you think this model is wrong
 
