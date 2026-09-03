@@ -58,11 +58,15 @@ check pyinstaller.spec "CFBundleVersion" \
 # when a recipe does that, and hands the check to this script -- so without
 # the block below nothing would verify the section exists at all.
 if grep -Eq "^## \\[${version}\\] - [0-9]{4}-[0-9]{2}-[0-9]{2}" CHANGELOG.md; then
+    # No pipe here on purpose. Piping awk into `head -1` closes the pipe
+    # early, awk dies on SIGPIPE, and under `set -o pipefail` the whole
+    # script exits 141 having checked nothing -- which is what happened the
+    # first time this ran. awk does the filtering itself instead.
     body="$(awk -v v="## [${version}] -" '
         index($0, v) == 1 {f=1; next}
-        /^## \[/ {f=0}
-        f && NF {print}
-    ' CHANGELOG.md | grep -vE '^#{3} ' | head -1)"
+        f && /^## \[/ {f=0}
+        f && NF && $0 !~ /^### / {print}
+    ' CHANGELOG.md)"
     if [ -n "$body" ]; then
         echo "  ok       CHANGELOG.md (dated [$version] section with content)"
     else
