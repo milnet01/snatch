@@ -362,7 +362,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: user-request-2026-08-20.
   Lanes: packaging, distribution.
 
-- 📋 [SNAT-0035] **Harden the CI workflow: unpinned actions, repo-wide write, persisted credentials.**
+- ✅ [SNAT-0035] **Harden the CI workflow: unpinned actions, repo-wide write, persisted credentials.**
   zizmor --persona=auditor on .github/workflows/ci.yml, 2026-08-20.
   Three distinct issues, worst first.
 
@@ -423,6 +423,25 @@ and application work. IDs are allocated from `.roadmap-counter`.
   of which should land together rather than piecemeal.
 
   zizmor now reports 17 findings, down from 24.
+  Resolved (2026-09-03) as the two issues that shipped, plus the pin that
+  did. Closed for the same reason as SNAT-0039: the v1.0.2 notes describe
+  this work, and a cited id that is not ✅ blocks the cut.
+
+  Shipped. Issue 2, excessive-permissions: ci.yml sets
+  `permissions: contents: read` at workflow scope with a job-level
+  `contents: write` on release alone. Issue 3, artipacked: every
+  actions/checkout passes `persist-credentials: false`. And the
+  third-party action was pinned -- softprops/action-gh-release to the
+  commit `v2` pointed at, in the one job that holds write.
+
+  Not shipped, and now SNAT-0070: the first-party actions/* steps are
+  still on major-version tags, and zizmor is still not wired into any
+  gate. Those two belong together -- pinning without the guard commits
+  the project to a routine nothing enforces -- which is why they carry
+  over as one item rather than two.
+
+  ADR-0001 records the remaining gap as a known exception and now cites
+  SNAT-0070 through that item's own reference back here.
   **Layman:** Our automated build has more power over the project than it needs, and trusts outside code that could change under us.
   Kind: security.
   Source: in-session-2026-08-20.
@@ -610,6 +629,37 @@ and application work. IDs are allocated from `.roadmap-counter`.
   **Layman:** Updating the bundled downloader without also updating its checksum leaves the old copy in place, and the build does not complain.
   Kind: fix.
   Source: review-contract-adr-0001-2026-09-03.
+
+- 📋 [SNAT-0070] **The first-party actions/* steps are pinned to movable tags, and nothing guards against regression.**
+  Split out of SNAT-0035, whose other two issues shipped: workflow-scope
+  `contents: write` narrowed to read with a job-level grant on release
+  alone, and `persist-credentials: false` on every checkout. Those are
+  described in the v1.0.2 release notes, along with the softprops pin, so
+  this carries the remainder and lets the closed part be recorded closed.
+
+  What is left is issue 1. Every `uses:` naming a first-party action --
+  checkout, setup-python, upload-artifact, download-artifact -- is on a
+  major-version tag. A tag is a pointer its owner can move, and that code
+  runs in a job that can write to this repository and publish releases.
+  zizmor reports each as `unpinned-uses` when run by hand.
+
+  Two halves, and the reason this was deferred is that they belong
+  together. Pin each to a full commit SHA with the version as a trailing
+  comment -- `pinact run` does it mechanically -- AND add zizmor to the
+  static-checks job, so the pins cannot silently regress once made.
+  Pinning without the guard commits the project to a SHA-update routine
+  with nothing enforcing it.
+
+  The third-party action was pinned first and deliberately:
+  softprops/action-gh-release runs in the one job holding
+  `contents: write`. ADR-0001 records the ordering and this gap as a known
+  exception, so closing this closes that entry too.
+
+  zizmor currently runs in no job and no local gate -- it is named only in
+  comments -- which is exactly why the guard half matters.
+  **Layman:** Our automated build trusts outside code identified by a label its owner can repoint at anything.
+  Kind: security.
+  Source: split-from-SNAT-0035-2026-09-03.
 
 ## Application
 
@@ -1601,7 +1651,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: user-request-2026-08-20.
   Lanes: application, packaging, security.
 
-- 📋 [SNAT-0039] **Queued downloads ignore your format choice and run strictly one at a time.**
+- ✅ [SNAT-0039] **Queued downloads ignore your format choice and run strictly one at a time.**
   Two problems in one eight-line method, downloader.py:743.
 
   The correctness one first, because it is the one users would notice
@@ -1649,6 +1699,22 @@ and application work. IDs are allocated from `.roadmap-counter`.
   says, the work there is that self.download_process is a single handle
   which _reset_ui, cancel and the 150ms progress throttle all assume --
   the parallelism itself is the easy part.
+  Resolved (2026-09-03) as the half that shipped. Closed rather than
+  left open, because the v1.0.2 release notes describe this work and the
+  project's release rule refuses to cut while a cited id is not ✅ -- an
+  item half-done and marked open makes the notes claim something the
+  roadmap denies.
+
+  What shipped, on 2026-08-20: _process_next_queue_item no longer
+  hardcodes format_spec = "best". The saved preference is re-expressed as
+  a selector yt-dlp resolves per item, degrading through looser candidates
+  so an unusual preference never leaves a queue item with nothing to
+  download, with merge set alongside it and a non-alphanumeric ext dropped
+  rather than pasted in.
+
+  What did not, and is now SNAT-0069: the queue is still strictly serial.
+  The body above already scoped this bullet to that remainder; the split
+  makes the record match.
   **Layman:** Anything you add to the queue is downloaded at whatever quality yt-dlp picks, not the one you chose — and they run one after another rather than together.
   Kind: fix.
   Source: in-session-2026-08-20.
@@ -3222,3 +3288,30 @@ and application work. IDs are allocated from `.roadmap-counter`.
   **Layman:** The written rule for where the video player's control channel goes describes the old, less safe arrangement that has already been changed.
   Kind: doc-fix.
   Source: review-contract-security-md-2026-09-03.
+
+- 📋 [SNAT-0069] **The download queue runs strictly one item at a time.**
+  Split out of SNAT-0039, whose correctness half -- queued items ignoring
+  your saved format preference -- shipped on 2026-08-20. That half is
+  described in the v1.0.2 release notes; this is the remainder, and it is
+  carried here so the closed half can be recorded as closed.
+
+  _download_complete advances queue_index and starts the next item, one at
+  a time. For a queue of ten on a connection one download does not
+  saturate -- most connections, since YouTube throttles per stream -- two
+  or three at once would finish the batch materially faster. This is the
+  real throughput lever for this app, and more promising than fragment
+  concurrency (SNAT-0040, measured and inconclusive).
+
+  The work is not the parallelism. self.download_process is a single
+  handle, and _reset_ui, cancel_download and the 150 ms progress throttle
+  all assume exactly one active download; SNAT-0048 has since moved the
+  option snapshot off the worker, which helps but does not change that
+  assumption. Unpicking it is the item.
+
+  Cap the concurrency and keep the cap small. Unbounded parallel downloads
+  is a good way to be rate-limited by the site.
+
+  Related: SNAT-0023 persists the queue across restarts.
+  **Layman:** Queued videos download one after another, so a long queue takes longer than it needs to.
+  Kind: perf.
+  Source: split-from-SNAT-0039-2026-09-03.

@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-09-03
 - **Roadmap:** SNAT-0057 (this record).
-  Open items this record names: SNAT-0035, SNAT-0065, SNAT-0066, SNAT-0067
+  Open items this record names: SNAT-0065, SNAT-0066, SNAT-0067, SNAT-0070
 - **Review history:** `docs/adr-0001-review-log.md`
 
 ## Context
@@ -100,14 +100,14 @@ Run by hand, `zizmor` reports each as `unpinned-uses`, and the reports are
 correct. It is not wired into any job or into the local gate, so nothing
 reports this on its own today.
 
-This is a known gap, tracked as SNAT-0035, and left open rather than closed
+This is a known gap, tracked as SNAT-0070, and left open rather than closed
 quietly. **It is a sequencing decision, not a judgement that the risk is
-acceptable.** SNAT-0035 states the position: a tag is a pointer its owner can
-move, and that code runs in a job holding a token that can write to this
-repository. What has kept it open is that pinning these commits the project to
-a SHA-update routine, and the same bullet already proposes running `pinact` and
-adding `zizmor` to the static-checks job — which should land together rather
-than piecemeal, so that the pins cannot silently regress once made.
+acceptable.** The position is that a tag is a pointer its owner can move, and
+that code runs in a job holding a token that can write to this repository.
+What has kept it open is that pinning these commits the project to a
+SHA-update routine, so the pins and a `zizmor` step in static-checks should
+land together rather than piecemeal — otherwise nothing stops the pins
+silently regressing.
 
 Third-party actions are pinned ahead of first-party ones.
 `softprops/action-gh-release` was pinned first for that reason: it is the only
@@ -177,7 +177,7 @@ new binary.
   hard-stops on the compare. So CI catches a version-only bump and a local
   rebuild does not. Tracked as SNAT-0067.
 - A future security review will derive the `unpinned-uses` findings above.
-  They are expected. SNAT-0035 is where that conversation belongs.
+  They are expected. SNAT-0070 is where that conversation belongs.
 - **This policy governs the build, not the running app, and the difference is
   deliberate.** A build-time fetch is for a version chosen here, so a digest can
   be recorded here. The in-app yt-dlp self-update is for a version chosen at run
