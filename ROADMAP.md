@@ -3315,3 +3315,103 @@ and application work. IDs are allocated from `.roadmap-counter`.
   **Layman:** Queued videos download one after another, so a long queue takes longer than it needs to.
   Kind: perf.
   Source: split-from-SNAT-0039-2026-09-03.
+
+- 📋 [SNAT-0071] **Search results show no upload date, and the Resolution column is always blank.**
+  One root cause, so one item. Asked for by the user on 2026-09-03, who
+  noticed the blank Resolution column and wanted to know how old each
+  result is.
+
+  MEASURED 2026-09-03, not inferred. The search uses
+  `-J --flat-playlist`, and on that path yt-dlp returns the KEYS and sets
+  them to null:
+
+    timestamp / upload_date / release_timestamp -> None
+    height / resolution / width                 -> None
+
+  True for a ytsearch keyword query AND for a channel listing
+  (/@handle/videos), so this is not a quirk of one target. The existing
+  comment in search.py already records the resolution half as a known
+  cost of the fast path; the date half is the same cost and was not
+  written down.
+
+  A FULL extraction does carry both -- upload_date '20260901',
+  timestamp, height 2160, resolution '3840x2160' -- at a measured 4.1 s
+  and 652 KB for ONE video. That is the price, per row. The flat path was
+  chosen deliberately: search.py's comment records 3.3 s / 23 KB with it
+  against ~40 s / 11.5 MB without, on a 20-result search, and calls out
+  that the slow path made the UI look hung.
+
+  So this is a design choice, not a bug, and the item is to make the
+  choice rather than to "fix the blank column".
+
+  Options, cheapest first:
+
+  1. ENRICH LAZILY, ON SELECTION. Fetch full metadata for the one row
+     the user clicks and fill its cells then. One 4 s call, off the GUI
+     thread, only for rows someone actually looks at. Cheap and it never
+     makes a search slower. The columns stay blank until clicked, which
+     has to look deliberate rather than broken.
+
+  2. ENRICH THE VISIBLE PAGE IN THE BACKGROUND. After results appear,
+     walk the rows on a worker and fill each in as it arrives. The list
+     is usable immediately and completes over a few seconds. More moving
+     parts: it needs a cap on concurrency, it must stop when a new search
+     starts, and it writes to the tree from a worker -- so it must go
+     through root.after per STANDARDS 4.1, and the SNAT-0049 guard is
+     what it has to cooperate with.
+
+  3. DROP THE RESOLUTION COLUMN. It has never shown a value. A column
+     that is always empty is worse than no column, and the width it takes
+     is width the Title column wants. Worth considering even alongside
+     option 1 or 2, since a per-row resolution before download is of
+     limited use -- the format list on the Download tab is where the real
+     answer lives.
+
+  Do not reach for a fourth option of dropping --flat-playlist wholesale.
+  The measurement above is exactly why it is there.
+
+  Note the date is more valuable than the resolution: it changes which
+  result a person clicks, and SNAT-0072 (recency filtering) is the same
+  need from the other direction.
+  **Layman:** The results list does not say how old a video is, and the Resolution column is empty for every row.
+  Kind: feature.
+  Source: user-request-2026-09-03.
+
+- 📋 [SNAT-0072] **Search cannot be limited to recent videos.**
+  Asked for by the user on 2026-09-03: "we should be able to search and
+  say only videos within the last 2 weeks for example".
+
+  The cheap answer is server-side and needs no date data at all, which
+  makes this independent of the missing-date half of the columns item.
+
+  MEASURED 2026-09-03: yt-dlp accepts a YouTube results URL carrying
+  YouTube's own search-filter parameter --
+  `https://www.youtube.com/results?search_query=<q>&sp=<code>` -- and
+  returns entries from it through the same `-J --flat-playlist` path the
+  search already uses. So a recency filter can be a different URL rather
+  than a post-fetch filter, costing nothing extra and returning a full
+  page of matching results instead of a page filtered down to a handful.
+
+  What still needs establishing before building: the `sp=` codes
+  themselves. They are opaque base64 protobuf, YouTube publishes no
+  spec, and the buckets are YouTube's (last hour / today / this week /
+  this month / this year) rather than arbitrary -- so "last 2 weeks"
+  specifically may not be expressible. Verify each code returns what it
+  claims before wiring a control to it; the URL form working is proven,
+  the individual codes are not.
+
+  If the codes prove unusable, the fallback is client-side filtering on
+  upload_date, which requires the enrichment the columns item describes
+  and is therefore much more expensive. Prefer the URL route.
+
+  Shape of the UI, matching what is already there: the filter row has
+  Category, Duration, Sort and Results. An "Uploaded" combobox beside
+  Duration, defaulting to Any, is the consistent place. Note it composes
+  awkwardly with the existing channel-search branch, which builds
+  /@handle/search?query= rather than a results URL -- decide whether the
+  filter applies there too or is disabled when a channel is named.
+
+  Related: SNAT-0071 covers showing the date once it is known.
+  **Layman:** There is no way to ask for only videos published in, say, the last two weeks.
+  Kind: feature.
+  Source: user-request-2026-09-03.
