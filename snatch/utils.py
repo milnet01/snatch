@@ -44,7 +44,12 @@ def atomic_private_write(path):
     fd, tmp = tempfile.mkstemp(
         prefix="." + os.path.basename(path) + "-", dir=directory)
     try:
-        os.fchmod(fd, 0o600)
+        # os.fchmod reached Windows only in Python 3.13, and the Windows build
+        # runs 3.12: unguarded, it raised AttributeError and no private file
+        # was ever written there (SNAT-0073). Windows mode bits are not the
+        # access mechanism anyway (STANDARDS.md 14).
+        if hasattr(os, "fchmod"):
+            os.fchmod(fd, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             yield handle
         os.replace(tmp, path)

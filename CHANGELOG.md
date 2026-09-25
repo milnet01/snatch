@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Windows: settings, download history and Firefox cookies save again** (SNAT-0073)
+  Since 1.1.0 the Windows build could not save any of the three. The
+  save code used a file-permission call that Windows' Python 3.12
+  does not have, and the error stopped every save. The call is now
+  skipped where it does not exist; Linux and macOS still write these
+  files owner-only.
+
 - **Bumping the bundled yt-dlp now updates its checksums too** (SNAT-0067)
   `scripts/update-ytdlp-pin.sh` moved the version only. On a machine
   that already had the old binary, the build reused it and passed.

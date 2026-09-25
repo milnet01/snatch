@@ -3434,3 +3434,33 @@ and application work. IDs are allocated from `.roadmap-counter`.
   **Layman:** There is no way to ask for only videos published in, say, the last two weeks.
   Kind: feature.
   Source: user-request-2026-09-03.
+
+- ✅ [SNAT-0073] **On Windows, settings, history and cookies are never saved: the private-write helper calls os.fchmod.**
+  Found by a cold lane on the STANDARDS.md gate, loop 5, and confirmed
+  on the Windows test machine.
+
+  utils.atomic_private_write calls os.fchmod(fd, 0o600) unguarded.
+  os.fchmod gained Windows support only in Python 3.13, and every CI
+  build job pins 3.12. Run on Windows under the official 3.12.10
+  embeddable build: hasattr(os, 'fchmod') is False and the call raises
+  AttributeError.
+
+  Every private write goes through that helper: config.json
+  (_save_config), history.json (_save_history) and cookies.txt
+  (Firefox extraction). The first two catch OSError only, so the
+  AttributeError escapes -- settings and history never save on Windows,
+  and _save_config runs from _on_close. Shipped in v1.1.0 (29bddd6).
+
+  Fix: call os.fchmod only where it exists. mkstemp already creates the
+  file owner-only on POSIX, and Windows mode bits are not the access
+  mechanism (STANDARDS 14). Regression test: the helper writes with
+  os.fchmod removed.
+  Resolved (2026-09-25): os.fchmod is called only where it exists.
+  tests/test_private_write.py removes os.fchmod and writes through the
+  helper -- red before the fix with the same AttributeError Windows
+  raised, green after; a POSIX case keeps the 0o600 check. Full suite
+  green. Verified on the Windows test machine under Python 3.12.10:
+  write and overwrite both succeed, no temp file left behind.
+  **Layman:** On Windows the app cannot save its settings or download history, because it uses a file-permission call Windows' Python does not have.
+  Kind: fix.
+  Source: review-contract-standards-md-2026-09-25.
