@@ -248,7 +248,7 @@ a temp file in the same directory with an explicit mode and `os.replace`s it
 into place, so both properties hold whatever the target was. It also sets
 `encoding="utf-8"` rather than letting the locale decide.
 
-**A new sensitive file needs the helper AND a registry entry.** Writing it
+**A new sensitive file written whole needs the helper AND a registry entry.** Writing it
 through the helper covers the file from then on; it does nothing for a copy that
 already exists with looser bits. Add its name to `utils.PRIVATE_DATA_FILES`,
 which `utils.tighten_user_data_permissions()` walks at startup — called from
@@ -265,6 +265,11 @@ the registry: a file left out of it is not caught.
 - `cookies.txt` — browser cookies
 - `history.json` — download history
 - Temp cookie DB copies (`os.chmod(tmp_path, 0o600)` after copy)
+- `snatch.log` — diagnostic log, off unless `SNATCH_LOG` is set. It is appended and
+  rotated, so it cannot go through the whole-file helper:
+  `logging_setup._PrivateRotatingFileHandler` re-applies `0o600` on every open,
+  a rollover's new file included. A new appended or streamed private file follows
+  that pattern
 
 ### 5.4 Player Socket
 
@@ -330,7 +335,7 @@ fullscreen do not use IPC and stay live.
 
 1. **ToggleSwitch trace cleanup:** Always call `cleanup()` before destroying ToggleSwitch widgets (theme switch, app close) to remove `trace_add` callbacks. Accumulated traces hold references to destroyed widgets.
 2. **PhotoImage references:** Store all `tk.PhotoImage` objects as instance attributes (`self._icon`, `self.video_thumbnail`). Local-only references get garbage collected while tkinter still uses them.
-3. **Subprocess pipes:** Always close `stdout`/`stderr` pipes in a `finally` block after reading. On cancel, `terminate()` + `wait(timeout)` + `kill()` as fallback.
+3. **Subprocess pipes:** Always close `stdout`/`stderr` pipes in a `finally` block after reading. On cancel, `terminate()`, `wait(timeout)`, then `kill()` and `wait(timeout)` to reap it.
 4. **Socket cleanup:** Close sockets in `finally` blocks. Cap recv buffers (`while len(data) < 65536`).
 5. **Free large intermediates:** `del data` after extracting fields from large JSON responses. Close PIL Images after converting to PhotoImage.
 6. **Clear stale data on rebuild:** When theme switching destroys/recreates widgets, clear `formats`, `playlist_entries`, `video_thumbnail`, and `search_results`.
@@ -503,7 +508,7 @@ copy bundled into a packaged build. Use `platform_utils.find_mpv()` — and the
 - **User-facing errors:** `messagebox.showerror()` / `messagebox.showwarning()`
 - **Thread errors:** Catch in thread, report via `root.after(0, callback)`
 - **Config/file I/O:** `try/except` with graceful fallback, never crash
-- **Subprocess:** every `subprocess.run` takes a `timeout`; handle `TimeoutExpired`. A long-running `Popen` — the download, the mpv player — has no fixed timeout, because its duration is the user's. Cancellation bounds it: `terminate()`, `wait(timeout)`, then `kill()` (§6.3 item 3)
+- **Subprocess:** every `subprocess.run` takes a `timeout`; handle `TimeoutExpired`. A long-running `Popen` — the download, the mpv player — has no fixed timeout, because its duration is the user's. Cancellation bounds it (§6.3 item 3)
 - **External tools:** find a binary through the `platform_utils.find_*` helpers (§8.4). `HAS_*` flags are for optional Python imports only
 
 ### 10.4 Imports
@@ -636,6 +641,7 @@ python snatch.py   # Launch the GUI
 | `config.json` | See below | `0o600` | JSON (2-space indent) |
 | `history.json` | See below | `0o600` | JSON array (2-space indent) |
 | `cookies.txt` | See below | `0o600` | Netscape cookie format |
+| `snatch.log` | See below | `0o600` | Rotating text log (§5.3) |
 
 **Location is decided by `platform_utils.app_data_dir()`, not by this table.**
 Running from source it is the project root. In a packaged build it is not:

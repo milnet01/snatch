@@ -41,8 +41,9 @@ Modular tkinter GUI frontend for yt-dlp. Entry point: `snatch.py`. Package: `sna
 - **Extract duplicated logic** into helper methods
 - **PEP 8 import ordering** — stdlib, third-party, local (separated by blank lines)
 - **Every `subprocess.run` needs `timeout`** — handle `TimeoutExpired`. The one
-  carve-out is the download itself: `Popen` plus an unbounded `wait()`, because
-  its duration is the user's file size and any fixed value would be wrong.
+  carve-out is a long-running `Popen` — the download and the mpv player — with
+  no fixed timeout, because its duration is the user's and any fixed value would
+  be wrong.
   Cancellation is what bounds it — `terminate()`, `wait(timeout=3)`, then
   `kill()` and `wait(timeout=2)`
 

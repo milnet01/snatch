@@ -318,6 +318,12 @@ class PlayerMixin:
                 self.mpv_process.wait(timeout=self.TERMINATE_GRACE_SEC)
             except subprocess.TimeoutExpired:
                 self.mpv_process.kill()
+                # Reap it, as cancel_download does: a killed process nobody
+                # waits on lingers as a zombie (STANDARDS.md 6.3 item 3).
+                try:
+                    self.mpv_process.wait(timeout=self.TERMINATE_GRACE_SEC)
+                except subprocess.TimeoutExpired:
+                    log.debug("mpv had not exited after kill()")
             except OSError:
                 # terminate() on a process that has already gone, or a kill
                 # we are not permitted to send.
