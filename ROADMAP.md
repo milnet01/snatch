@@ -3276,7 +3276,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: review-contract-standards-2026-09-02.
   Lanes: testing, security.
 
-- 📋 [SNAT-0068] **STANDARDS 5.4 still shows the mpv socket code SNAT-0052 replaced.**
+- ✅ [SNAT-0068] **STANDARDS 5.4 still shows the mpv socket code SNAT-0052 replaced.**
   Collateral from SNAT-0052, found by a cold lane during the SECURITY.md
   gate two items later.
 
@@ -3304,6 +3304,11 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Note this re-arms CLAUDE.md rule 14's cold-read gate on STANDARDS.md --
   a conformer would write different code afterwards -- so the edit and its
   gate belong together rather than being slipped in.
+  Resolved (2026-09-25): 5.4 rewritten for the mkdtemp directory,
+  the rmtree teardown and the Windows named-pipe case. review-contract
+  ran three cold loops (log rows 4-6 in docs/standards-review-log.md):
+  nine verified, nine fixed, calm cap. The run also surfaced SNAT-0073,
+  SNAT-0074 and SNAT-0075.
   **Layman:** The written rule for where the video player's control channel goes describes the old, less safe arrangement that has already been changed.
   Kind: doc-fix.
   Source: review-contract-security-md-2026-09-03.
@@ -3488,4 +3493,27 @@ and application work. IDs are allocated from `.roadmap-counter`.
   test's fake response gained the geturl() a real one has.
   **Layman:** Two of the app's downloads would quietly accept being redirected off a secure connection.
   Kind: security.
+  Source: review-contract-standards-md-2026-09-25.
+
+- ✅ [SNAT-0075] **The in-app player uses cookies.txt even when a browser is selected.**
+  Found by a cold lane on the STANDARDS.md gate, loop 6.
+
+  STANDARDS 12.3 gives one cookie order, which cookies.get_cookie_args
+  implements: a selected browser wins, and cookies.txt is used only
+  when the browser is "none". _play_in_mpv ignored it and passed
+  cookies_file_var to mpv whenever that named a file. A "refresh
+  cookies" sets cookies_file_var while a browser is selected, so
+  playback then used that snapshot while every download used the
+  browser's live cookies.
+
+  Fix: build the player's option from get_cookie_args, mapped to mpv's
+  --ytdl-raw-options-append=<key>=<value> form.
+  Resolved (2026-09-25): _play_in_mpv builds its cookie option from
+  get_cookie_args, mapped to --ytdl-raw-options-append=<key>=<value>.
+  New test in tests/test_mpv_socket.py: red before (cookies.txt passed
+  with Firefox selected), green after; the comma-path test still holds.
+  Confirmed against the real mpv with a stub yt-dlp that records its
+  argv: it received --cookies-from-browser firefox.
+  **Layman:** Playing a video could use an old saved copy of your login cookies instead of the browser you picked.
+  Kind: fix.
   Source: review-contract-standards-md-2026-09-25.

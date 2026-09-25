@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **The video player uses your selected browser's cookies, like downloads do** (SNAT-0075)
+  With a browser selected, the player still used the saved cookies.txt
+  whenever one existed, so a video could play with an old copy of your
+  login while downloads used the browser's current one. The player
+  now follows the same order as downloads.
+
 - **Windows: settings, download history and Firefox cookies save again** (SNAT-0073)
   Since 1.1.0 the Windows build could not save any of the three. The
   save code used a file-permission call that Windows' Python 3.12

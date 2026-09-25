@@ -70,6 +70,7 @@ class _Host(PlayerMixin):
         self.seek_var = _Var(0)
         self.volume_var = _Var(80)
         self.cookies_file_var = _Var("")
+        self.browser_var = _Var("none")
         self.mpv_process = None
         self.mpv_socket_path = ""
         self._mpv_socket_dir = None
@@ -181,3 +182,21 @@ def test_the_cookie_path_is_passed_as_a_single_pair(host, tmp_path):
 
     passed = [a for a in _FakePopen.last_cmd if "cookies=" in a]
     assert passed == [f"--ytdl-raw-options-append=cookies={cookies}"]
+
+
+def test_a_selected_browser_wins_over_cookies_txt(host, tmp_path):
+    """The player follows get_cookie_args' order (STANDARDS.md 12.3, SNAT-0075).
+
+    It used to pass cookies.txt whenever the file existed, so after a
+    "refresh cookies" with Firefox selected, playback used that snapshot
+    while every download used the browser's live cookies.
+    """
+    cookies = tmp_path / "cookies.txt"
+    cookies.write_text("# netscape", encoding="utf-8")
+    host.cookies_file_var.set(str(cookies))
+    host.browser_var.set("firefox")
+
+    host._play_in_mpv("https://example.com/v.mp4")
+
+    passed = [a for a in _FakePopen.last_cmd if "cookies" in a]
+    assert passed == ["--ytdl-raw-options-append=cookies-from-browser=firefox"]

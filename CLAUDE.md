@@ -31,7 +31,7 @@ Modular tkinter GUI frontend for yt-dlp. Entry point: `snatch.py`. Package: `sna
 
 ### Performance (see STANDARDS.md Section 6.1-6.2)
 - **Throttle UI updates** from threads — max every 150ms, never per-line
-- **Cache expensive lookups** — `shutil.which()` results in class variables
+- **Cache expensive lookups** — `shutil.which()` results in class variables, never a `find_*` result (STANDARDS.md 6.1)
 - **Pre-compute derived data** during fetch to avoid redundant parsing in filters
 - **Guard redraws** — skip if visual state hasn't changed
 

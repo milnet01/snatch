@@ -319,7 +319,7 @@ fullscreen do not use IPC and stay live.
 
 ### 6.1 Caching
 
-- **Cache `shutil.which()` lookups** in class-level variables — PATH rarely changes during a session
+- **Cache `shutil.which()` lookups** in class-level variables — as `_cached_runtimes` does for JS runtimes. Not a `find_*` helper's result: `find_ytdlp` checks the self-updated copy first, so it must re-resolve after an in-app update or revert
 - **Cache history data** in memory (`_history_cache`) — only read from disk on first access, update cache on writes
 - **Pre-compute derived data** during fetch (e.g. `video_only`, `audio_only`, `height` flags on formats) to avoid redundant parsing in hot paths
 

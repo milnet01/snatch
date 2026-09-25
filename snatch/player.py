@@ -10,6 +10,7 @@ import threading
 
 from .theme import get_theme
 from .utils import format_duration
+from .cookies import get_cookie_args
 from .platform_utils import (open_path, is_windows, is_macos, find_mpv,
                              find_ytdlp, install_hint)
 from .logging_setup import get_logger
@@ -147,14 +148,19 @@ class PlayerMixin:
         if ytdlp_bin and os.path.isfile(ytdlp_bin):
             cmd.append(f"--script-opts=ytdl_hook-ytdl_path={ytdlp_bin}")
 
-        # Pass cookies to mpv's yt-dlp
-        cookies_file = self.cookies_file_var.get().strip()
-        if cookies_file and os.path.isfile(cookies_file):
+        # Pass cookies to mpv's yt-dlp in the same order every download uses
+        # (STANDARDS.md 12.3): a selected browser wins over cookies.txt. This
+        # passed cookies.txt whenever it existed, so playback could use a
+        # stale snapshot while downloads used the browser (SNAT-0075).
+        cookie_args = get_cookie_args(self.cookies_file_var.get().strip(),
+                                      self.browser_var.get())
+        if cookie_args:
+            flag, value = cookie_args
             # -append rather than plain --ytdl-raw-options: that option is
             # a comma-separated key/value LIST, so a comma anywhere in the
             # path silently corrupts the parse and the cookies are lost
             # with no error. The append form takes one pair (SNAT-0052).
-            cmd.append(f"--ytdl-raw-options-append=cookies={cookies_file}")
+            cmd.append(f"--ytdl-raw-options-append={flag.lstrip('-')}={value}")
 
         cmd.extend(["--", url])
 
