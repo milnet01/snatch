@@ -1,0 +1,12 @@
+# zizmor configuration, read by the workflow-audit step in ci.yml.
+#
+# Every `uses:` must be pinned to a full commit SHA, first-party actions/*
+# included (SNAT-0070). A tag is a pointer its owner can move, and these
+# steps run in jobs that can publish a release. Stated here rather than left
+# to zizmor's default policy, so a zizmor upgrade that relaxes the default
+# does not silently relax the gate.
+rules:
+  unpinned-uses:
+    config:
+      policies:
+        "*": hash-pin

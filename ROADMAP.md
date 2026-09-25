@@ -642,7 +642,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: fix.
   Source: review-contract-adr-0001-2026-09-03.
 
-- 📋 [SNAT-0070] **The first-party actions/* steps are pinned to movable tags, and nothing guards against regression.**
+- ✅ [SNAT-0070] **The first-party actions/* steps are pinned to movable tags, and nothing guards against regression.**
   Split out of SNAT-0035, whose other two issues shipped: workflow-scope
   `contents: write` narrowed to read with a job-level grant on release
   alone, and `persist-credentials: false` on every checkout. Those are
@@ -669,6 +669,13 @@ and application work. IDs are allocated from `.roadmap-counter`.
 
   zizmor currently runs in no job and no local gate -- it is named only in
   comments -- which is exactly why the guard half matters.
+  Resolved (2026-09-25): pinact pinned every actions/* step to a SHA
+  with the version as a comment; each SHA was checked against the
+  upstream tag with git ls-remote. static-checks now runs zizmor 1.29.0
+  --offline against .github/zizmor.yml, which requires hash-pin for
+  every action. The three cache-poisoning reports are suppressed inline:
+  the pip cache is already off on tag builds (SNAT-0047). zizmor exits 0
+  locally. ADR-0001's known exception for this is removed.
   **Layman:** Our automated build trusts outside code identified by a label its owner can repoint at anything.
   Kind: security.
   Source: split-from-SNAT-0035-2026-09-03.

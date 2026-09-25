@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Security
 
+- **Every build step's outside code is pinned to an exact commit, and CI checks it stays that way** (SNAT-0070)
+  The GitHub-provided build steps pointed at version labels their owner
+  can move. Each one now points at a fixed commit. A new zizmor check
+  in the static-checks job fails the build if a step is ever pinned
+  to a label again.
+
 - **The Windows build re-checks its cached copy of mpv by checksum** (SNAT-0065)
   A cached `mpv.exe` was reused when its label matched, with no
   checksum compared. The build now keeps the downloaded archive,

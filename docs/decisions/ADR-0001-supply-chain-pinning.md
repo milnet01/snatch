@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-09-03
 - **Roadmap:** SNAT-0057 (this record).
-  Open items this record names: SNAT-0066, SNAT-0070
+  Open items this record names: SNAT-0066
 - **Review history:** `docs/adr-0001-review-log.md`
 
 ## Context
@@ -86,37 +86,18 @@ These look wrong at a glance. Each is deliberate.
   asset filename carries a build hash, so bumping the tag alone names a file
   that does not exist, and bumping tag and name without the digest fails the
   check. Treat the three as one value.
-- **`softprops/action-gh-release` is pinned to a commit SHA, not a tag.** It is
-  the action that publishes the release, so it is the one with the most to gain
-  from being changed underneath us. Read the SHA as a pin, not as something
-  behind and due a bump.
+- **Every `uses:` in `.github/workflows/` is pinned to a full commit SHA**, with
+  the version it resolved from as a trailing comment. A tag is a pointer its
+  owner can move, and these steps run in jobs that can publish a release. Read
+  a SHA as a pin, not as something behind and due a bump. The static-checks job
+  runs `zizmor` against `.github/zizmor.yml`, which requires a hash pin for
+  every action, so a tag-pinned step fails CI (SNAT-0070).
 
 ### Known exceptions
 
 Each is recorded here rather than quietly tolerated.
 
-**1. `actions/*` steps are pinned to major-version tags, not commit SHAs.**
-Run by hand, `zizmor` reports each as `unpinned-uses`, and the reports are
-correct. It is not wired into any job or into the local gate, so nothing
-reports this on its own today.
-
-This is a known gap, tracked as SNAT-0070, and left open rather than closed
-quietly. **It is a sequencing decision, not a judgement that the risk is
-acceptable.** The position is that a tag is a pointer its owner can move, and
-that code runs in a job holding a token that can write to this repository.
-What has kept it open is that pinning these commits the project to a
-SHA-update routine, so the pins and a `zizmor` step in static-checks should
-land together rather than piecemeal — otherwise nothing stops the pins
-silently regressing.
-
-Third-party actions are pinned ahead of first-party ones.
-`softprops/action-gh-release` was pinned first for that reason: it is the only
-non-GitHub action here, and it runs in the one job that holds
-`contents: write`. Its SHA is the commit `v2` pointed at when it was pinned —
-a pin, not a bump. A newer major version exists, and whether to move to it is a
-dependency question rather than a pinning one.
-
-**2. Python tooling from PyPI is pinned by version, not by hash.** CI installs
+**1. Python tooling from PyPI is pinned by version, not by hash.** CI installs
 `ruff`, `pytest` and `pyinstaller` at exact versions and `requirements.txt` by
 version, with no `--require-hashes` — and each build job additionally runs
 `pip install --upgrade pip`, which is pinned by nothing at all. So a version
@@ -125,7 +106,7 @@ scoped to exclude it rather than quietly claiming it. Closing this means a
 hash-pinned lock file and a routine for regenerating it, and it has to cover
 the `pip` self-upgrade too. Tracked as SNAT-0066.
 
-**3. `SNATCH_APPIMAGETOOL` reaches `chmod +x` with no digest compared.** Setting
+**2. `SNATCH_APPIMAGETOOL` reaches `chmod +x` with no digest compared.** Setting
 it substitutes a caller's own `appimagetool` for the pinned download. That is
 deliberate — it is the supported way to build with a specific packer — and it is
 not a hole in rule 1 so much as an opt-out from it. Two things keep it honest:
@@ -158,8 +139,6 @@ delete the branch either.
   yt-dlp entries in `digest_for()`, all from one API response. Rule 2 is
   discharged by the one run. It used to move the version alone, which a warm
   `bin/` turned into a green local build of the old nightly (SNAT-0067).
-- A future security review will derive the `unpinned-uses` findings above.
-  They are expected. SNAT-0070 is where that conversation belongs.
 - **This policy governs the build, not the running app, and the difference is
   deliberate.** A build-time fetch is for a version chosen here, so a digest can
   be recorded here. The in-app yt-dlp self-update is for a version chosen at run
