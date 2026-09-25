@@ -7,7 +7,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 
 from . import HAS_DND, __version__
-from .platform_utils import app_data_dir
+from .platform_utils import app_data_dir, open_path
 from .theme import THEMES, get_theme, set_theme, setup_styles
 from .utils import tighten_user_data_permissions, write_private_json
 from .player import PlayerMixin
@@ -17,7 +17,7 @@ from .tabs.download import DownloadTabMixin
 from .tabs.search import SearchTabMixin
 from .tabs.media_info import MediaInfoTabMixin
 from .tabs.history import HistoryTabMixin
-from .logging_setup import get_logger
+from .logging_setup import describe_log, get_logger
 
 log = get_logger(__name__)
 
@@ -245,6 +245,10 @@ class SnatchApp(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
         version_frame = ttk.Frame(header_frame)
         version_frame.pack(side=tk.RIGHT)
 
+        # Where the diagnostic log is, so a bug report can include it (SNAT-0022)
+        ttk.Button(version_frame, text="Log", command=self._show_log_location,
+                   style="Small.TButton").pack(side=tk.LEFT, padx=(0, 12))
+
         # Theme selector
         ttk.Label(version_frame, text="Theme:",
                   style="Version.TLabel").pack(side=tk.LEFT, padx=(0, 4))
@@ -293,6 +297,20 @@ class SnatchApp(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
             widget = getattr(self, name, None)
             if widget:
                 widget.cleanup()
+
+    def _show_log_location(self):
+        """Tell the user where the diagnostic log is, and offer its folder."""
+        text, folder = describe_log(self.script_dir)
+        if folder is None:
+            messagebox.showinfo("Diagnostic log", text)
+            return
+        if messagebox.askyesno("Diagnostic log", f"{text}\n\nOpen this folder?"):
+            try:
+                open_path(folder)
+            except OSError:
+                log.warning("Opening the log folder failed", exc_info=True)
+                messagebox.showerror("Diagnostic log",
+                                     f"Could not open the folder:\n{folder}")
 
     def _change_theme(self):
         """Switch theme and rebuild the UI"""

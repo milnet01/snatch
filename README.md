@@ -120,7 +120,8 @@ what happened.
 **Getting a log to attach.** Snatch normally records nothing. Start it with
 `SNATCH_LOG=1` and it writes `snatch.log` next to your settings (the same
 folder as `config.json` — see *Where Snatch keeps your files*), noting what
-failed and why. Nothing else about the app changes.
+failed and why. Nothing else about the app changes. The **Log** button at the
+top of the window shows exactly where the file is and opens its folder.
 
 ```
 SNATCH_LOG=1 ./Snatch-x86_64.AppImage      # Linux

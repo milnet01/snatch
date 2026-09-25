@@ -1318,7 +1318,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: in-session-2026-08-20.
   Lanes: application.
 
-- 📋 [SNAT-0022] **Nothing in the app tells you where its diagnostic log is.**
+- ✅ [SNAT-0022] **Nothing in the app tells you where its diagnostic log is.**
   Narrowed 2026-09-02. Two of this item's three parts shipped as
   SNAT-0045: a size-capped rotating snatch.log in app_data_dir() at
   0o600, and a walk of the broad handlers that were discarding the
@@ -1333,6 +1333,12 @@ and application work. IDs are allocated from `.roadmap-counter`.
   unless SNATCH_LOG is set, and even when set the file stays empty until
   something fails -- so "open the log" must not present an empty or
   absent file as a fault.
+  Resolved (2026-09-25): a "Log" button in the header calls
+  logging_setup.describe_log, which words logging-off and
+  on-but-empty as ordinary states and offers the folder only when
+  logging is on. tests/test_log_location.py covers all three states (red
+  before, green after). Checked in the real window via demoreel with
+  logging off. README's log paragraph names the button.
   **Layman:** Snatch keeps a troubleshooting log, but there is no button to open it, so you have to be told where the file lives.
   Kind: fix.
   Source: in-session-2026-08-20.

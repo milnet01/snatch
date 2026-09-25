@@ -98,7 +98,7 @@ def configure_logging(data_dir):
 
     try:
         handler = _PrivateRotatingFileHandler(
-            os.path.join(data_dir, LOG_FILENAME),
+            log_path(data_dir),
             maxBytes=MAX_LOG_BYTES,
             backupCount=LOG_BACKUP_COUNT,
             encoding="utf-8",
@@ -110,6 +110,33 @@ def configure_logging(data_dir):
     logger.addHandler(handler)
     logger.setLevel(level)
     return True
+
+
+def log_path(data_dir):
+    """Where configure_logging writes the log for `data_dir`."""
+    return os.path.join(data_dir, LOG_FILENAME)
+
+
+def describe_log(data_dir):
+    """Say where the log is, for the GUI. Returns (text, folder_or_None).
+
+    SNAT-0022: nothing in the app named the path, so a bug report could not
+    carry the log without someone first explaining app_data_dir(). Off is the
+    default and an empty file is normal until something fails, so neither is
+    worded as a fault. `folder` is set only when logging is on -- then the
+    directory exists, because the handler just opened a file in it.
+    """
+    path = log_path(data_dir)
+    logger = logging.getLogger(LOGGER_NAME)
+    if not any(isinstance(h, _PrivateRotatingFileHandler)
+               for h in logger.handlers):
+        return (f"Diagnostic logging is off.\n\n"
+                f"To turn it on, start Snatch with {LOG_ENV}=1 set in its "
+                f"environment. The log is then written to:\n{path}", None)
+    if os.path.isfile(path) and os.path.getsize(path) > 0:
+        return (f"Snatch's diagnostic log is at:\n{path}", data_dir)
+    return (f"Diagnostic logging is on. Nothing has been recorded yet; "
+            f"the log will be written to:\n{path}", data_dir)
 
 
 def get_logger(name):

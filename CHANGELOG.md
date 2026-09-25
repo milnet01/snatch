@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **A Log button shows where Snatch's diagnostic log is** (SNAT-0022)
+  It sits at the top of the window. With logging off, the default, it
+  says how to turn logging on and where the file would go; with it on,
+  it shows the file's location and offers to open its folder. Handy
+  when attaching a log to a bug report.
+
 ## [1.1.1] - 2026-09-25
 
 ### Fixed
