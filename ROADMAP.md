@@ -3372,7 +3372,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: perf.
   Source: split-from-SNAT-0039-2026-09-03.
 
-- 📋 [SNAT-0071] **Search results show no upload date, and the Resolution column is always blank.**
+- ✅ [SNAT-0071] **Search results show no upload date, and the Resolution column is always blank.**
   One root cause, so one item. Asked for by the user on 2026-09-03, who
   noticed the blank Resolution column and wanted to know how old each
   result is.
@@ -3429,11 +3429,18 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Note the date is more valuable than the resolution: it changes which
   result a person clicks, and SNAT-0072 (recency filtering) is the same
   need from the other direction.
+  Resolved (2026-09-25): per the user's choice, option 1 plus option 3.
+  Clicking a video row fetches its upload date off the GUI thread
+  (DATE_FETCH_TIMEOUT_SEC 60) into a new Uploaded column; playlists are
+  skipped, and a generation counter drops an answer that arrives after a
+  newer search. The never-filled Resolution column is removed. Tests
+  cover formatting and the stale-answer guard; checked in the real window
+  (Spring filled 2019-04-04).
   **Layman:** The results list does not say how old a video is, and the Resolution column is empty for every row.
   Kind: feature.
   Source: user-request-2026-09-03.
 
-- 📋 [SNAT-0072] **Search cannot be limited to recent videos.**
+- ✅ [SNAT-0072] **Search cannot be limited to recent videos.**
   Asked for by the user on 2026-09-03: "we should be able to search and
   say only videos within the last 2 weeks for example".
 
@@ -3468,6 +3475,22 @@ and application work. IDs are allocated from `.roadmap-counter`.
   filter applies there too or is disabled when a channel is named.
 
   Related: SNAT-0071 covers showing the date once it is known.
+  Progress (2026-09-25): the sp= codes are verified. Each was run as a
+  results URL through `-J --flat-playlist`, and the top results were
+  then fully extracted to read their upload date:
+    last hour  EgIIAQ%3D%3D  -> 3 of 3 uploaded 34-40 minutes earlier
+    today      EgIIAg%3D%3D  -> 3 of 3 dated today
+    this week  EgIIAw%3D%3D  -> 4 of 4 within the last 6 days
+    this month EgIIBA%3D%3D  -> 4 of 4 within the last 16 days
+    this year  EgIIBQ%3D%3D  -> 3 of 3 within the year
+  So the URL route works for YouTube's five buckets. "Last 2 weeks" is not
+  one of them.
+  Resolved (2026-09-25): an Uploaded combobox (Any / Last hour / Today /
+  This week / This month / This year) builds a results URL with sp=
+  encoded from YouTube's bucket number and the sort. A channel search
+  refuses a set filter with a message, since /@handle/search takes no
+  sp=. Tests pin the verified codes; checked in the real window: "This
+  week" + "blender" returned recent videos, top one dated 2026-09-19.
   **Layman:** There is no way to ask for only videos published in, say, the last two weeks.
   Kind: feature.
   Source: user-request-2026-09-03.
@@ -3560,7 +3583,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: ux.
   Source: in-session-2026-09-25.
 
-- 📋 [SNAT-0077] **Playlist rows in search results show "?" for channel, duration and views.**
+- ✅ [SNAT-0077] **Playlist rows in search results show "?" for channel, duration and views.**
   Seen in the 2026-09-25 screenshot of a channel search
   (docs/screenshots/snatch-search.png): rows that are playlists
   ("Blender Open Movies", "Live Streams") carry "?" in Channel, Duration
@@ -3568,6 +3591,8 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Either label the row as a playlist or leave the cells blank; "?" reads
   as a fault. Related to SNAT-0071, which concerns the same flat-search
   fields for videos.
+  Resolved (2026-09-25): a YoutubeTab row shows "Playlist" in Duration
+  and blanks elsewhere. Checked in the real window.
   **Layman:** When a search returns a playlist, three of its columns just show question marks.
   Kind: ux.
   Source: in-session-2026-09-25.

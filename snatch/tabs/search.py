@@ -1,5 +1,6 @@
 """Search tab UI and YouTube search logic"""
 
+import base64
 import json
 import subprocess
 import threading
@@ -22,6 +23,75 @@ SEARCH_TIMEOUT_SEC = 120
 # Short (< 4 min), Medium (4-20 min), Long (> 20 min).
 SHORT_MAX_SEC = 4 * 60
 LONG_MIN_SEC = 20 * 60
+# One full extraction, run for the single row a user clicks: measured 4.1 s
+# on 2026-09-03. This bounds one that has stopped answering.
+DATE_FETCH_TIMEOUT_SEC = 60
+
+# The "Uploaded" filter's labels, in combobox order, with YouTube's own
+# upload-date bucket numbers (SNAT-0072). Verified 2026-09-25: each bucket's
+# top results, fully extracted, were uploaded inside it. YouTube offers these
+# five and no others, so "last 2 weeks" is not expressible.
+UPLOADED_BUCKETS = {
+    "Any": None,
+    "Last hour": 1,
+    "Today": 2,
+    "This week": 3,
+    "This month": 4,
+    "This year": 5,
+}
+
+
+def search_filter_code(bucket, sort_by_date):
+    """YouTube's sp= value for an upload-date bucket, or None for no filter.
+
+    sp is a base64 protobuf that YouTube publishes no spec for: field 1 is
+    the sort (2 = upload date), field 2 a message whose field 1 is the
+    upload-date bucket. EgIIAw== decodes to exactly that shape for "this
+    week". With a bucket set, YouTube keeps the filter but was measured not
+    to order strictly newest-first, so the sort is sent and not relied on.
+    """
+    if bucket is None:
+        return None
+    raw = (b"\x08\x02" if sort_by_date else b"") + bytes((0x12, 2, 0x08, bucket))
+    return base64.b64encode(raw).decode("ascii")
+
+
+def build_search_target(query, channel, count, sort, uploaded):
+    """Return what yt-dlp is asked to list, or raise ValueError to refuse.
+
+    A channel search goes through /@handle/search, which takes no sp=, so an
+    upload-date filter cannot apply there: refused rather than silently
+    ignored.
+    """
+    bucket = UPLOADED_BUCKETS[uploaded]
+    if channel:
+        if bucket is not None:
+            raise ValueError("The Uploaded filter works on a normal search, "
+                             "not inside one channel. Clear the Channel box "
+                             "or set Uploaded to Any.")
+        handle = channel if channel.startswith("@") else f"@{channel}"
+        if query:
+            return f"https://www.youtube.com/{handle}/search?query={quote(query, safe='')}"
+        return f"https://www.youtube.com/{handle}/videos"
+    if bucket is not None:
+        code = search_filter_code(bucket, sort == "Upload Date")
+        return (f"https://www.youtube.com/results?search_query={quote(query, safe='')}"
+                f"&sp={quote(code, safe='')}")
+    prefix = f"ytsearchdate{count}" if sort == "Upload Date" else f"ytsearch{count}"
+    return f"{prefix}:{query}"
+
+
+def _is_playlist(entry):
+    """A flat search row that is a playlist or channel tab, not a video."""
+    return entry.get("ie_key") == "YoutubeTab"
+
+
+def _format_upload_date(value):
+    """yt-dlp's YYYYMMDD as YYYY-MM-DD; anything else as blank."""
+    value = str(value or "")
+    if len(value) == 8 and value.isdigit():
+        return f"{value[:4]}-{value[4:6]}-{value[6:]}"
+    return ""
 
 
 class SearchTabMixin:
@@ -82,6 +152,12 @@ class SearchTabMixin:
                              "Long (> 20 min)"],
                      state="readonly", width=16).pack(side=tk.LEFT, padx=(0, 10))
 
+        ttk.Label(filter_row, text="Uploaded:").pack(side=tk.LEFT, padx=(0, 4))
+        self.search_uploaded_var = tk.StringVar(value="Any")
+        ttk.Combobox(filter_row, textvariable=self.search_uploaded_var,
+                     values=list(UPLOADED_BUCKETS),
+                     state="readonly", width=11).pack(side=tk.LEFT, padx=(0, 10))
+
         ttk.Label(filter_row, text="Sort:").pack(side=tk.LEFT, padx=(0, 4))
         self.search_sort_var = tk.StringVar(value="Relevance")
         ttk.Combobox(filter_row, textvariable=self.search_sort_var,
@@ -105,7 +181,9 @@ class SearchTabMixin:
         results_frame = ttk.LabelFrame(content, text="Search Results", padding="8")
         results_frame.grid(row=0, column=0, sticky="nsew")
 
-        r_columns = ("num", "title", "channel", "duration", "views", "resolution")
+        # "uploaded" replaced a Resolution column the flat search never
+        # filled (SNAT-0071). The date is fetched for a row when it is clicked.
+        r_columns = ("num", "title", "channel", "duration", "views", "uploaded")
         self.search_tree = ttk.Treeview(results_frame, columns=r_columns,
                                          show="headings", selectmode="browse",
                                          height=8)
@@ -114,13 +192,13 @@ class SearchTabMixin:
         self.search_tree.heading("channel", text="Channel")
         self.search_tree.heading("duration", text="Duration")
         self.search_tree.heading("views", text="Views")
-        self.search_tree.heading("resolution", text="Resolution")
+        self.search_tree.heading("uploaded", text="Uploaded")
         self.search_tree.column("num", width=30, minwidth=25)
         self.search_tree.column("title", width=380, minwidth=200)
         self.search_tree.column("channel", width=140, minwidth=80)
         self.search_tree.column("duration", width=70, minwidth=45)
         self.search_tree.column("views", width=90, minwidth=50)
-        self.search_tree.column("resolution", width=80, minwidth=50)
+        self.search_tree.column("uploaded", width=90, minwidth=70)
 
         self.search_tree.bind("<<TreeviewSelect>>", self._on_search_select)
         self.search_tree.bind("<Double-1>", lambda e: self._play_search_result())
@@ -292,20 +370,17 @@ class SearchTabMixin:
             query = f"{query} {category.lower()}"
 
         count = int(self.search_count_var.get())
-        sort = self.search_sort_var.get()
+        try:
+            search_target = build_search_target(
+                query, channel, count, self.search_sort_var.get(),
+                self.search_uploaded_var.get())
+        except ValueError as exc:
+            messagebox.showwarning("Search", str(exc))
+            return
 
-        # Build search target based on channel filter
-        if channel:
-            # Normalize channel name to @handle format
-            handle = channel if channel.startswith("@") else f"@{channel}"
-            if query:
-                search_target = f"https://www.youtube.com/{handle}/search?query={quote(query, safe='')}"
-            else:
-                search_target = f"https://www.youtube.com/{handle}/videos"
-        else:
-            prefix = f"ytsearchdate{count}" if sort == "Upload Date" else f"ytsearch{count}"
-            search_target = f"{prefix}:{query}"
-
+        # A date fetch still running for the previous search must not write
+        # into this one's rows; it checks this number before it does.
+        self._search_generation = getattr(self, "_search_generation", 0) + 1
         self.search_results = []  # Free old results before new search
         clear_treeview(self.search_tree)
         self._start_search_anim()
@@ -407,18 +482,17 @@ class SearchTabMixin:
 
         for i, entry in enumerate(entries, 1):
             title = entry.get("title", "Unknown")
-            channel = entry.get("channel", entry.get("uploader", "?"))
-            duration = entry.get("duration")
-            views = entry.get("view_count")
-            height = entry.get("height")
-            resolution = f"{height}p" if height else entry.get("resolution", "")
-
-            dur_str = format_duration(duration)
-            views_str = format_view_count(views)
-
-            self.search_tree.insert("", tk.END, iid=str(i), values=(
-                i, title, channel, dur_str, views_str, resolution
-            ))
+            if _is_playlist(entry):
+                # The flat search gives a playlist no channel, duration or
+                # views, and "?" in all three read as a fault (SNAT-0077).
+                values = (i, title, "", "Playlist", "", "")
+            else:
+                values = (i, title,
+                          entry.get("channel") or entry.get("uploader") or "",
+                          format_duration(entry.get("duration")),
+                          format_view_count(entry.get("view_count")),
+                          _format_upload_date(entry.get("upload_date")))
+            self.search_tree.insert("", tk.END, iid=str(i), values=values)
 
         self.search_status_var.set(f"{len(entries)} results")
 
@@ -438,6 +512,7 @@ class SearchTabMixin:
         self.search_var.set("")
         self.search_channel_var.set("")
         clear_treeview(self.search_tree)
+        self._search_generation = getattr(self, "_search_generation", 0) + 1
         self.search_results = []
         self.search_status_var.set("")
 
@@ -448,8 +523,59 @@ class SearchTabMixin:
             return
         idx = int(sel[0]) - 1
         if idx < len(self.search_results):
-            title = self.search_results[idx].get("title", "")
+            entry = self.search_results[idx]
+            title = entry.get("title", "")
             self.now_playing_var.set(f"Selected: {title[:50]}")
+            self._fetch_upload_date(idx, entry)
+
+    def _fetch_upload_date(self, idx, entry):
+        """Fill one row's Uploaded cell, off the GUI thread (SNAT-0071).
+
+        The flat search returns no dates, and a full extraction costs about
+        4 s a video, so it is paid only for a row someone clicks. Playlists
+        are skipped: extracting one reads every video in it.
+        """
+        if _is_playlist(entry) or entry.get("upload_date") or entry.get("_date_pending"):
+            return
+        url = entry.get("url") or entry.get("webpage_url") or ""
+        if not url.startswith("http"):
+            return
+        entry["_date_pending"] = True
+        self.search_tree.set(str(idx + 1), "uploaded", "…")
+        generation = getattr(self, "_search_generation", 0)
+        cookie_state = self._cookie_state()  # read here, on the GUI thread
+
+        def worker():
+            date = ""
+            try:
+                cmd = self._get_base_cmd()
+                cmd.extend(self._get_cookie_args(cookie_state))
+                cmd.extend(["--skip-download", "--print", "%(upload_date)s",
+                            "--", url])
+                done = subprocess.run(cmd, capture_output=True, text=True,
+                                      timeout=DATE_FETCH_TIMEOUT_SEC)
+                lines = done.stdout.strip().splitlines()
+                date = lines[-1] if lines else ""
+            except subprocess.TimeoutExpired:
+                log.warning("Upload date fetch timed out for %s", url)
+            except Exception:
+                log.exception("Upload date fetch failed for %s", url)
+            self.root.after(0, lambda: self._show_upload_date(
+                generation, idx, entry, date))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _show_upload_date(self, generation, idx, entry, date):
+        """Main-thread half of _fetch_upload_date."""
+        entry.pop("_date_pending", None)
+        if generation != getattr(self, "_search_generation", 0):
+            return  # a newer search replaced these rows
+        if idx >= len(self.search_results) or self.search_results[idx] is not entry:
+            return
+        entry["upload_date"] = date if date.isdigit() else ""
+        if self.search_tree.exists(str(idx + 1)):
+            self.search_tree.set(str(idx + 1), "uploaded",
+                                 _format_upload_date(entry["upload_date"]) or "unknown")
 
     def _get_selected_search_url(self):
         """Get URL and title of the selected search result"""

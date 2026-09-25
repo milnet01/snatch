@@ -80,7 +80,9 @@ quality you want, and click Download. You can queue several at once and watch
 the progress bar for each.
 
 **Search tab** — Search YouTube without opening a browser. Preview a result to
-check it's the right video before you download it.
+check it's the right video before you download it. Use **Uploaded** to keep only
+recent videos (last hour, today, this week, this month or this year), and click
+a result to see the date it was uploaded.
 
 **Media Info tab** — Point it at a video file already on your computer and it
 tells you what's inside: how long it is, the quality, the file type.

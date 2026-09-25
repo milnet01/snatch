@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Search can keep only recent videos** (SNAT-0072)
+  A new Uploaded filter beside Duration: last hour, today, this week,
+  this month or this year. It uses YouTube's own filter, so searches
+  are no slower and still return a full page of results.
+
+- **Search results show when a video was uploaded** (SNAT-0071)
+  Click a result and its upload date appears in the new Uploaded
+  column a few seconds later. Searching stays as fast as before. The
+  Resolution column, which never showed anything, is gone.
+
 - **Every build now starts the app it built and checks it works** (SNAT-0024)
   A build could pass and still produce an app that fails when started,
   which is how the Windows save bug reached 1.1.0. Each build now runs
@@ -21,6 +31,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   says how to turn logging on and where the file would go; with it on,
   it shows the file's location and offers to open its folder. Handy
   when attaching a log to a bug report.
+
+### Fixed
+
+- **Playlists in search results no longer show question marks** (SNAT-0077)
+  A playlist row now reads "Playlist" instead of "?" in three columns.
 
 ### Security
 

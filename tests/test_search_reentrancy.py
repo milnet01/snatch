@@ -78,6 +78,7 @@ class _Host(SearchTabMixin):
         self.search_category_var = _FakeVar("Any")
         self.search_count_var = _FakeVar("20")
         self.search_sort_var = _FakeVar("Relevance")
+        self.search_uploaded_var = _FakeVar("Any")
         # Read by _perform_search on the main thread and passed to the worker
         # rather than read there (SNAT-0048).
         self.search_duration_var = _FakeVar("Any")
