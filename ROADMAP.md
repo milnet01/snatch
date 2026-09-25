@@ -706,6 +706,21 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: security.
   Source: split-from-SNAT-0035-2026-09-03.
 
+- 📋 [SNAT-0078] **local-ci.sh blamed build-linux for a static-checks failure it never reached.**
+  Seen 2026-09-25 during the 1.1.1 cut. A full scripts/local-ci.sh run
+  printed "FAILED: act: build-linux job", but its log held no build-linux
+  lines at all; the failure was static-checks' Tests step, after a
+  4-minute stall with the machine short on RAM. Re-run alone, the same
+  step passed in 16 s, and both jobs then passed.
+
+  Two things to establish: why the label named the wrong job (the step
+  helper, or act's --quiet swallowing the first job's output), and
+  whether a failed first act job should stop the second. Root cause not
+  yet verified -- nothing here was reproduced.
+  **Layman:** The local test script once reported the wrong step as the one that failed.
+  Kind: investigate.
+  Source: in-session-2026-09-25.
+
 ## Application
 
 - ✅ [SNAT-0006] **Write user data files with 0600 permissions.**
