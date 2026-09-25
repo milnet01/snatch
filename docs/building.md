@@ -59,9 +59,19 @@ local run and hide the real build result.
 | mpv (Windows only) | `scripts/fetch-binaries.sh` | `MPV_WIN_TAG=20260814` + `MPV_WIN_ASSET` (SHA-256 pinned) |
 | AppImage type2 runtime | `scripts/build-linux.sh` | `20251108` (SHA-256 pinned) |
 | appimagetool | `scripts/build-linux.sh` | `1.9.1` (SHA-256 pinned) |
-| PyInstaller | `.github/workflows/ci.yml` | 6.11.1 |
-| ruff (lint gate only, not bundled) | `.github/workflows/ci.yml` | 0.16.4 |
-| pytest (test gate only, not bundled) | `.github/workflows/ci.yml` | 9.1.1 |
+| PyInstaller | `requirements-build.in` | 6.11.1 (hash-locked) |
+| ruff (lint gate only, not bundled) | `requirements-ci.in` | 0.16.4 (hash-locked) |
+| pytest (test gate only, not bundled) | `requirements-ci.in` | 9.1.1 (hash-locked) |
+| zizmor (workflow audit only, not bundled) | `requirements-ci.in` | 1.29.0 (hash-locked) |
+
+**Every Python package CI installs is hash-locked (SNAT-0066).** CI installs
+from `requirements-build.txt` and `requirements-ci.txt` with
+`--require-hashes`, so PyPI serving different bytes under the same version
+stops the build. Those two files are generated: edit `requirements.txt` or a
+`requirements-*.in`, then run `scripts/lock-requirements.sh` (needs `uv`) and
+commit the regenerated `.txt` files with the change. `--check` reports a stale
+lock without writing. It protects against a substituted file on PyPI, not
+against a bad release its maintainer publishes on purpose.
 
 **Every bundled binary is pinned by CONTENT, not just by tag (SNAT-0031).**
 `scripts/fetch-binaries.sh` carries the expected SHA-256 of each asset in

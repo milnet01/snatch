@@ -1,0 +1,4 @@
+# Input for requirements-build.txt, the hash-locked install the three build
+# jobs run. Edit this or requirements.txt, then run scripts/lock-requirements.sh.
+-r requirements.txt
+pyinstaller==6.11.1

@@ -30,6 +30,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Security
 
+- **Every Python package the build installs is checked against a recorded hash** (SNAT-0066)
+  The build installed PyInstaller, the app's libraries and the check
+  tools by version number only. It now installs them from lock files
+  that record each file's checksum, so a substituted package on PyPI
+  stops the build. `scripts/lock-requirements.sh` regenerates them.
+
 - **Thumbnails and the update check refuse to be redirected off HTTPS** (SNAT-0074)
   Both checked that the address they asked for was secure, but not
   where a redirect took them. They now use the same checked download

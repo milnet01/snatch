@@ -1,0 +1,5 @@
+# Input for requirements-ci.txt, the hash-locked install the static-checks job
+# runs. None of these ship. Edit, then run scripts/lock-requirements.sh.
+ruff==0.16.4
+pytest==9.1.1
+zizmor==1.29.0
