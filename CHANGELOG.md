@@ -34,6 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Audio formats no longer show "None" in the FPS column** (SNAT-0076)
+  An audio stream has no frame rate, and the format list printed the
+  word None there. The cell is now blank.
+
 - **Playlists in search results no longer show question marks** (SNAT-0077)
   A playlist row now reads "Playlist" instead of "?" in three columns.
 

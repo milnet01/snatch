@@ -3573,12 +3573,17 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: fix.
   Source: review-contract-standards-md-2026-09-25.
 
-- 📋 [SNAT-0076] **Audio-only formats show "None" in the FPS column.**
+- ✅ [SNAT-0076] **Audio-only formats show "None" in the FPS column.**
   Seen in the 2026-09-25 screenshot of the Download tab
   (docs/screenshots/snatch-download.png): every audio-only row's FPS cell
   reads "None", the Python repr of a missing value, rather than being
   blank. Size shows "Unknown" for some video rows the same way. Render a
   missing value as empty (or a dash) consistently.
+  Resolved (2026-09-25): fmt.get("fps") or "" -- yt-dlp sends fps:null for
+  audio, which a .get() default does not catch. Checked in the real
+  window on Big Buck Bunny's format list: audio rows' FPS cells blank.
+  Size's "Unknown" is a deliberate word from format_filesize and was left.
+  No dedicated test: the parse lives inside the fetch thread.
   **Layman:** The format list prints the word None where an audio stream simply has no frame rate.
   Kind: ux.
   Source: in-session-2026-09-25.

@@ -465,7 +465,9 @@ class DownloaderMixin:
                 else:
                     resolution = fmt.get("resolution", "audio only")
 
-                fps = fmt.get("fps", "")
+                # `or`, not a .get() default: yt-dlp sends "fps": null for an
+                # audio stream, and the table printed it as "None" (SNAT-0076).
+                fps = fmt.get("fps") or ""
                 if fps:
                     fps = f"{int(fps)}"
 
