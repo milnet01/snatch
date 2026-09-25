@@ -100,7 +100,9 @@ one because the other moved is the mistake this note exists to prevent.
 
 Run `scripts/update-ytdlp-pin.sh`, then build. It re-resolves the pin to the
 newest nightly and rewrites both `scripts/fetch-binaries.sh` and the table
-above, so the two cannot drift into disagreeing about what a build ships.
+above, so the two cannot drift into disagreeing about what a build ships. In
+`fetch-binaries.sh` it moves the version and the three yt-dlp digests in
+`digest_for()`, all read from the same release (SNAT-0067).
 `--check` reports without writing and exits non-zero when the pin is behind.
 
 The reason it is a release step rather than an occasional chore: the app

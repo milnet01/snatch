@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-09-03
 - **Roadmap:** SNAT-0057 (this record).
-  Open items this record names: SNAT-0065, SNAT-0066, SNAT-0067, SNAT-0070
+  Open items this record names: SNAT-0065, SNAT-0066, SNAT-0070
 - **Review history:** `docs/adr-0001-review-log.md`
 
 ## Context
@@ -164,18 +164,11 @@ new binary.
   has a `--check` mode that exits non-zero when the pin is behind; running it is
   a release step in `docs/building.md`, not something that happens on its own.
   Reach for that script rather than writing a second resolver.
-- **That script moves the version half only.** It rewrites `YTDLP_VERSION` and
-  the version named in `docs/building.md`, and does not touch `digest_for()`,
-  which holds a digest per yt-dlp asset. So a bump is the script plus a digest
-  refresh in the same commit, and rule 2 is discharged by the pair.
-- **Running the script alone fails safely on a clean checkout and silently on a
-  warm one.** `digest_for` is keyed on the asset filename and the destination
-  is version-independent, so with a populated `bin/` the previous binary still
-  matches the still-unchanged digest: `cached_ok` succeeds, nothing is fetched,
-  and the build goes green having bundled the old nightly. A clean checkout —
-  which is what CI runs — has nothing cached, downloads the new version and
-  hard-stops on the compare. So CI catches a version-only bump and a local
-  rebuild does not. Tracked as SNAT-0067.
+- **That script moves the version and the digests together.** It rewrites
+  `YTDLP_VERSION`, the version named in `docs/building.md`, and the three
+  yt-dlp entries in `digest_for()`, all from one API response. Rule 2 is
+  discharged by the one run. It used to move the version alone, which a warm
+  `bin/` turned into a green local build of the old nightly (SNAT-0067).
 - A future security review will derive the `unpinned-uses` findings above.
   They are expected. SNAT-0070 is where that conversation belongs.
 - **This policy governs the build, not the running app, and the difference is

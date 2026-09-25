@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Bumping the bundled yt-dlp now updates its checksums too** (SNAT-0067)
+  `scripts/update-ytdlp-pin.sh` moved the version only. On a machine
+  that already had the old binary, the build reused it and passed.
+  The script now writes the version and all three yt-dlp checksums
+  from the same GitHub release.
+
 ## [1.1.0] - 2026-09-03
 
 ### Added

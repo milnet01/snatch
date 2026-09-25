@@ -600,7 +600,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: security.
   Source: review-contract-adr-0001-2026-09-03.
 
-- 📋 [SNAT-0067] **A version-only yt-dlp bump builds green locally and ships the old binary.**
+- ✅ [SNAT-0067] **A version-only yt-dlp bump builds green locally and ships the old binary.**
   Found by one lane during the ADR-0001 gate and confirmed by reading
   fetch-binaries.sh.
 
@@ -627,6 +627,10 @@ and application work. IDs are allocated from `.roadmap-counter`.
   two-step from a step the script already owns.
 
   Documented in ADR-0001 under Consequences until this closes.
+  Resolved (2026-09-25): update-ytdlp-pin.sh now reads the tag and the
+  three yt-dlp digests from one releases/latest response and rewrites
+  both. Verified on a scratch copy with a warm bin/: the bumped pin
+  re-fetched yt-dlp, the digest matched, and it ran as 2026.09.16.232951.
   **Layman:** Updating the bundled downloader without also updating its checksum leaves the old copy in place, and the build does not complain.
   Kind: fix.
   Source: review-contract-adr-0001-2026-09-03.
