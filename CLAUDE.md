@@ -18,7 +18,7 @@ Modular tkinter GUI frontend for yt-dlp. Entry point: `snatch.py`. Package: `sna
 - **0o600 permissions** on all user data files (config, cookies, history)
 - **HTTPS-only** for network fetches (thumbnails, updates)
 - **Resolve symlinks** with `os.path.realpath()` before opening files/folders
-- **Validate directory ownership** for security-sensitive paths (mpv socket)
+- **Isolate the mpv socket** in a private `tempfile.mkdtemp` directory (STANDARDS.md 5.4)
 
 ### Memory Management (see STANDARDS.md Section 6.3)
 - **Clean up ToggleSwitch traces** — call `cleanup()` before destroying widgets (theme switch, app close)

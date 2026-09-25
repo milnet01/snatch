@@ -248,7 +248,7 @@ a temp file in the same directory with an explicit mode and `os.replace`s it
 into place, so both properties hold whatever the target was. It also sets
 `encoding="utf-8"` rather than letting the locale decide.
 
-**A new sensitive file must be registered in two places, not one.** Writing it
+**A new sensitive file needs the helper AND a registry entry.** Writing it
 through the helper covers the file from then on; it does nothing for a copy that
 already exists with looser bits. Add its name to `utils.PRIVATE_DATA_FILES`,
 which `utils.tighten_user_data_permissions()` walks at startup — called from
@@ -256,10 +256,9 @@ which `utils.tighten_user_data_permissions()` walks at startup — called from
 carried in from an older install. **That walk is a no-op on Windows** (see
 §14), so the legacy-copy problem is closed on macOS and Linux only.
 
-Then update `scripts/verify_permissions.py`, whose fixture pairs
-`PRIVATE_DATA_FILES` with a fixed tuple of loose modes and asserts every entry
-was tightened. CI runs it, so a name added in one place and not the other turns
-the pipeline red.
+`scripts/verify_permissions.py` builds its fixture from `PRIVATE_DATA_FILES`
+and CI runs it, so there is nothing to add there. It tests only the names in
+the registry: a file left out of it is not caught.
 
 **Files with restricted permissions:**
 - `config.json` — user preferences
@@ -307,7 +306,7 @@ fullscreen do not use IPC and stay live.
 - **Resolve symlinks** with `os.path.realpath()` before opening files/folders
 - **Validate dropped URLs** at drop time, not just at processing time
 - **Reject null bytes** in file paths
-- **Verify directory ownership** for security-sensitive paths (e.g. socket directory)
+- **Put a security-sensitive runtime path in a `tempfile.mkdtemp` directory** (§5.4). An ownership check on an existing directory is not the protection
 
 ---
 
@@ -504,8 +503,8 @@ copy bundled into a packaged build. Use `platform_utils.find_mpv()` — and the
 - **User-facing errors:** `messagebox.showerror()` / `messagebox.showwarning()`
 - **Thread errors:** Catch in thread, report via `root.after(0, callback)`
 - **Config/file I/O:** `try/except` with graceful fallback, never crash
-- **Subprocess:** Always use `timeout` parameter; handle `TimeoutExpired`
-- **External tools:** Check availability before use (`shutil.which()`, `HAS_*` flags)
+- **Subprocess:** every `subprocess.run` takes a `timeout`; handle `TimeoutExpired`. A long-running `Popen` — the download, the mpv player — has no fixed timeout, because its duration is the user's. Cancellation bounds it: `terminate()`, `wait(timeout)`, then `kill()` (§6.3 item 3)
+- **External tools:** find a binary through the `platform_utils.find_*` helpers (§8.4). `HAS_*` flags are for optional Python imports only
 
 ### 10.4 Imports
 
