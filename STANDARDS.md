@@ -269,14 +269,38 @@ the pipeline red.
 
 ### 5.4 Player Socket
 
-The mpv IPC socket is placed in `XDG_RUNTIME_DIR` (user-private) instead of `/tmp`:
+**The mpv IPC socket lives inside a private directory made by
+`tempfile.mkdtemp`, never at a fixed path.** mpv's IPC accepts every input
+command, `loadfile` and `run` included. Whoever can connect to the socket
+controls the player. `mkdtemp` creates the directory mode 0700 with an
+unpredictable name. No other local user can reach the socket or claim its
+path first.
+
 ```python
-runtime_dir = os.environ.get("XDG_RUNTIME_DIR", tempfile.gettempdir())
-# Validate ownership before trusting the directory
-runtime_dir = os.path.realpath(runtime_dir)
-if is_windows() or not os.path.isdir(runtime_dir) or os.stat(runtime_dir).st_uid != os.getuid():
-    runtime_dir = tempfile.gettempdir()
+# snatch/player.py, _play_in_mpv
+self._mpv_socket_dir = tempfile.mkdtemp(prefix="snatch-mpv-", dir=runtime_dir)
+self.mpv_socket_path = os.path.join(self._mpv_socket_dir, "ipc")
 ```
+
+`runtime_dir` is `XDG_RUNTIME_DIR` when it is a directory the user owns, and
+`tempfile.gettempdir()` otherwise. That choice only decides where the private
+directory is made. The protection comes from `mkdtemp`, so it holds in a
+shared `/tmp` too.
+
+**Teardown removes the whole directory:**
+`shutil.rmtree(self._mpv_socket_dir, ignore_errors=True)` in `_stop_player`.
+Do not `os.unlink` the socket path instead. An unguarded unlink of a path
+someone else created raises out of the player code.
+
+**Do not bring back the pattern this replaced** (SNAT-0052): a predictable
+`snatch-mpv-<pid>` placed straight in `XDG_RUNTIME_DIR`. It fell back to a
+world-writable `/tmp` without any check, and its ownership test ignored the
+directory's mode.
+
+On Windows, mpv treats the path as a named-pipe name and creates no file.
+Snatch has no named-pipe client, so `_ipc_supported()` returns False there.
+Play/pause, volume and seek are disabled with a visible reason. Stop and
+fullscreen do not use IPC and stay live.
 
 ### 5.5 Path Validation
 
