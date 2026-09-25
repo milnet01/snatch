@@ -540,7 +540,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: ci-failure-2026-09-02.
   Lanes: ci, packaging.
 
-- 📋 [SNAT-0065] **The mpv cache is reused on a tag stamp, so a cached copy skips the digest check.**
+- ✅ [SNAT-0065] **The mpv cache is reused on a tag stamp, so a cached copy skips the digest check.**
   Found by two of three lanes during the ADR-0001 gate.
 
   Every asset in scripts/fetch-binaries.sh reuses a cached file through
@@ -570,6 +570,13 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Recorded as a known exception in
   docs/decisions/ADR-0001-supply-chain-pinning.md until this closes, so
   nobody copies the stamp pattern for a new binary.
+  Resolved (2026-09-25): the mpv archive now goes through fetch() and is
+  kept in bin/, so reuse is cached_ok on its digest; bin/mpv/ is cleared
+  and re-unpacked from it every run. The URL stamps lost their last
+  reader and were removed. Verified by running the Windows branch on
+  Linux with a uname shim: a tampered mpv.exe was restored, a planted
+  DLL removed, a stale-pin archive deleted, and a tampered archive
+  re-fetched. Not yet run on the Windows CI runner.
   **Layman:** A copy of the video player already on the build machine is trusted because its label matches, without re-checking the file itself.
   Kind: security.
   Source: review-contract-adr-0001-2026-09-03.

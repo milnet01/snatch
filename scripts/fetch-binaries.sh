@@ -133,27 +133,13 @@ esac
 echo "==> fetching binaries for $uname_s/$uname_m (ffmpeg: $ffmpeg_slug)"
 mkdir -p "$BIN_DIR"
 
-# Cache stamps. The cache used to be keyed on the DESTINATION FILENAME, which
-# carries no version -- so bumping a pin above and re-running silently reused
-# the old binary while printing "cached", and a maintainer verifying a bump
-# tested the version they were replacing. CI never saw it: a fresh checkout
-# has no bin/, so this only ever failed where nobody was watching.
-#
-# Each fetch now records the URL it satisfied and re-fetches when that URL
-# changes. Keyed on the URL rather than on the version variable, so a repo or
-# asset-name change invalidates it too.
-STAMP_DIR="$BIN_DIR/.stamps"
-mkdir -p "$STAMP_DIR"
-
-stamp_path() { printf '%s/%s.url' "$STAMP_DIR" "$(basename "$1")"; }
-
-# True when $1 exists AND was fetched from $2.
-stamp_matches() {
-    local dest="$1" url="$2" stamp
-    stamp="$(stamp_path "$dest")"
-    [ -e "$dest" ] && [ -f "$stamp" ] && [ "$(cat "$stamp")" = "$url" ]
-}
-
+# The cache used to be keyed on the DESTINATION FILENAME, which carries no
+# version -- so bumping a pin above and re-running silently reused the old
+# binary while printing "cached", and a maintainer verifying a bump tested the
+# version they were replacing. CI never saw it: a fresh checkout has no bin/,
+# so this only ever failed where nobody was watching. URL stamps fixed that
+# and were then superseded by the content check below, which catches a pin
+# change and a tampered file alike; the last stamp reader went with SNAT-0065.
 # True when $1 already exists with the SHA-256 $2 -- the cache is keyed on
 # CONTENT, so a tampered or truncated cached file is re-fetched rather than
 # trusted because a stamp file happens to agree.
@@ -161,8 +147,10 @@ cached_ok() {
     [ -s "$1" ] && [ "$(sha256sum "$1" | cut -d' ' -f1)" = "$2" ]
 }
 
+# $3 is an optional --max-time in seconds, for the one asset (mpv) whose
+# download is several times the size of the rest.
 fetch() {
-    local url="$1" dest="$2" want got asset
+    local url="$1" dest="$2" max_time="${3:-300}" want got asset
     asset="$(basename "$url")"
 
     # An asset with no recorded digest is a hard stop, never a skipped check.
@@ -185,7 +173,7 @@ fetch() {
     fi
     curl --fail --location --silent --show-error --retry 3 --retry-delay 2 \
          --proto '=https' --proto-redir '=https' \
-         --max-time 300 -o "$dest.part" "$url"
+         --max-time "$max_time" -o "$dest.part" "$url"
 
     # Verified BEFORE chmod +x: an unverified file never becomes executable.
     got="$(sha256sum "$dest.part" | cut -d' ' -f1)"
@@ -198,7 +186,6 @@ fetch() {
     fi
     mv "$dest.part" "$dest"
     chmod +x "$dest"
-    printf '%s' "$url" > "$(stamp_path "$dest")"
 }
 
 fetch "https://github.com/${YTDLP_REPO}/releases/download/${YTDLP_VERSION}/${ytdlp_asset}" \
@@ -222,36 +209,28 @@ fetch "https://github.com/quickjs-ng/quickjs/releases/download/${QUICKJS_TAG}/${
 # mpv, Windows only for now. Linux and macOS keep using a system mpv; see
 # SNAT-0013 for why those two are harder (nested AppImage / .app bundle).
 if [ "$exe_suffix" = ".exe" ]; then
-    if ! stamp_matches "$BIN_DIR/mpv/mpv.exe" "mpv:${MPV_WIN_TAG}"; then
-        mpv_url="https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/${MPV_WIN_TAG}/${MPV_WIN_ASSET}"
-        if ! mpv_want="$(digest_for "$MPV_WIN_ASSET")"; then
-            echo "no recorded SHA-256 for mpv asset '$MPV_WIN_ASSET'" >&2
-            echo "add its digest to digest_for() rather than skipping the check" >&2
-            exit 1
-        fi
-        echo "    downloading $MPV_WIN_ASSET"
-        curl --fail --location --silent --show-error --retry 3 --max-time 600 \
-             --proto '=https' --proto-redir '=https' \
-             -o "$BIN_DIR/mpv.7z.part" "$mpv_url"
-        # Verified before it is unpacked: 7z x on an unverified archive is
-        # already executing attacker-chosen paths.
-        mpv_got="$(sha256sum "$BIN_DIR/mpv.7z.part" | cut -d' ' -f1)"
-        if [ "$mpv_got" != "$mpv_want" ]; then
-            rm -f "$BIN_DIR/mpv.7z.part"
-            echo "checksum mismatch for $mpv_url" >&2
-            echo "  expected $mpv_want" >&2
-            echo "  got      $mpv_got" >&2
-            exit 1
-        fi
-        mv "$BIN_DIR/mpv.7z.part" "$BIN_DIR/mpv.7z"
-        mkdir -p "$BIN_DIR/mpv"
-        # 7z ships with the GitHub windows runner and with Git for Windows.
-        7z x -y -o"$BIN_DIR/mpv" "$BIN_DIR/mpv.7z" > /dev/null
-        rm -f "$BIN_DIR/mpv.7z"
-        printf '%s' "mpv:${MPV_WIN_TAG}" > "$(stamp_path "$BIN_DIR/mpv/mpv.exe")"
-    else
-        echo "    cached: mpv/mpv.exe"
-    fi
+    # The ARCHIVE is kept and goes through fetch() like every other asset, so
+    # its reuse is keyed on content (SNAT-0065). It used to be deleted after
+    # unpacking, which left only a tag stamp to decide reuse -- and a cached
+    # mpv.exe whose stamp matched was trusted with no digest compared.
+    #
+    # bin/mpv/ is then rebuilt from the verified archive on every run, so a
+    # changed or planted file there does not survive into a build. Cleared
+    # first because 7z x overwrites files but never removes extra ones.
+    # pyinstaller.spec bundles bin/mpv/ and named binaries only, so the kept
+    # archive is not shipped.
+    mpv_archive="$BIN_DIR/$MPV_WIN_ASSET"
+    fetch "https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/${MPV_WIN_TAG}/${MPV_WIN_ASSET}" \
+          "$mpv_archive" 600
+    # fetch() has verified the digest by here, and must have: 7z x on an
+    # unverified archive is already executing attacker-chosen paths.
+    # An archive left by an earlier pin is dead weight, never a fallback.
+    find "$BIN_DIR" -maxdepth 1 -name 'mpv-*.7z' ! -name "$MPV_WIN_ASSET" -delete
+    rm -rf "$BIN_DIR/mpv"
+    mkdir -p "$BIN_DIR/mpv"
+    # 7z ships with the GitHub windows runner and with Git for Windows.
+    7z x -y -o"$BIN_DIR/mpv" "$mpv_archive" > /dev/null
+    echo "    unpacked: mpv/ from $MPV_WIN_ASSET"
     [ -x "$BIN_DIR/mpv/mpv.exe" ] || { echo "mpv.exe not produced" >&2; exit 1; }
 fi
 

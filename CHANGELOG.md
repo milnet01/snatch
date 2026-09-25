@@ -15,6 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   The script now writes the version and all three yt-dlp checksums
   from the same GitHub release.
 
+### Security
+
+- **The Windows build re-checks its cached copy of mpv by checksum** (SNAT-0065)
+  A cached `mpv.exe` was reused when its label matched, with no
+  checksum compared. The build now keeps the downloaded archive,
+  checks it like every other file, and rebuilds `bin/mpv/` from it
+  on every run. A changed or added file there does not reach a build.
+
 ## [1.1.0] - 2026-09-03
 
 ### Added

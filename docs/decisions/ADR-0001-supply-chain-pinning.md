@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-09-03
 - **Roadmap:** SNAT-0057 (this record).
-  Open items this record names: SNAT-0065, SNAT-0066, SNAT-0070
+  Open items this record names: SNAT-0066, SNAT-0070
 - **Review history:** `docs/adr-0001-review-log.md`
 
 ## Context
@@ -134,17 +134,6 @@ in the build log, printing `(unverified, caller's choice)`. CI never sets it.
 Do not add a digest check to that branch; it would defeat the purpose. Do not
 delete the branch either.
 
-**4. The mpv cache is keyed on the tag, not on content.** Every other asset's
-reuse path is `cached_ok "$dest" "$want"`, a SHA-256 comparison whose comment
-says why: "a tampered or truncated cached file is re-fetched rather than
-trusted because a stamp file happens to agree". mpv's is
-`stamp_matches "$BIN_DIR/mpv/mpv.exe" "mpv:${MPV_WIN_TAG}"`, so a cached
-`mpv.exe` whose stamp matches is used with no digest compared. A fresh fetch is
-still verified; it is the reuse that is not. Unlike the exception above this
-looks like an inconsistency rather than a decision, and is filed as SNAT-0065
-rather than defended. Until it closes, do not copy the stamp pattern for a
-new binary.
-
 ## Consequences
 
 - Pinned artifacts are reused from local caches, keyed on content so a
@@ -152,9 +141,9 @@ new binary.
   locations, not one: `bin/` for what `fetch-binaries.sh` downloads, and
   `.cache/runtime-*` plus the repo-root `appimagetool` for what
   `build-linux.sh` does. Anything that cleans, ignores or audits these caches
-  has to cover both. mpv is the exception, keyed on the tag rather than
-  content — known exception 4. The cache SNAT-0047 dealt with is a different
-  thing again, GitHub's pip cache, outside this decision's scope and no longer
+  has to cover both. For mpv the cached file is the archive, and `bin/mpv/`
+  is re-unpacked from it on every run (SNAT-0065). The cache SNAT-0047 dealt
+  with is a different thing again, GitHub's pip cache, outside this decision's scope and no longer
   restored on a tag build.
 - Bumping a bundled tool is a two-step edit — version, then digest — and cannot
   be done from a version number alone. For mpv it is three: tag, asset name and
