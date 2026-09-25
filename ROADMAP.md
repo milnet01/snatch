@@ -3525,3 +3525,25 @@ and application work. IDs are allocated from `.roadmap-counter`.
   **Layman:** Playing a video could use an old saved copy of your login cookies instead of the browser you picked.
   Kind: fix.
   Source: review-contract-standards-md-2026-09-25.
+
+- 📋 [SNAT-0076] **Audio-only formats show "None" in the FPS column.**
+  Seen in the 2026-09-25 screenshot of the Download tab
+  (docs/screenshots/snatch-download.png): every audio-only row's FPS cell
+  reads "None", the Python repr of a missing value, rather than being
+  blank. Size shows "Unknown" for some video rows the same way. Render a
+  missing value as empty (or a dash) consistently.
+  **Layman:** The format list prints the word None where an audio stream simply has no frame rate.
+  Kind: ux.
+  Source: in-session-2026-09-25.
+
+- 📋 [SNAT-0077] **Playlist rows in search results show "?" for channel, duration and views.**
+  Seen in the 2026-09-25 screenshot of a channel search
+  (docs/screenshots/snatch-search.png): rows that are playlists
+  ("Blender Open Movies", "Live Streams") carry "?" in Channel, Duration
+  and Views. The flat search returns no such fields for a playlist.
+  Either label the row as a playlist or leave the cells blank; "?" reads
+  as a fault. Related to SNAT-0071, which concerns the same flat-search
+  fields for videos.
+  **Layman:** When a search returns a playlist, three of its columns just show question marks.
+  Kind: ux.
+  Source: in-session-2026-09-25.
