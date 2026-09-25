@@ -32,6 +32,19 @@ echo "=== 4/5 ad-hoc sign so the bundle at least loads ==="
 codesign --force --deep --sign - dist/Snatch.app
 codesign --verify --deep --strict dist/Snatch.app
 
+# Start what was built (SNAT-0024). A bundle can build cleanly and still die
+# on launch -- a lost import, a binary left out, a platform call the frozen
+# Python lacks -- and until this ran, nothing started one. --selftest opens
+# no window; the report file carries the detail as it does on every platform.
+echo "=== smoke-test dist/Snatch.app ==="
+report="dist/selftest.txt"
+if ! dist/Snatch.app/Contents/MacOS/snatch --selftest "$report" >/dev/null; then
+    cat "$report" 2>/dev/null || echo "(no report written)"
+    echo "dist/Snatch.app failed its self-test" >&2
+    exit 1
+fi
+cat "$report"
+
 echo "=== 5/5 package .dmg ==="
 dmg="dist/Snatch-${ARCH}.dmg"
 rm -f "$dmg"

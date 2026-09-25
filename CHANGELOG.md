@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Every build now starts the app it built and checks it works** (SNAT-0024)
+  A build could pass and still produce an app that fails when started,
+  which is how the Windows save bug reached 1.1.0. Each build now runs
+  the finished app with a new `--selftest` flag. It checks the app's
+  parts load, the bundled yt-dlp, ffmpeg and JavaScript runtime all
+  run, and a settings file can be saved, then fails the build if not.
+
 - **A Log button shows where Snatch's diagnostic log is** (SNAT-0022)
   It sits at the top of the window. With logging off, the default, it
   says how to turn logging on and where the file would go; with it on,

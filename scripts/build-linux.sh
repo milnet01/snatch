@@ -147,4 +147,17 @@ fi
 out="dist/Snatch-${ARCH}.AppImage"
 [ -f "$out" ] || { echo "$out not produced" >&2; exit 1; }
 chmod +x "$out"
+# Start what was built (SNAT-0024). A bundle can build cleanly and still die
+# on launch -- a lost import, a binary left out, a platform call the frozen
+# Python lacks -- and until this ran, nothing started one. --selftest opens
+# no window; the report file carries the detail as it does on every platform.
+echo "=== smoke-test the AppImage ==="
+report="dist/selftest.txt"
+if ! "$out" --selftest "$report" >/dev/null; then
+    cat "$report" 2>/dev/null || echo "(no report written)"
+    echo "the AppImage failed its self-test" >&2
+    exit 1
+fi
+cat "$report"
+
 echo "=== built $out ($(du -h "$out" | cut -f1)) ==="

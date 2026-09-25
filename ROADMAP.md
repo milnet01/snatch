@@ -187,7 +187,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: in-session-2026-08-19.
   Lanes: ci.
 
-- 📋 [SNAT-0024] **CI builds three artifacts and never starts one.**
+- ✅ [SNAT-0024] **CI builds three artifacts and never starts one.**
   build-linux, build-windows and build-macos each produce a file and
   upload it. Nothing anywhere launches the thing that was produced. A
   bundle that builds cleanly and then dies on startup -- a missing shared
@@ -212,6 +212,16 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Pairs with SNAT-0020, which covers the logic underneath; this one
   covers the packaging, which is where this project's failures have
   actually been.
+  Resolved (2026-09-25): `snatch --selftest [REPORT]` (snatch/selftest.py)
+  imports every module, starts a Tcl interpreter, checks Pillow and
+  tkinterdnd2, runs each bundled binary (plus mpv on Windows), and does a
+  private write/overwrite/read-back -- the check that would have caught
+  SNAT-0073. No window, exit status is the verdict. All three build
+  scripts run it on their artefact and fail the build on a non-zero exit.
+  tests/test_selftest.py pins the module list to the files on disk and
+  covers pass, a broken write and a frozen build missing a binary.
+  Verified inside the real AppImage under act (all PASS). Windows and
+  macOS verify on the next push.
   **Layman:** Our automated builds check that the app can be packaged, not that the packaged app actually opens.
   Kind: test.
   Source: in-session-2026-08-20.

@@ -20,6 +20,13 @@ built, change the script, not the workflow step that calls it.**
 Each script must run on its own platform — `build-macos.sh` refuses to run
 anywhere but macOS, and so on.
 
+**Each script ends by starting what it built (SNAT-0024).** It runs the
+artefact with `--selftest dist/selftest.txt`, which opens no window and
+checks that every module imports, Tcl loads, each bundled binary runs, and a
+private settings file can be written and read back. A failure stops the build
+and prints the report. Run it by hand the same way on any build, or from
+source with `python3 snatch.py --selftest`.
+
 ## Before you push
 
 ```bash
