@@ -52,7 +52,7 @@ local run and hide the real build result.
 
 | Component | Pinned in | Current |
 |---|---|---|
-| yt-dlp (bundled binary) | `scripts/fetch-binaries.sh` | nightly `2026.08.30.232658` (SHA-256 pinned) |
+| yt-dlp (bundled binary) | `scripts/fetch-binaries.sh` | nightly `2026.09.16.232951` (SHA-256 pinned) |
 | yt-dlp (Python library) | `requirements.txt` | 2026.7.4 |
 | ffmpeg + ffprobe | `scripts/fetch-binaries.sh` | ffmpeg-static `b6.1.1` (SHA-256 pinned) |
 | QuickJS | `scripts/fetch-binaries.sh` | `v0.16.1` (SHA-256 pinned) |
