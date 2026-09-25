@@ -3464,3 +3464,28 @@ and application work. IDs are allocated from `.roadmap-counter`.
   **Layman:** On Windows the app cannot save its settings or download history, because it uses a file-permission call Windows' Python does not have.
   Kind: fix.
   Source: review-contract-standards-md-2026-09-25.
+
+- ✅ [SNAT-0074] **The thumbnail fetch and the update check follow an HTTPS-to-HTTP redirect.**
+  Raised by a cold lane on the STANDARDS.md gate (loop 5, open
+  question) and confirmed by reading the code.
+
+  STANDARDS 5.2 requires app-side fetches to go through
+  version._open_https, which checks the requested URL and
+  resp.geturl(): urllib follows redirects and permits an https -> http
+  downgrade, so a prefix check alone asserts what was asked for rather
+  than what arrived.
+
+  Two call sites bypass it: the thumbnail fetch in
+  downloader.py (a startswith("https://") check, then a bare urlopen)
+  and the GitHub release check in version.py. Fix: route both through
+  _open_https; both already handle the ValueError it raises. Regression
+  test: nothing in snatch/ but _open_https calls urlopen.
+  Resolved (2026-09-25): the thumbnail fetch and the release check now
+  call version._open_https; both already handled its ValueError.
+  tests/test_https_only.py asserts no function in snatch/ but
+  _open_https calls urlopen (red before, naming both sites) and that a
+  response landing on http:// is refused and closed. The version-check
+  test's fake response gained the geturl() a real one has.
+  **Layman:** Two of the app's downloads would quietly accept being redirected off a secure connection.
+  Kind: security.
+  Source: review-contract-standards-md-2026-09-25.

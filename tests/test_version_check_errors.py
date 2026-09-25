@@ -161,6 +161,10 @@ def test_an_unreadable_response_is_not_reported_as_offline(host, monkeypatch):
         def read(self):
             return b"<html>not json</html>"
 
+        # _open_https checks where the response ended up (SNAT-0074).
+        def geturl(self):
+            return "https://api.github.com/"
+
     monkeypatch.setattr(version_module.urllib.request, "urlopen",
                         lambda *a, **k: _Response())
 

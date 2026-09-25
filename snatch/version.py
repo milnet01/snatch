@@ -145,10 +145,8 @@ class VersionMixin:
 
         # Check latest version from GitHub
         try:
-            req = urllib.request.Request(YTDLP_RELEASE_API,
-                                         headers={"User-Agent": "Snatch"})
-            with urllib.request.urlopen(
-                    req, timeout=UPDATE_CHECK_TIMEOUT_SEC) as response:
+            with _open_https(YTDLP_RELEASE_API,
+                             UPDATE_CHECK_TIMEOUT_SEC) as response:
                 data = json.loads(response.read().decode())
                 self.latest_version = data.get("tag_name", "").lstrip("v")
                 del data  # Free API response JSON
@@ -173,7 +171,8 @@ class VersionMixin:
                 text="No connection", state=tk.DISABLED))
         except ValueError:
             # json.JSONDecodeError and UnicodeDecodeError are both ValueError:
-            # something answered, but not the JSON this expects.
+            # something answered, but not the JSON this expects. So is
+            # _open_https refusing a redirect off HTTPS (SNAT-0074).
             log.warning("Update check got an unreadable response", exc_info=True)
             self.root.after(0, lambda: self.update_btn.config(
                 text="Check failed", state=tk.DISABLED))

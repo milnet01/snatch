@@ -9,7 +9,6 @@ import threading
 import time
 import tkinter as tk
 from tkinter import messagebox
-import urllib.request
 from io import BytesIO
 
 from .utils import format_duration, format_filesize, clear_treeview
@@ -17,6 +16,7 @@ from .cookies import extract_browser_cookies, get_cookie_args
 from .platform_utils import (find_ytdlp, find_ffmpeg, find_jsruntime,
                              is_windows, install_hint)
 from .logging_setup import get_logger
+from .version import _open_https
 
 log = get_logger(__name__)
 
@@ -406,10 +406,10 @@ class DownloaderMixin:
 
             if thumbnail_url and HAS_PIL and thumbnail_url.startswith("https://"):
                 try:
-                    req = urllib.request.Request(thumbnail_url,
-                                                headers={"User-Agent": "Snatch"})
-                    with urllib.request.urlopen(
-                            req, timeout=self.THUMBNAIL_TIMEOUT_SEC) as resp:
+                    # _open_https also refuses a redirect off HTTPS, which
+                    # the prefix check above cannot see (SNAT-0074).
+                    with _open_https(thumbnail_url,
+                                     self.THUMBNAIL_TIMEOUT_SEC) as resp:
                         # Read one byte past the cap so an oversized response
                         # is detected rather than silently truncated into a
                         # corrupt image (STANDARDS.md 6.3, SNAT-0050).

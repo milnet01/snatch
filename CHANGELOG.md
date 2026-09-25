@@ -24,6 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Security
 
+- **Thumbnails and the update check refuse to be redirected off HTTPS** (SNAT-0074)
+  Both checked that the address they asked for was secure, but not
+  where a redirect took them. They now use the same checked download
+  path as the yt-dlp updater, and a test fails if any new download
+  skips it.
+
 - **Every build step's outside code is pinned to an exact commit, and CI checks it stays that way** (SNAT-0070)
   The GitHub-provided build steps pointed at version labels their owner
   can move. Each one now points at a fixed commit. A new zizmor check
