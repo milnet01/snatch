@@ -279,6 +279,23 @@ jobs:
           echo "--- release notes ---"
           cat release-notes.md
 
+      # SNAT-0036: one SHA256SUMS line per artefact, attached beside them, so
+      # a download can be checked against what this job published. Hashed
+      # from each file's own directory so the names in the file are bare,
+      # which is what `sha256sum -c` matches against in a downloads folder.
+      - name: Write SHA256SUMS
+        run: |
+          for f in artifacts/snatch-linux/Snatch-*.AppImage \
+                   artifacts/snatch-windows/snatch.exe \
+                   artifacts/snatch-macos/Snatch-*.dmg; do
+            (cd "$(dirname "$f")" && sha256sum -- "$(basename "$f")")
+          done > SHA256SUMS
+          if [ "$(wc -l < SHA256SUMS)" -ne 3 ]; then
+            echo "::error::expected 3 checksums, got $(wc -l < SHA256SUMS)"
+            exit 1
+          fi
+          cat SHA256SUMS
+
       - name: Attach to GitHub Release
         # Pinned to the commit v2 pointed at on 2026-08-31 (v2.6.2). A tag is
         # mutable; this job is the one holding contents: write.
@@ -288,6 +305,7 @@ jobs:
             artifacts/snatch-linux/Snatch-*.AppImage
             artifacts/snatch-windows/snatch.exe
             artifacts/snatch-macos/Snatch-*.dmg
+            SHA256SUMS
           fail_on_unmatched_files: true
           body_path: release-notes.md
         env:

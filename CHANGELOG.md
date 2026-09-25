@@ -15,6 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   it shows the file's location and offers to open its folder. Handy
   when attaching a log to a bug report.
 
+### Security
+
+- **Releases include a SHA256SUMS file so a download can be checked** (SNAT-0036)
+  Each release now carries a fingerprint of every download. The README
+  explains how to check yours on Windows, Mac and Linux, so you can
+  tell the file you got is the one this project published.
+
 ## [1.1.1] - 2026-09-25
 
 ### Fixed

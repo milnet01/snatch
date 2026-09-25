@@ -448,7 +448,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: in-session-2026-08-20.
   Lanes: security, ci, supply-chain.
 
-- 📋 [SNAT-0036] **Releases publish no checksums, so a download cannot be verified.**
+- ✅ [SNAT-0036] **Releases publish no checksums, so a download cannot be verified.**
   v1.0.1 attaches exactly three assets -- Snatch-arm64.dmg,
   Snatch-x86_64.AppImage, snatch.exe -- and nothing else. No
   SHA256SUMS file, no signature, no attestation.
@@ -499,6 +499,14 @@ and application work. IDs are allocated from `.roadmap-counter`.
   both SHA2-256SUMS and SHA2-256SUMS.sig, which is a working example of
   the shape this bullet proposes, published by a project of comparable
   size.
+  Resolved (2026-09-25): the release job writes SHA256SUMS over the three
+  artefacts (bare filenames, hashed from each file's directory, refusing
+  on a count other than 3) and attaches it. Checksums chosen over build
+  attestation, per the user's pick. The step was run on dummy artefacts
+  and `sha256sum -c` verified them from a downloads folder; Get-FileHash
+  on the Windows machine matched sha256sum case-insensitively. README has
+  per-platform verify steps. First real output arrives with the next
+  tagged release.
   **Layman:** Someone downloading Snatch has no way to check the file they got is the one we published.
   Kind: security.
   Source: in-session-2026-08-20.

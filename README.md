@@ -55,6 +55,22 @@ chmod +x Snatch-x86_64.AppImage
 ```
 </details>
 
+<details>
+<summary><b>Checking the download is the one we published</b></summary>
+
+Releases after 1.1.1 include a `SHA256SUMS` file: a fingerprint of each
+download. Save it beside your download, then compare. If the fingerprints
+differ, the file is not the one this project released. Don't run it.
+
+- **Linux:** `sha256sum -c --ignore-missing SHA256SUMS` prints `OK` next to
+  the file.
+- **Mac:** run `shasum -a 256 Snatch-arm64.dmg` in Terminal, and check the long
+  code matches the `Snatch-arm64.dmg` line in `SHA256SUMS`.
+- **Windows:** run `Get-FileHash snatch.exe` in PowerShell, and check the
+  `Hash` matches the `snatch.exe` line in `SHA256SUMS` (upper or lower case
+  does not matter).
+</details>
+
 ---
 
 ## What you can do with it
