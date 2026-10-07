@@ -244,6 +244,9 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [build-linux, build-windows, build-macos]
     runs-on: ubuntu-22.04
+    # Measured 18 s for v1.1.1. Ten minutes leaves room for a slow artifact
+    # download and upload, and stops a hang long before GitHub's six hours.
+    timeout-minutes: 10
     permissions:
       contents: write  # the only job that publishes
     steps:
