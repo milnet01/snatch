@@ -721,6 +721,22 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: investigate.
   Source: in-session-2026-09-25.
 
+- 📋 [SNAT-0079] **The full local gate takes about 15 minutes, mostly a cold build-linux container.**
+  Measured 2026-10-07: scripts/local-ci.sh in full took 877 s on the
+  push of 5102a64; --lint takes 2 s. act starts build-linux cold every
+  run (apt installs, pip installs, PyInstaller), and the machine is short
+  of RAM while it does.
+
+  local-gate.md § 9's "warm containers" row is the lever: a pre-built
+  image carrying CI's apt and pip lists, keyed on the whole recipe, or
+  act's container reuse. Its six conditions (pinned runner, both package
+  lists, recipe-keyed tag, runner user and cores, same tree, exit-0 check)
+  must all hold, or a local green stops meaning anything. Measure before
+  and after; one lever per change.
+  **Layman:** Every push that changes code waits a quarter of an hour for checks; most of that is setting up the same build box from scratch each time.
+  Kind: perf.
+  Source: claude-config-request-2026-09-28 local-gate.md § 9.
+
 ## Application
 
 - ✅ [SNAT-0006] **Write user data files with 0600 permissions.**
