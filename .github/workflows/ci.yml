@@ -19,6 +19,16 @@ on:
 permissions:
   contents: read
 
+# A newer push to a pull request cancels its older, now-pointless run
+# (local-gate.md § 9). The event is in the key so a manual run never cancels
+# or queues behind a push. Cancelling is for pull requests ONLY, unlike the
+# skeleton's "anything but main": a v* tag run publishes the release, and a
+# cancelled one could leave it half-attached. On main a cancelled run would
+# hide which commit broke the build.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   # A GitHub runner ships needrestart, whose interactive "restart which
   # services?" prompt can hang an apt-get install until the job times out.
