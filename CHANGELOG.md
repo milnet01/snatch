@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-08
+
+**Theme:** Search by upload date.
+
 ### Added
 
 - **Search can keep only recent videos** (SNAT-0072)
