@@ -733,6 +733,12 @@ and application work. IDs are allocated from `.roadmap-counter`.
   lists, recipe-keyed tag, runner user and cores, same tree, exit-0 check)
   must all hold, or a local green stops meaning anything. Measure before
   and after; one lever per change.
+  Progress (2026-10-08): the user chose this as the next job after
+  1.2.0. A second full gate run, on the 1.2.0 bumped tree, took 274 s
+  against 877 s the night before, on the same machine. So the 877 s may be
+  partly a cold cache or memory pressure (compare SNAT-0078), not only the
+  container build. Measure several runs, warm and cold, before choosing a
+  lever.
   **Layman:** Every push that changes code waits a quarter of an hour for checks; most of that is setting up the same build box from scratch each time.
   Kind: perf.
   Source: claude-config-request-2026-09-28 local-gate.md § 9.
