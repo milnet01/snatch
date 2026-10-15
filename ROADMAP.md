@@ -809,7 +809,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: fix.
   Source: ci-failure-2026-10-15 run 38700515710.
 
-- 📋 [SNAT-0083] **Mirror the pinned mpv archive in Snatch's own GitHub releases, so upstream cannot delete it.**
+- ✅ [SNAT-0083] **Mirror the pinned mpv archive in Snatch's own GitHub releases, so upstream cannot delete it.**
   Chosen by the user 2026-10-15 after SNAT-0082: bump now, then mirror.
   Upload the exact archive (same SHA-256) as an asset on a Snatch-owned
   release, and point fetch-binaries.sh's mpv URL at it, keeping the
@@ -819,6 +819,13 @@ and application work. IDs are allocated from `.roadmap-counter`.
   answer recorded 2026-10-15: player.py is already Snatch's own UI, and
   replacing mpv's decode, audio and sync engine would add far more to
   maintain than it removes.
+  Resolved (2026-10-15): the user chose a hidden pre-release.
+  deps-mpv-20261015 holds the unmodified archive (GitHub digest
+  f9becefe..., equal to upstream's), marked pre-release and not latest,
+  so v1.2.0 stays Latest; its tag is not v*, so no workflow runs.
+  fetch-binaries.sh now downloads from it (MPV_MIRROR_REPO) with the
+  same digest check, and its comment holds the bump steps. A download
+  from the new URL hashed f9becefe... on 2026-10-15.
   **Layman:** Keep our own copy of the video player we bundle, so a Windows build never breaks because someone else deleted a file.
   Kind: package.
   Source: user-request-2026-10-15.

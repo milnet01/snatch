@@ -47,6 +47,14 @@ MPV_WIN_TAG="${MPV_WIN_TAG:-20261015}"
 # means updating this name and its digest below; the digest is what makes a
 # wrong guess loud rather than silent.
 MPV_WIN_ASSET="${MPV_WIN_ASSET:-mpv-x86_64-20261015-git-492bae0768.7z}"
+# The archive is fetched from Snatch's own pre-release deps-mpv-<tag>, an
+# unmodified copy of the upstream asset. Upstream (shinchiro/
+# mpv-winbuild-cmake) keeps only its newest 30 daily releases, so a pin
+# there 404s about a month after it is set (SNAT-0082). Bumping means:
+# download the new upstream asset, check its digest against GitHub's,
+# create the deps-mpv-<tag> pre-release with it, then update the tag,
+# the name and the digest here (SNAT-0083).
+MPV_MIRROR_REPO="${MPV_MIRROR_REPO:-milnet01/snatch}"
 
 # ── Expected SHA-256 of every asset (SNAT-0031) ───────────────────────
 # HTTPS proves the bytes came from github.com unaltered in transit. It says
@@ -220,7 +228,7 @@ if [ "$exe_suffix" = ".exe" ]; then
     # pyinstaller.spec bundles bin/mpv/ and named binaries only, so the kept
     # archive is not shipped.
     mpv_archive="$BIN_DIR/$MPV_WIN_ASSET"
-    fetch "https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/${MPV_WIN_TAG}/${MPV_WIN_ASSET}" \
+    fetch "https://github.com/${MPV_MIRROR_REPO}/releases/download/deps-mpv-${MPV_WIN_TAG}/${MPV_WIN_ASSET}" \
           "$mpv_archive" 600
     # fetch() has verified the digest by here, and must have: 7z x on an
     # unverified archive is already executing attacker-chosen paths.
