@@ -51,6 +51,13 @@ for 7 minutes on GitHub, because the runner ships `needrestart` and the
 container does not. A green local run says the build is sound. It does not say
 the runner environment is.
 
+The script runs a local copy of that image with one change: `/var/run` links
+to `../run` rather than `/run`. Both reach the same directory. Since podman
+5.8.7, copying through an absolute link fails with "path escapes from parent"
+(podman issue #29805), and act copies every action under `/var/run/act`.
+Measured 2026-10-15 on podman 6.1.2: every act job failed at its first action
+until the link was made relative.
+
 Artifact-upload steps are skipped under act (`if: ${{ !env.ACT }}`) because
 there is no artifact service outside GitHub; without the guard they fail every
 local run and hide the real build result.

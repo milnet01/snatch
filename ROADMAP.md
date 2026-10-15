@@ -1,5 +1,6 @@
 <!-- ants-roadmap-format: 1 -->
 <!-- Generated from the Ants Terminal roadmap store. Edit it with roadmap_log; hand edits are discarded by the next write. -->
+<!-- ants-roadmap-id-high-water: SNAT=81 -->
 # Snatch — Roadmap
 
 A tkinter frontend for yt-dlp. This roadmap tracks packaging, distribution
@@ -742,6 +743,38 @@ and application work. IDs are allocated from `.roadmap-counter`.
   **Layman:** Every push that changes code waits a quarter of an hour for checks; most of that is setting up the same build box from scratch each time.
   Kind: perf.
   Source: claude-config-request-2026-09-28 local-gate.md § 9.
+
+- 📋 [SNAT-0080] **Record trailer footage for the website's YouTube trailer.**
+  Asked by ants-projects-hub-website (inbox msg 567, 2026-10-10; no
+  rush). Brief: ~/.local/share/claude-handoff/ants-projects-hub-website-
+  trailers-2026-10-10.md (shared; read it, never delete it). Record 3-6
+  clips of released features with `demoreel record -s 1920x1080 --cursor`,
+  write notes.md (hook lines, tagline, captions, feature lines,
+  platforms, sound or not), put both in
+  /mnt/Games/Trailers/incoming/snatch/, then message that session.
+  Demo data only: shoot from a copy, never the repo root, which holds
+  real history. Style reference: /mnt/Games/Trailers/slipcase-sample.mp4.
+  **Layman:** The project website is making a short video trailer for each app and needs a few clips of Snatch in use.
+  Kind: marketing.
+  Source: ants-projects-hub-website-request-2026-10-10.
+
+- ✅ [SNAT-0081] **The full local gate failed every run after podman 6.1.2 refused act's action copies.**
+  Seen 2026-10-15: three full scripts/local-ci.sh runs each failed in
+  under a minute at "Set up Python 3.12" with "path escapes from parent".
+  podman went to 6.1.2 on 2026-10-08 18:54, after that day's 274 s pass.
+  Cause, from a relay logging act's API calls: act PUTs a tar of each
+  action to path=/ with noOverwriteDirNonDir=true, and podman since 5.8.7
+  refuses to cross the absolute link /var/run -> /run (podman issue
+  #29805; fix proposed in buildah PR #7129, unreleased).
+
+  Fix: local-ci.sh builds localhost/snatch-act-runner:22.04-<base id>,
+  the same runner image with /var/run -> ../run, and runs both act jobs
+  on it. Verified 2026-10-15: one run from no image (384 s, image built
+  in 6 s) and two warm runs (274 s, 286 s), all green. Remove the
+  derived image once the installed podman carries the fix.
+  **Layman:** The pre-push check broke after a system update; it now uses a tiny local tweak of the build box so it works again.
+  Kind: fix.
+  Source: in-session-2026-10-15.
 
 ## Application
 

@@ -112,12 +112,50 @@ if [ "$MODE" = "full" ]; then
                 [ -S "$sock" ] && export DOCKER_HOST="unix://$sock"
             fi
         fi
-        step "act: static-checks job (the real workflow, in a container)" \
-            act push --workflows "$WORKFLOW" --job static-checks \
-                --container-architecture linux/amd64 --quiet
-        step "act: build-linux job (the real workflow, in a container)" \
-            act push --workflows "$WORKFLOW" --job build-linux \
-                --container-architecture linux/amd64 --quiet
+        # The runner image, with one change: /var/run -> ../run instead of
+        # -> /run. podman 5.8.7 and later refuse to copy an archive through
+        # an ABSOLUTE symlink, and act copies every action to /var/run/act,
+        # so every job failed at "Set up Python" with "path escapes from
+        # parent" (podman issue #29805, fix proposed in buildah PR #7129).
+        # Both links reach the same directory, so nothing else differs.
+        # Drop this once the installed podman carries the fix (SNAT-0081).
+        #
+        # The base is pulled every run, as act's own force-pull did, and
+        # the derived tag is keyed on the base's image ID, so a new base
+        # builds a new image rather than reusing a stale one.
+        RUNNER_BASE="docker.io/catthehacker/ubuntu:act-22.04"
+        RUNNER_IMAGE=""
+        # shellcheck disable=SC2329  # called through step, below
+        prepare_runner_image() {
+            local ctr base_id tag
+            ctr="$(command -v podman || command -v docker)" || return 1
+            "$ctr" pull -q "$RUNNER_BASE" >/dev/null || return 1
+            base_id="$("$ctr" image inspect --format '{{.Id}}' "$RUNNER_BASE")" || return 1
+            base_id="${base_id#sha256:}"
+            tag="localhost/snatch-act-runner:22.04-${base_id:0:12}"
+            if ! "$ctr" image inspect "$tag" >/dev/null 2>&1; then
+                # An empty context: the build needs no files, and "." would
+                # send the whole repository to the builder.
+                mkdir -p build/runner-image
+                printf 'FROM %s\nRUN rm /var/run && ln -s ../run /var/run\n' "$RUNNER_BASE" |
+                    "$ctr" build -q -t "$tag" -f - build/runner-image >/dev/null || return 1
+            fi
+            RUNNER_IMAGE="$tag"
+            echo "   runner image: $RUNNER_IMAGE"
+        }
+        step "runner image (CI's, with a relative /var/run link)" prepare_runner_image
+        if [ -n "$RUNNER_IMAGE" ]; then
+            step "act: static-checks job (the real workflow, in a container)" \
+                act push --workflows "$WORKFLOW" --job static-checks \
+                    -P "ubuntu-22.04=$RUNNER_IMAGE" --pull=false \
+                    --container-architecture linux/amd64 --quiet
+            step "act: build-linux job (the real workflow, in a container)" \
+                act push --workflows "$WORKFLOW" --job build-linux \
+                    -P "ubuntu-22.04=$RUNNER_IMAGE" --pull=false \
+                    --container-architecture linux/amd64 --quiet
+        else
+            red "   no runner image, so neither act job ran"
+        fi
     else
         red "act not installed — cannot execute the workflow locally."
         echo "   install it, or run with --no-act for a native build instead."
