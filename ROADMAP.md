@@ -1,6 +1,6 @@
 <!-- ants-roadmap-format: 1 -->
 <!-- Generated from the Ants Terminal roadmap store. Edit it with roadmap_log; hand edits are discarded by the next write. -->
-<!-- ants-roadmap-id-high-water: SNAT=81 -->
+<!-- ants-roadmap-id-high-water: SNAT=83 -->
 # Snatch — Roadmap
 
 A tkinter frontend for yt-dlp. This roadmap tracks packaging, distribution
@@ -791,6 +791,37 @@ and application work. IDs are allocated from `.roadmap-counter`.
   **Layman:** The pre-push check broke after a system update; it now uses a tiny local tweak of the build box so it works again.
   Kind: fix.
   Source: in-session-2026-10-15.
+
+- ✅ [SNAT-0082] **Windows builds failed: the pinned mpv build was deleted upstream.**
+  CI run 38700515710 (commit 99d1cac, 2026-10-15): build-windows
+  failed in fetch-binaries.sh with curl 404 on
+  mpv-x86_64-20260814-git-7b8915bc1d.7z. shinchiro/mpv-winbuild-cmake
+  keeps only its newest 30 daily releases, so any exact pin there dies
+  about a month after it is set.
+
+  Bumped to 20261015 (mpv-x86_64-20261015-git-492bae0768.7z). Digest
+  f9becefe... matches GitHub's recorded asset digest. Verified on the
+  Windows test box: mpv v0.41.0-1175 runs, and with the pinned yt-dlp
+  and the app's ytdl_hook path it played three YouTube videos to an
+  8 s stop, position advancing 0 to 7 s, exit 0. The durable fix is
+  SNAT-0083.
+  **Layman:** The Windows download stopped building because the video player it bundles was removed from where we fetch it; it now uses a current copy.
+  Kind: fix.
+  Source: ci-failure-2026-10-15 run 38700515710.
+
+- 📋 [SNAT-0083] **Mirror the pinned mpv archive in Snatch's own GitHub releases, so upstream cannot delete it.**
+  Chosen by the user 2026-10-15 after SNAT-0082: bump now, then mirror.
+  Upload the exact archive (same SHA-256) as an asset on a Snatch-owned
+  release, and point fetch-binaries.sh's mpv URL at it, keeping the
+  digest check. Publishing is outward-facing; the user approved the
+  approach, so confirm the release name and visibility before the first
+  upload. The user asked whether Snatch could build its own player; the
+  answer recorded 2026-10-15: player.py is already Snatch's own UI, and
+  replacing mpv's decode, audio and sync engine would add far more to
+  maintain than it removes.
+  **Layman:** Keep our own copy of the video player we bundle, so a Windows build never breaks because someone else deleted a file.
+  Kind: package.
+  Source: user-request-2026-10-15.
 
 ## Application
 

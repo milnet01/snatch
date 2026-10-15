@@ -36,7 +36,7 @@ QUICKJS_TAG="${QUICKJS_TAG:-v0.16.1}"
 # the Windows build is an archive of mpv.exe plus a set of DLLs, so it is
 # unpacked into bin/mpv/ as a directory. The release tag is pinned; the asset
 # filename inside it carries a build hash and is resolved at fetch time.
-MPV_WIN_TAG="${MPV_WIN_TAG:-20260814}"
+MPV_WIN_TAG="${MPV_WIN_TAG:-20261015}"
 # The asset name carries a build hash, so it is pinned rather than resolved.
 # It USED to be looked up through api.github.com at fetch time, and that call
 # is rate-limited per IP for unauthenticated callers: on 2026-09-02 a Windows
@@ -46,7 +46,7 @@ MPV_WIN_TAG="${MPV_WIN_TAG:-20260814}"
 # JSON parse and a whole class of intermittent failure. Bumping MPV_WIN_TAG
 # means updating this name and its digest below; the digest is what makes a
 # wrong guess loud rather than silent.
-MPV_WIN_ASSET="${MPV_WIN_ASSET:-mpv-x86_64-20260814-git-7b8915bc1d.7z}"
+MPV_WIN_ASSET="${MPV_WIN_ASSET:-mpv-x86_64-20261015-git-492bae0768.7z}"
 
 # ── Expected SHA-256 of every asset (SNAT-0031) ───────────────────────
 # HTTPS proves the bytes came from github.com unaltered in transit. It says
@@ -89,8 +89,8 @@ digest_for() {
         # key here is a literal filename and MPV_WIN_ASSET must move with the
         # tag. It was resolved from the API until SNAT-0064; that lookup is
         # gone, and rule 3 of ADR-0001 is why.
-        mpv-x86_64-20260814-git-7b8915bc1d.7z)
-                                echo 1bf3b029da2c98e605e00e85f21ee3142f22a1dcc4ceb5c827b5c51e36e390f9 ;;
+        mpv-x86_64-20261015-git-492bae0768.7z)
+                                echo f9becefe40e2a29d2ce5f3ab231ff094f9cf3e4038ff014cfe4a0c09ad90e79e ;;
         *) return 1 ;;
     esac
 }

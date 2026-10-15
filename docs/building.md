@@ -70,7 +70,7 @@ local run and hide the real build result.
 | yt-dlp (Python library) | `requirements.txt` | 2026.7.4 |
 | ffmpeg + ffprobe | `scripts/fetch-binaries.sh` | ffmpeg-static `b6.1.1` (SHA-256 pinned) |
 | QuickJS | `scripts/fetch-binaries.sh` | `v0.16.1` (SHA-256 pinned) |
-| mpv (Windows only) | `scripts/fetch-binaries.sh` | `MPV_WIN_TAG=20260814` + `MPV_WIN_ASSET` (SHA-256 pinned) |
+| mpv (Windows only) | `scripts/fetch-binaries.sh` | `MPV_WIN_TAG=20261015` + `MPV_WIN_ASSET` (SHA-256 pinned) |
 | AppImage type2 runtime | `scripts/build-linux.sh` | `20251108` (SHA-256 pinned) |
 | appimagetool | `scripts/build-linux.sh` | `1.9.1` (SHA-256 pinned) |
 | PyInstaller | `requirements-build.in` | 6.11.1 (hash-locked) |
