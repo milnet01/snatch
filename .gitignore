@@ -27,6 +27,10 @@ __pycache__/
 # nothing. cut-release reads it from the repo.
 !.claude/bump.json
 
+# Session working files kept for reference, not shipped: one-off probes
+# and stub tests. Each folder carries a README saying what it holds.
+archive/
+
 # Virtual environments
 .venv/
 venv/
