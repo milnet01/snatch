@@ -145,11 +145,13 @@ if [ "$MODE" = "full" ]; then
         }
         step "runner image (CI's, with a relative /var/run link)" prepare_runner_image
         if [ -n "$RUNNER_IMAGE" ]; then
-            step "act: static-checks job (the real workflow, in a container)" \
-                act push --workflows "$WORKFLOW" --job static-checks \
-                    -P "ubuntu-22.04=$RUNNER_IMAGE" --pull=false \
-                    --container-architecture linux/amd64 --quiet
-            step "act: build-linux job (the real workflow, in a container)" \
+            # ONE call. build-linux `needs: static-checks`, so act runs
+            # static-checks first and stops there if it fails, as CI does.
+            # A separate static-checks call ran that job twice, about 80 s
+            # of a 280 s gate, and a failure in the repeat was reported
+            # under the build-linux label (SNAT-0078). act prefixes every
+            # line with its job, so a failure still names the right one.
+            step "act: static-checks, then build-linux (the real workflow, in containers)" \
                 act push --workflows "$WORKFLOW" --job build-linux \
                     -P "ubuntu-22.04=$RUNNER_IMAGE" --pull=false \
                     --container-architecture linux/amd64 --quiet

@@ -707,7 +707,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: security.
   Source: split-from-SNAT-0035-2026-09-03.
 
-- 📋 [SNAT-0078] **local-ci.sh blamed build-linux for a static-checks failure it never reached.**
+- ✅ [SNAT-0078] **local-ci.sh blamed build-linux for a static-checks failure it never reached.**
   Seen 2026-09-25 during the 1.1.1 cut. A full scripts/local-ci.sh run
   printed "FAILED: act: build-linux job", but its log held no build-linux
   lines at all; the failure was static-checks' Tests step, after a
@@ -718,6 +718,13 @@ and application work. IDs are allocated from `.roadmap-counter`.
   helper, or act's --quiet swallowing the first job's output), and
   whether a failed first act job should stop the second. Root cause not
   yet verified -- nothing here was reproduced.
+  Resolved (2026-10-15): the wrong label was the gate's second act
+  call. `--job build-linux` also runs static-checks, because
+  build-linux needs it, so a static-checks failure in that repeat was
+  reported under the build-linux label. The gate now makes one act
+  call. A planted F821 failed it at static-checks' ruff step, with
+  every line prefixed [ci/static-checks] and build-linux never
+  started. The 4-minute stall under low RAM was not reproduced.
   **Layman:** The local test script once reported the wrong step as the one that failed.
   Kind: investigate.
   Source: in-session-2026-09-25.
@@ -740,6 +747,15 @@ and application work. IDs are allocated from `.roadmap-counter`.
   partly a cold cache or memory pressure (compare SNAT-0078), not only the
   container build. Measure several runs, warm and cold, before choosing a
   lever.
+  Progress (2026-10-15): the gate had been failing since podman
+  6.1.2 (SNAT-0081, fixed first). Baseline after that fix: 384 s with
+  no runner image, 274 s and 286 s warm. Per-step times showed
+  static-checks running twice, because `--job build-linux` pulls in the
+  job it needs. Lever 1, one act call: 212 s and 211 s warm, at a
+  higher machine load (mean 25-30 against 11-16). Remaining big steps,
+  warm: AppImage build 40-70 s, apt installs 24-52 s, tests 16-24 s,
+  container set-up and tear-down about 20 s per job. The warm-containers
+  row is the next lever to weigh against those.
   **Layman:** Every push that changes code waits a quarter of an hour for checks; most of that is setting up the same build box from scratch each time.
   Kind: perf.
   Source: claude-config-request-2026-09-28 local-gate.md § 9.
