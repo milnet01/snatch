@@ -103,8 +103,9 @@ class HistoryTabMixin:
             "format": fmt,
             "path": path,
         }
-        history.insert(0, entry)
-        history = history[:self.MAX_HISTORY_ENTRIES]
+        # A new list, not insert() on the cached one: mutating the cache
+        # before the write meant a failed save still showed the entry.
+        history = [entry] + history[:self.MAX_HISTORY_ENTRIES - 1]
         self._save_history(history)
         self._load_history_into_tree()
 
