@@ -9,6 +9,10 @@ from .theme import get_theme
 def attach_context_menu(widget, editable=True):
     """Give an Entry or Text a right-click Cut / Copy / Paste / Select All menu.
 
+    Ctrl+A (Cmd+A on macOS) is bound to the same Select All. Tk's own class
+    binding for it on X11 is the Emacs "go to line start", which is not what
+    anyone using a desktop app expects.
+
     The menu is a child of the widget, so it is destroyed with it — a theme
     switch rebuilds every widget, which rebuilds the menu in the new colours
     and leaves nothing to clean up.
@@ -40,7 +44,17 @@ def attach_context_menu(widget, editable=True):
     if editable:
         menu.add_command(label="Paste", command=_emit("<<Paste>>"))
     menu.add_separator()
-    menu.add_command(label="Select All", command=_select_all)
+    menu.add_command(label="Select All", command=_select_all,
+                     accelerator="Cmd+A" if sys.platform == "darwin" else "Ctrl+A")
+
+    def _select_all_key(_event):
+        _select_all()
+        return "break"  # Stop the class binding moving the cursor after us
+
+    modifier = "Command" if sys.platform == "darwin" else "Control"
+    # Both cases, so the shortcut still works with Caps Lock on.
+    for key in ("a", "A"):
+        widget.bind(f"<{modifier}-{key}>", _select_all_key)
 
     def _popup(event):
         widget.focus_set()
