@@ -174,11 +174,18 @@ class PlayerMixin:
                 cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                 env=_embedding_env())
         except FileNotFoundError:
+            # mpv never started, so nothing will use the socket directory.
+            shutil.rmtree(self._mpv_socket_dir, ignore_errors=True)
+            self._mpv_socket_dir = None
+            self.mpv_socket_path = ""
             self.player_status_label.config(text=_no_player_message())
             self.player_status_label.place(relx=0.5, rely=0.5, anchor="center")
             return
 
-        self.root.after(1000, self._update_player_state)
+        # Stored so _stop_player can cancel it. Unstored, playing a second
+        # video within this first second left the first poll pending, and
+        # the two loops then both rescheduled themselves for good.
+        self.player_update_id = self.root.after(1000, self._update_player_state)
 
     def _toggle_fullscreen(self):
         """Toggle the window between fullscreen and normal.
