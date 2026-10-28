@@ -436,7 +436,10 @@ class PlayerMixin:
                 self.seek_var.set((pos / dur) * 100)
 
             self.player_time_var.set(
-                f"{format_duration(pos)} / {format_duration(dur)}")
+                # format_duration reads 0 as "unknown" and prints "?", but
+                # here 0 is a real position: the start of the video.
+                f"{format_duration(pos) if pos >= 1 else '0:00'}"
+                f" / {format_duration(dur)}")
 
         interval = self.POLL_PAUSED_MS if self.player_paused else self.POLL_PLAYING_MS
         self.player_update_id = self.root.after(interval, self._update_player_state)
