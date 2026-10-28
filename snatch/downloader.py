@@ -262,14 +262,16 @@ class DownloaderMixin:
         return any(fmt.get("vcodec", "none") != "none"
                    for fmt in (data.get("formats") or []))
 
-    def _cookie_failure_note(self):
+    def _cookie_failure_note(self, browser):
         """Word the note for cookies the app tried, failed on, and skipped.
 
         The browser name only chooses the sentence. It decides nothing:
         the retry that produced this note was keyed on the exit code, so
         an unrecognised browser still recovers and still gets told.
+
+        `browser` comes from the main-thread cookie snapshot: this runs on
+        the fetch worker, which must not read browser_var itself (SNAT-0048).
         """
-        browser = self.browser_var.get()
         if is_windows() and browser in self.CHROMIUM_BROWSERS:
             return (f" {browser.capitalize()} cookies cannot be read on "
                     "Windows, so they were skipped. Firefox is not affected.")
@@ -318,7 +320,8 @@ class DownloaderMixin:
                         result = retry
                         cookie_args = []
                         self.cookie_fallback_used = True
-                        self.fetch_notes.append(self._cookie_failure_note())
+                        self.fetch_notes.append(
+                            self._cookie_failure_note(cookie_state[1]))
                 except subprocess.TimeoutExpired:
                     pass  # Report the original failure below.
 
@@ -419,15 +422,12 @@ class DownloaderMixin:
                             f"thumbnail exceeds {self.MAX_THUMBNAIL_BYTES} bytes")
                     img = Image.open(BytesIO(img_data))
                     img.thumbnail(self.THUMBNAIL_SIZE, Image.LANCZOS)
-                    photo = ImageTk.PhotoImage(img)
-                    img.close()  # Release PIL image after converting to PhotoImage
+                    img.load()  # Decode here, off the main thread
                     del img_data  # Free raw image bytes
-                    # Release old PhotoImage reference before assigning new
-                    old_thumb = self.video_thumbnail
-                    self.video_thumbnail = photo
-                    del old_thumb
-                    self.root.after(0, lambda: self.thumb_label.config(
-                        image=self.video_thumbnail, text=""))
+                    # The PhotoImage itself is a Tk object, so it is built
+                    # on the main thread (STANDARDS.md 4.1); only the decode
+                    # and resize run here.
+                    self.root.after(0, lambda img=img: self._set_thumbnail(img))
                 except Exception:
                     log.debug("Thumbnail could not be decoded", exc_info=True)
                     self.root.after(0, lambda: self.thumb_label.config(
@@ -534,6 +534,16 @@ class DownloaderMixin:
             log.exception("Fetching formats failed")
             self.root.after(0, lambda e=e: self._show_error(f"Error: {e}"))
 
+    def _set_thumbnail(self, img):
+        """Show a decoded PIL image as the preview thumbnail. Main thread only."""
+        try:
+            # Kept on self: a local PhotoImage is garbage-collected while
+            # the label still shows it (STANDARDS.md 6.3).
+            self.video_thumbnail = ImageTk.PhotoImage(img)
+        finally:
+            img.close()
+        self.thumb_label.config(image=self.video_thumbnail, text="")
+
     def _stop_indeterminate(self):
         """Stop indeterminate progress bar and reset to determinate mode"""
         self.progress_bar.stop()
@@ -562,25 +572,16 @@ class DownloaderMixin:
         resolutions = set()
         extensions = set()
         for fmt in self.formats:
-            h = fmt.get("height")
-            if h is not None:
-                if h <= 480:
-                    resolutions.add("480p")
-                elif h <= 720:
-                    resolutions.add("720p")
-                elif h <= 1080:
-                    resolutions.add("1080p")
-                elif h <= 1440:
-                    resolutions.add("1440p")
-                else:
-                    resolutions.add("4K+")
+            bucket = self._resolution_bucket(fmt.get("height"))
+            if bucket:
+                resolutions.add(bucket)
             ext = fmt.get("ext", "")
             if ext and ext != "N/A":
                 extensions.add(ext)
 
-        res_vals = ["All"] + sorted(resolutions,
-                                    key=lambda x: {"480p": 1, "720p": 2, "1080p": 3,
-                                                   "1440p": 4, "4K+": 5}.get(x, 6))
+        # RESOLUTION_RANGES is ordered low to high, so it is the sort order.
+        res_vals = ["All"] + [r for r in self.RESOLUTION_RANGES
+                              if r in resolutions]
         ext_vals = ["All"] + sorted(extensions)
 
         self.filter_res_combo.config(values=res_vals)
@@ -589,6 +590,16 @@ class DownloaderMixin:
         self.filter_res_var.set("All")
         self.filter_type_var.set("All")
         self.filter_ext_var.set("All")
+
+    @classmethod
+    def _resolution_bucket(cls, height):
+        """Name the RESOLUTION_RANGES bucket a height falls in, or None."""
+        if height is None:
+            return None
+        for name, (lo, hi) in cls.RESOLUTION_RANGES.items():
+            if lo <= height <= hi:
+                return name
+        return None
 
     def _apply_filters(self):
         """Filter the format treeview based on dropdown selections"""
@@ -612,13 +623,9 @@ class DownloaderMixin:
             if ext_filter != "All" and fmt.get("ext", "") != ext_filter:
                 continue
 
-            if res_filter != "All":
-                h = fmt.get("height")
-                if h is None:
-                    continue
-                lo, hi = self.RESOLUTION_RANGES.get(res_filter, (0, float('inf')))
-                if not (lo <= h <= hi):
-                    continue
+            if (res_filter != "All"
+                    and self._resolution_bucket(fmt.get("height")) != res_filter):
+                continue
 
             note = fmt["note"]
             if is_video_only:
@@ -1056,7 +1063,8 @@ class DownloaderMixin:
 
         for i, entry in enumerate(entries, 1):
             dur_str = format_duration(entry.get("duration"))
-            etitle = entry.get("title", entry.get("url", f"Video {i}"))
+            # `or`, not .get() defaults: a flat playlist sends "title": null.
+            etitle = entry.get("title") or entry.get("url") or f"Video {i}"
             self.playlist_tree.insert("", tk.END, iid=str(i),
                                       values=("[x]", i, etitle, dur_str))
 
@@ -1110,16 +1118,21 @@ class DownloaderMixin:
             messagebox.showinfo("Info", "No videos selected")
             return
 
+        added = 0
         for idx in selected_indices:
             if idx < len(self.playlist_entries):
                 entry = self.playlist_entries[idx]
-                url = entry.get("url") or entry.get("webpage_url", "")
-                title = entry.get("title", f"Video {idx + 1}")
-                if url:
+                url = entry.get("url") or entry.get("webpage_url") or ""
+                # `or`: a null title used to raise TypeError on the slice.
+                title = entry.get("title") or f"Video {idx + 1}"
+                # The same scheme check as a typed URL: these come from
+                # remote JSON and are handed to yt-dlp as-is.
+                if self._is_valid_url(url):
                     self.download_queue.append({
                         "url": url, "status": "Pending", "title": title[:60]
                     })
+                    added += 1
 
         self._refresh_queue_tree()
-        messagebox.showinfo("Queued", f"Added {len(selected_indices)} videos to queue.\n"
+        messagebox.showinfo("Queued", f"Added {added} videos to queue.\n"
                                       f"Click 'Download Queue' to start.")
