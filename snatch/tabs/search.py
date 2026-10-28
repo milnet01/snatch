@@ -94,6 +94,22 @@ def _format_upload_date(value):
     return ""
 
 
+def _matches_duration(seconds, duration_filter):
+    """True if a result of `seconds` length passes the Duration combobox.
+
+    An unknown duration (None, e.g. a live stream) counts as 0 and so
+    passes only "Short", which is how the filter has always treated it.
+    """
+    dur = seconds or 0
+    if duration_filter.startswith("Short"):
+        return dur < SHORT_MAX_SEC
+    if duration_filter.startswith("Medium"):
+        return SHORT_MAX_SEC <= dur <= LONG_MIN_SEC
+    if duration_filter.startswith("Long"):
+        return dur > LONG_MIN_SEC
+    return True
+
+
 class SearchTabMixin:
     """Mixin providing the Search tab UI and logic.
     Expects the host class to provide root, _get_base_cmd(),
@@ -448,17 +464,8 @@ class SearchTabMixin:
                 return
 
             if duration_filter != "Any":
-                filtered = []
-                for entry in entries:
-                    dur = entry.get("duration") or 0
-                    if duration_filter.startswith("Short") and dur < SHORT_MAX_SEC:
-                        filtered.append(entry)
-                    elif (duration_filter.startswith("Medium")
-                          and SHORT_MAX_SEC <= dur <= LONG_MIN_SEC):
-                        filtered.append(entry)
-                    elif duration_filter.startswith("Long") and dur > LONG_MIN_SEC:
-                        filtered.append(entry)
-                entries = filtered
+                entries = [e for e in entries
+                           if _matches_duration(e.get("duration"), duration_filter)]
 
             # search_results is assigned in _display_search_results instead of
             # here, so it lands on the main thread in the same step as the tree
@@ -481,7 +488,7 @@ class SearchTabMixin:
         clear_treeview(self.search_tree)
 
         for i, entry in enumerate(entries, 1):
-            title = entry.get("title", "Unknown")
+            title = entry.get("title") or "Unknown"
             if _is_playlist(entry):
                 # The flat search gives a playlist no channel, duration or
                 # views, and "?" in all three read as a fault (SNAT-0077).
@@ -524,7 +531,8 @@ class SearchTabMixin:
         idx = int(sel[0]) - 1
         if idx < len(self.search_results):
             entry = self.search_results[idx]
-            title = entry.get("title", "")
+            # `or`: a null title raised TypeError on the slice below.
+            title = entry.get("title") or ""
             self.now_playing_var.set(f"Selected: {title[:50]}")
             self._fetch_upload_date(idx, entry)
 
@@ -538,7 +546,7 @@ class SearchTabMixin:
         if _is_playlist(entry) or entry.get("upload_date") or entry.get("_date_pending"):
             return
         url = entry.get("url") or entry.get("webpage_url") or ""
-        if not url.startswith("http"):
+        if not url.startswith(("http://", "https://")):
             return
         entry["_date_pending"] = True
         self.search_tree.set(str(idx + 1), "uploaded", "…")
@@ -585,8 +593,8 @@ class SearchTabMixin:
         idx = int(sel[0]) - 1
         if idx < len(self.search_results):
             entry = self.search_results[idx]
-            url = entry.get("url") or entry.get("webpage_url", "")
-            title = entry.get("title", "Unknown")
+            url = entry.get("url") or entry.get("webpage_url") or ""
+            title = entry.get("title") or "Unknown"
             if url and not url.startswith("http"):
                 url = f"https://www.youtube.com/watch?v={url}"
             return url, title
