@@ -75,6 +75,34 @@ def install_hint(tool):
     return hints["linux"]
 
 
+# Where systems keep their trusted certificates, as one file. All are
+# root-owned on the systems that use them.
+SYSTEM_CA_BUNDLES = (
+    "/etc/ssl/certs/ca-certificates.crt",  # Debian, Ubuntu, Arch
+    "/etc/pki/tls/certs/ca-bundle.crt",    # Fedora, RHEL
+    "/etc/ssl/ca-bundle.pem",              # openSUSE
+    "/etc/ssl/cert.pem",                   # macOS, Alpine
+)
+
+
+def use_system_ca_bundle():
+    """Point a frozen build's HTTPS at the certificates this system trusts.
+
+    The bundled OpenSSL looks where the build machine keeps them, so on any
+    other layout every HTTPS check fails closed: no thumbnail, no version
+    check (SNAT-0088). Windows reads its own store. A user's own
+    SSL_CERT_FILE or SSL_CERT_DIR is left alone.
+    """
+    if not is_frozen() or is_windows():
+        return
+    if os.environ.get("SSL_CERT_FILE") or os.environ.get("SSL_CERT_DIR"):
+        return
+    for bundle in SYSTEM_CA_BUNDLES:
+        if os.path.isfile(bundle):
+            os.environ["SSL_CERT_FILE"] = bundle
+            return
+
+
 def restore_child_library_path():
     """Stop the programs this app starts inheriting the bundle's libraries.
 

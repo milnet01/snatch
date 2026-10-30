@@ -1,6 +1,6 @@
 <!-- ants-roadmap-format: 1 -->
 <!-- Generated from the Ants Terminal roadmap store. Edit it with roadmap_log; hand edits are discarded by the next write. -->
-<!-- ants-roadmap-id-high-water: SNAT=87 -->
+<!-- ants-roadmap-id-high-water: SNAT=88 -->
 # Snatch — Roadmap
 
 A tkinter frontend for yt-dlp. This roadmap tracks packaging, distribution
@@ -3869,5 +3869,16 @@ and application work. IDs are allocated from `.roadmap-counter`.
   binary prints its version. CI cannot see this: it builds and tests on
   Ubuntu 22.04, whose libraries match the bundle's.
   **Layman:** On newer Linux systems the downloaded Snatch could not fetch or download anything, because its own libraries got in the way of the tool that does the work.
+  Kind: fix.
+  Source: in-session-2026-10-30.
+
+- 🚧 [SNAT-0088] **The AppImage cannot verify HTTPS on a distro that keeps certificates elsewhere.**
+  Seen 2026-10-30 on openSUSE Tumbleweed running a CI-built AppImage,
+  with SNATCH_LOG on: CERTIFICATE_VERIFY_FAILED on the thumbnail fetch and
+  the version check. The bundled OpenSSL looks where Ubuntu keeps them
+  (/usr/lib/ssl), absent here; this system's are at /etc/ssl/ca-bundle.pem.
+  It fails closed, so nothing insecure happened. yt-dlp is unaffected: it
+  runs under the system's python3.
+  **Layman:** On some Linux systems Snatch showed no thumbnails and "No connection" on the update button, because it looked for security certificates in the wrong folder.
   Kind: fix.
   Source: in-session-2026-10-30.

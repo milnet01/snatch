@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   AppImage could not run its download tool, so fetching and downloading
   failed. Snatch's own libraries were leaking into the programs it starts.
 
+- **Thumbnails and the update check work on more Linux systems** (SNAT-0088)
+  Where a system keeps its security certificates somewhere other than
+  Ubuntu's folder, Snatch showed no thumbnail and "No connection" on the
+  update button. It now finds them.
+
 ## [1.3.0] - 2026-10-30
 
 **Theme:** Security fix, faster start and queued downloads at the same time.

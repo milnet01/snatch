@@ -37,3 +37,42 @@ def test_running_from_source_is_left_alone(monkeypatch):
     monkeypatch.setenv("LD_LIBRARY_PATH_ORIG", "/something/else")
     platform_utils.restore_child_library_path()
     assert os.environ["LD_LIBRARY_PATH"] == "/developers/own/lib"
+
+
+def _bundles(monkeypatch, tmp_path, present):
+    paths = [str(tmp_path / name) for name in ("first.crt", "second.crt")]
+    for index in present:
+        open(paths[index], "w").close()
+    monkeypatch.setattr(platform_utils, "SYSTEM_CA_BUNDLES", tuple(paths))
+    monkeypatch.delenv("SSL_CERT_FILE", raising=False)
+    monkeypatch.delenv("SSL_CERT_DIR", raising=False)
+    return paths
+
+
+def test_the_first_system_bundle_found_is_used(monkeypatch, tmp_path):
+    _frozen(monkeypatch)
+    paths = _bundles(monkeypatch, tmp_path, [1])
+    platform_utils.use_system_ca_bundle()
+    assert os.environ["SSL_CERT_FILE"] == paths[1]
+
+
+def test_the_users_own_certificate_setting_wins(monkeypatch, tmp_path):
+    _frozen(monkeypatch)
+    _bundles(monkeypatch, tmp_path, [0])
+    monkeypatch.setenv("SSL_CERT_DIR", "/users/own/certs")
+    platform_utils.use_system_ca_bundle()
+    assert "SSL_CERT_FILE" not in os.environ
+
+
+def test_no_bundle_found_changes_nothing(monkeypatch, tmp_path):
+    _frozen(monkeypatch)
+    _bundles(monkeypatch, tmp_path, [])
+    platform_utils.use_system_ca_bundle()
+    assert "SSL_CERT_FILE" not in os.environ
+
+
+def test_certificates_from_source_are_left_alone(monkeypatch, tmp_path):
+    _frozen(monkeypatch, frozen=False)
+    _bundles(monkeypatch, tmp_path, [0])
+    platform_utils.use_system_ca_bundle()
+    assert "SSL_CERT_FILE" not in os.environ
