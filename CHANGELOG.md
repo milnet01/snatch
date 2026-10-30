@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **A disclaimer along the bottom of the window** (SNAT-0084)
+  It asks you to download only videos you have the right to, and says
+  Snatch is not affiliated with YouTube, Google or yt-dlp. The README
+  says the same.
+
+- **Ctrl+A selects all the text in any box** (Cmd+A on a Mac)
+  On Linux it used to jump to the start of the line instead.
+
+### Fixed
+
+- **Playlists and searches with untitled videos no longer crash**
+  A video with no title stopped the playlist from queueing, or the
+  search result from being selected, and showed "None" in the list.
+
+- **Only real web links from a playlist are queued**
+  The "Added N videos" message now counts only the videos actually
+  added.
+
+- **Switching videos quickly no longer leaves stray player updates**
+  Starting another video within a second of the first kept two update
+  loops going for the rest of the session.
+
+- **The player clock reads 0:00 at the start, not "?"**
+
+- **A history entry that failed to save no longer appears in History**
+
 ## [1.2.0] - 2026-10-08
 
 **Theme:** Search by upload date.

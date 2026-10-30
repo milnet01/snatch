@@ -21,9 +21,22 @@ from .logging_setup import describe_log, get_logger
 
 log = get_logger(__name__)
 
+# Shown along the bottom of the window. The README carries the same text,
+# and so do the project website and trailers, so change all of them together.
+DISCLAIMER = (
+    "Only download videos you have the right to download. Respect copyright "
+    "and each site's terms of service. Snatch is not affiliated with or "
+    "endorsed by YouTube, Google, any other site it works with, or the "
+    "yt-dlp project it is built on."
+)
+
 
 class SnatchApp(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
                HistoryTabMixin, PlayerMixin, VersionMixin, DownloaderMixin):
+
+    # The narrowest the window gets (minsize) less main_frame's padding, so
+    # the disclaimer wraps instead of being cut off.
+    DISCLAIMER_WRAP_PX = 960
 
     def __init__(self, root):
         self.root = root
@@ -266,6 +279,12 @@ class SnatchApp(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
                                       command=self.update_ytdlp, style="Small.TButton",
                                       state=tk.DISABLED)
         self.update_btn.pack(side=tk.LEFT)
+
+        # Packed before the notebook so the notebook's expand cannot push it
+        # off the bottom of a short window.
+        ttk.Label(self.main_frame, text=DISCLAIMER, style="Version.TLabel",
+                  wraplength=self.DISCLAIMER_WRAP_PX,
+                  justify=tk.CENTER).pack(side=tk.BOTTOM, pady=(10, 0))
 
         # Notebook (tabs)
         self.notebook = ttk.Notebook(self.main_frame)

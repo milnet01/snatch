@@ -1,6 +1,6 @@
 <!-- ants-roadmap-format: 1 -->
 <!-- Generated from the Ants Terminal roadmap store. Edit it with roadmap_log; hand edits are discarded by the next write. -->
-<!-- ants-roadmap-id-high-water: SNAT=83 -->
+<!-- ants-roadmap-id-high-water: SNAT=84 -->
 # Snatch — Roadmap
 
 A tkinter frontend for yt-dlp. This roadmap tracks packaging, distribution
@@ -788,6 +788,11 @@ and application work. IDs are allocated from `.roadmap-counter`.
   on it. Verified 2026-10-15: one run from no image (384 s, image built
   in 6 s) and two warm runs (274 s, 286 s), all green. Remove the
   derived image once the installed podman carries the fix.
+  2026-10-30: the workaround is still needed. On podman 6.1.2 (server 6.1.2,
+  service started 2026-10-30), act on the stock catthehacker/ubuntu:act-22.04
+  still fails at "Set up Python 3.12" with "statat var/run/act: path escapes
+  from parent". A plain `podman cp` across the link works; act's copy through
+  the Docker-compatible API does not.
   **Layman:** The pre-push check broke after a system update; it now uses a tiny local tweak of the build box so it works again.
   Kind: fix.
   Source: in-session-2026-10-15.
@@ -3725,3 +3730,14 @@ and application work. IDs are allocated from `.roadmap-counter`.
   **Layman:** When a search returns a playlist, three of its columns just show question marks.
   Kind: ux.
   Source: in-session-2026-09-25.
+
+- ✅ [SNAT-0084] **Show a copyright and not-affiliated disclaimer in the app and README.**
+  The text is `DISCLAIMER` in `snatch/app.py`, shown along the bottom
+  of the main window, and the README's Disclaimer section. It matches
+  the wording the project website and trailers use, so change all of
+  them together.
+  On release: message the ants-projects-hub-website mailbox with the
+  version that ships this. The wording was used unchanged.
+  **Layman:** Snatch now reminds you to download only what you have the right to, and says it is not tied to YouTube, Google or yt-dlp.
+  Kind: feature.
+  Source: user-request-2026-10-16 (relayed by ants-projects-hub-website).

@@ -207,6 +207,13 @@ architecture, theme system, security rules and coding conventions,
 
 ---
 
+## Disclaimer
+
+Only download videos you have the right to download. Respect copyright and
+each site's terms of service. Snatch is not affiliated with or endorsed by
+YouTube, Google, any other site it works with, or the yt-dlp project it is
+built on.
+
 ## Licence
 
 See [LICENSE](LICENSE). Snatch bundles [yt-dlp](https://github.com/yt-dlp/yt-dlp)
