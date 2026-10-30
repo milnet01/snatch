@@ -5,8 +5,8 @@ Invoked by scripts/build-linux.sh, build-windows.sh and build-macos.sh, each of
 which runs scripts/fetch-binaries.sh first to download yt-dlp, ffmpeg and ffprobe
 into the ./bin/ directory of the build checkout. .github/workflows/ci.yml calls
 those scripts; it does not invoke this spec directly. One spec serves all
-three platforms; the differences are the binary file extensions and the macOS
-.app bundle at the bottom.
+three platforms; the differences are the binary file extensions, one file on
+Windows against a directory elsewhere, and the macOS .app bundle at the bottom.
 
 Where user data lives is NOT decided here — platform_utils.app_data_dir()
 owns that, and it differs per platform (next to the .exe on Windows,
@@ -93,24 +93,44 @@ a = Analysis(
 
 pyz = PYZ(a.pure, a.zipped_data)
 
-exe = EXE(
-    pyz,
-    a.scripts,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
-    [],
+# One file on Windows, a directory elsewhere (SNAT-0026). A one-file build
+# unpacks its whole archive to a temp directory on every launch. That buys a
+# single portable snatch.exe on Windows, which is the point there. An
+# AppImage and a macOS .app are already single packages that run in place,
+# so one-file inside them only adds that unpack to every start.
+ONE_FILE = IS_WINDOWS
+
+EXE_OPTIONS = dict(
     name=APP_NAME,
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,           # UPX often trips Windows Defender; not worth it.
-    runtime_tmpdir=None,
     console=False,        # No console window — pure GUI.
     disable_windowed_traceback=False,
     icon=ICON_PNG,
-    version=None,         # Could embed a Windows version-info resource later.
 )
+
+if ONE_FILE:
+    exe = EXE(
+        pyz,
+        a.scripts,
+        a.binaries,
+        a.zipfiles,
+        a.datas,
+        [],
+        runtime_tmpdir=None,
+        version=None,     # Could embed a Windows version-info resource later.
+        **EXE_OPTIONS,
+    )
+    app_target = exe
+else:
+    # dist/snatch/: the launcher, with everything else under _internal/.
+    exe = EXE(pyz, a.scripts, [], exclude_binaries=True, **EXE_OPTIONS)
+    app_target = COLLECT(
+        exe, a.binaries, a.zipfiles, a.datas,
+        strip=False, upx=False, name=APP_NAME,
+    )
 
 # ── macOS .app bundle ─────────────────────────────────────────────────
 # Only meaningful on darwin; the workflow wraps this in a .dmg. The bundle is
@@ -118,7 +138,7 @@ exe = EXE(
 # README documents the right-click → Open workaround.
 if IS_MACOS:
     app = BUNDLE(
-        exe,
+        app_target,
         name="Snatch.app",
         icon=ICON_PNG,
         bundle_identifier="io.github.milnet01.snatch",

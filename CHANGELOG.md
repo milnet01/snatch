@@ -17,6 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **Ctrl+A selects all the text in any box** (Cmd+A on a Mac)
   On Linux it used to jump to the start of the line instead.
 
+### Changed
+
+- **Snatch starts about a second sooner on Linux** (SNAT-0026)
+  It used to unpack itself to a temporary folder on every launch. It
+  now runs in place, and the download is a little smaller. The Mac app
+  gets the same change. The Windows .exe is unchanged, so it stays a
+  single portable file.
+
 ### Fixed
 
 - **Playlists and searches with untitled videos no longer crash**

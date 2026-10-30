@@ -91,8 +91,8 @@ def app_data_dir():
     on upgrade and on a read-only /Applications mount.
 
     Frozen Linux AppImage: $XDG_DATA_HOME/snatch (default ~/.local/share/snatch).
-    sys.executable points at PyInstaller's temp extraction dir, which is deleted
-    on exit, so it can never hold user data.
+    sys.executable points inside the AppImage's read-only mount, which is
+    gone on exit, so it can never hold user data.
 
     Dev mode: the project root (same as the previous script_dir behaviour).
     """
@@ -140,9 +140,9 @@ def user_bin_dir():
     """Writable directory for binaries the app has fetched for itself.
 
     Sits inside app_data_dir(), so it survives an upgrade. The bundled copy
-    lives in PyInstaller's extraction directory, which is read-only and
-    deleted on exit -- that is precisely why a packaged build could not
-    update its own yt-dlp before (SNAT-0016).
+    lives inside the packaged app, which is read-only and replaced on
+    upgrade -- that is precisely why a packaged build could not update its
+    own yt-dlp before (SNAT-0016).
 
     Windows falls back to %LOCALAPPDATA%\\Snatch\\bin when the directory
     holding the .exe cannot be written to. app_data_dir() deliberately puts
@@ -160,7 +160,7 @@ def user_bin_dir():
     find_ytdlp()'s own docstring, docs/building.md and the dialog shown to
     the user ("The copy that came with Snatch is kept, so you can go back to
     it at any time") all false on that path. Frozen builds are unaffected:
-    there the bundled copy lives in PyInstaller's extraction directory and
+    there the bundled copy lives inside the packaged app and
     never shared this one.
 
     Cached -- find_ytdlp() runs on every subprocess call and the Windows
@@ -180,7 +180,9 @@ def user_bin_dir():
 def resource_path(*parts):
     """Locate a bundled read-only resource (icon, binary, data file).
 
-    Frozen: sys._MEIPASS is PyInstaller's runtime extraction dir.
+    Frozen: sys._MEIPASS is the bundle's resource dir -- the temp extraction
+    dir of the one-file Windows .exe, a directory inside the Linux and macOS
+    bundles.
     Dev: project root.
     """
     if is_frozen():

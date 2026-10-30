@@ -71,15 +71,17 @@ scripts/fetch-binaries.sh
 echo "=== 2/5 smoke-test platform_utils ==="
 python3 scripts/verify_platform_utils.py --require-bundled
 
-echo "=== 3/5 PyInstaller one-file build ==="
+# A directory build, not one file (SNAT-0026): the AppImage already runs in
+# place, so a one-file archive inside it would only be unpacked again on
+# every launch.
+echo "=== 3/5 PyInstaller directory build ==="
 rm -rf build dist AppDir
 pyinstaller pyinstaller.spec --clean --noconfirm
-[ -f dist/snatch ] || { echo "dist/snatch not produced" >&2; exit 1; }
+[ -x dist/snatch/snatch ] || { echo "dist/snatch/snatch not produced" >&2; exit 1; }
 
 echo "=== 4/5 assemble AppDir ==="
-mkdir -p AppDir/usr/bin AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
-cp dist/snatch AppDir/usr/bin/snatch
-chmod +x AppDir/usr/bin/snatch
+mkdir -p AppDir/usr/lib AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
+cp -a dist/snatch AppDir/usr/lib/snatch
 cp icon.png AppDir/snatch.png
 cp icon.png AppDir/usr/share/icons/hicolor/256x256/apps/snatch.png
 
@@ -101,7 +103,7 @@ cp AppDir/snatch.desktop AppDir/usr/share/applications/snatch.desktop
 cat > AppDir/AppRun <<'APPRUN'
 #!/bin/sh
 HERE="$(dirname "$(readlink -f "$0")")"
-exec "$HERE/usr/bin/snatch" "$@"
+exec "$HERE/usr/lib/snatch/snatch" "$@"
 APPRUN
 chmod +x AppDir/AppRun
 

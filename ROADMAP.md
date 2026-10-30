@@ -256,7 +256,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: in-session-2026-08-20.
   Lanes: packaging, macos.
 
-- 📋 [SNAT-0026] **Every launch unpacks ~100 MB to a temp directory before anything appears.**
+- ✅ [SNAT-0026] **Every launch unpacks ~100 MB to a temp directory before anything appears.**
   Measured 2026-08-20 on this machine (NVMe, warm page cache), on the
   v1.0.1 AppImage, three runs: 0.97s, 0.97s, 0.96s from exec to the point
   Python gives up on the display. That is unpack plus import, BEFORE any
@@ -288,6 +288,15 @@ and application work. IDs are allocated from `.roadmap-counter`.
 
   Pairs with SNAT-0027: less to unpack is the other half of this, and the
   two multiply.
+  Shipped (2026-10-30): pyinstaller.spec builds one file on Windows
+  only; Linux and macOS get a directory build, and build-linux.sh puts
+  it at AppDir/usr/lib/snatch. Measured on this machine, both AppImages
+  built by the same host toolchain, six alternating no-display launches
+  each at load average about 9: one-file median 1.159 s (1.115-1.389),
+  directory median 0.165 s (0.146-0.174). Both exit at the same Tk
+  "no display" error, so both timings cover the same work. Refute by
+  re-running that loop. AppImage 98 MB to 92 MB. macOS was not
+  measured; its CI self-test is the evidence it still runs.
   **Layman:** Snatch takes about a second to start because it unpacks itself from scratch every single time you open it.
   Kind: perf.
   Source: in-session-2026-08-20.

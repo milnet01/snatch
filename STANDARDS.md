@@ -650,7 +650,7 @@ Running from source it is the project root. In a packaged build it is not:
 |-------|-----------|-----|
 | Windows `.exe` | Alongside the executable | Keeps the app portable. |
 | macOS `.app` | `~/Library/Application Support/Snatch` | Writing inside the bundle breaks on upgrade and on a read-only mount. |
-| Linux AppImage | `$XDG_DATA_HOME/snatch` | `sys.executable` is a temp dir that is deleted on exit. |
+| Linux AppImage | `$XDG_DATA_HOME/snatch` | `sys.executable` is inside the AppImage's read-only mount, which is gone on exit. |
 
 **Never treat the containing directory as private.** `_ensure_dir` passes
 `mode=0o700` to `os.makedirs`, which applies only when the directory is
