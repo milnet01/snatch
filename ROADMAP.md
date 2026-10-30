@@ -752,7 +752,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: investigate.
   Source: in-session-2026-09-25.
 
-- 📋 [SNAT-0079] **The full local gate takes about 15 minutes, mostly a cold build-linux container.**
+- ✅ [SNAT-0079] **The full local gate takes about 15 minutes, mostly a cold build-linux container.**
   Measured 2026-10-07: scripts/local-ci.sh in full took 877 s on the
   push of 5102a64; --lint takes 2 s. act starts build-linux cold every
   run (apt installs, pip installs, PyInstaller), and the machine is short
@@ -779,6 +779,13 @@ and application work. IDs are allocated from `.roadmap-counter`.
   warm: AppImage build 40-70 s, apt installs 24-52 s, tests 16-24 s,
   container set-up and tear-down about 20 s per job. The warm-containers
   row is the next lever to weigh against those.
+  Closed (2026-10-30): one full run took 189 s at load average 5-9,
+  against 877 s when filed. The one-act-call lever and SNAT-0026 (no
+  one-file archive to compress) account for it. Slowest steps that run:
+  apt 36 s, AppImage 21 s, tests 19 s, pip-audit 14 s. The warm-containers
+  row is not taken: it could save only part of the apt step, and its six
+  conditions are six ways for a local green to stop meaning anything.
+  Refute by timing scripts/local-ci.sh; one run, not several.
   **Layman:** Every push that changes code waits a quarter of an hour for checks; most of that is setting up the same build box from scratch each time.
   Kind: perf.
   Source: claude-config-request-2026-09-28 local-gate.md § 9.
