@@ -5,7 +5,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
 from ..theme import get_theme
-from ..widgets import ToggleSwitch, attach_context_menu
+from ..widgets import ScrollableFrame, ToggleSwitch, attach_context_menu
 from ..utils import zenity_file_dialog
 from ..platform_utils import open_path
 from ..logging_setup import get_logger
@@ -18,9 +18,26 @@ class DownloadTabMixin:
     Expects the host class to provide all relevant state variables and methods.
     """
 
+    # What the format or playlist list keeps before the tab starts to scroll:
+    # enough for its filter or button row and a few rows of results.
+    LIST_MIN_HEIGHT_PX = 170
+
+    def _download_tab_min_height(self, content):
+        """The tab's fixed rows, measured so fonts on any platform count, plus a usable list."""
+        lists = self.format_tree.master.winfo_reqheight()
+        if self.playlist_frame.winfo_manager():
+            lists += self.playlist_frame.winfo_reqheight()
+        return content.winfo_reqheight() - lists + self.LIST_MIN_HEIGHT_PX
+
     def _create_download_tab(self, parent):
         """Build the download tab contents — wide two-column layout"""
         theme = get_theme()
+
+        # The tab's rows do not fit the smallest window (SNAT-0086).
+        scroller = ScrollableFrame(
+            parent, min_height=lambda: self._download_tab_min_height(scroller.content))
+        scroller.pack(fill=tk.BOTH, expand=True)
+        parent = scroller.content
 
         # ── Row 1: URL bar (full width) ──────────────────────────────
         url_frame = ttk.LabelFrame(parent, text="Video URL", padding="12")

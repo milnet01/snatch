@@ -36,8 +36,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   At the default window size the bottom of the Download tab was clipped,
   and in a shorter window the queue, progress bar and buttons were
   hidden. Those now always show, and the format or playlist list shrinks
-  instead. At the very smallest window size the list has no room left,
-  so make the window taller to choose a format.
+  instead. If the window is too short even for that, the tab gets a
+  scrollbar, and the mouse wheel scrolls it (SNAT-0086).
 
 - **Playlists and searches with untitled videos no longer crash**
   A video with no title stopped the playlist from queueing, or the

@@ -2,6 +2,7 @@
 
 import sys
 import tkinter as tk
+from tkinter import ttk
 
 from .theme import get_theme
 
@@ -66,6 +67,65 @@ def attach_context_menu(widget, editable=True):
 
     widget.bind("<Button-2>" if sys.platform == "darwin" else "<Button-3>", _popup)
     return menu
+
+
+class ScrollableFrame(ttk.Frame):
+    """A frame whose `content` scrolls once the window is too short for it.
+
+    `min_height` is a callable giving the least height the content can use.
+    Given more, the content fills the space, so its expanding rows grow as
+    they would in a plain frame. Given less, the content keeps that height
+    and a scrollbar appears. Only height decides, so showing the scrollbar,
+    which narrows the canvas, cannot flip the decision back.
+    """
+
+    # Widgets that do something of their own with the wheel. A Combobox
+    # changes its value, so scrolling the page across one would too.
+    WHEEL_OWNERS = (ttk.Treeview, tk.Text, ttk.Combobox)
+
+    def __init__(self, parent, min_height):
+        super().__init__(parent)
+        self._min_height = min_height
+        self._canvas = tk.Canvas(self, background=get_theme().BG,
+                                 highlightthickness=0, borderwidth=0)
+        self._scrollbar = ttk.Scrollbar(self, orient=tk.VERTICAL,
+                                        command=self._canvas.yview)
+        self._canvas.configure(yscrollcommand=self._scrollbar.set)
+        self._canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        self.content = ttk.Frame(self._canvas)
+        self._window = self._canvas.create_window(0, 0, anchor=tk.NW,
+                                                  window=self.content)
+        self._canvas.bind("<Configure>", self._layout)
+        self.content.bind("<Configure>", self._layout)
+        # bind_all, because a wheel event goes to the widget under the
+        # pointer and does not travel up to its parents. A theme switch
+        # rebuilds this frame, and the new binding replaces the old one.
+        for sequence in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
+            self.bind_all(sequence, self._on_wheel)
+
+    def _layout(self, _event=None):
+        available = self._canvas.winfo_height()
+        height = max(available, self._min_height())
+        width = self._canvas.winfo_width()
+        self._canvas.itemconfigure(self._window, width=width, height=height)
+        self._canvas.configure(scrollregion=(0, 0, width, height))
+        if height > available:
+            self._scrollbar.pack(side=tk.RIGHT, fill=tk.Y, before=self._canvas)
+        else:
+            self._scrollbar.pack_forget()
+            self._canvas.yview_moveto(0)
+
+    def _on_wheel(self, event):
+        widget = event.widget
+        if (not self._scrollbar.winfo_ismapped()
+                or not str(widget).startswith(str(self))
+                or isinstance(widget, self.WHEEL_OWNERS)):
+            return
+        # X11 reports the wheel as buttons 4 and 5; Windows and macOS as a
+        # signed delta on <MouseWheel>.
+        upward = event.num == 4 or getattr(event, "delta", 0) > 0
+        self._canvas.yview_scroll(-1 if upward else 1, "units")
 
 
 class ToggleSwitch(tk.Canvas):

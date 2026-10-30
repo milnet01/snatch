@@ -19,7 +19,7 @@ snatch/
 ├── __main__.py                # CLI entry point, creates root Tk window
 ├── app.py                     # SnatchApp class — composes all mixins
 ├── theme.py                   # Theme definitions + style setup
-├── widgets.py                 # Custom widgets (ToggleSwitch)
+├── widgets.py                 # Custom widgets (ToggleSwitch, ScrollableFrame)
 ├── utils.py                   # Shared utilities (formatting, dialogs, treeview)
 ├── cookies.py                 # Browser cookie extraction (Firefox SQLite)
 ├── player.py                  # PlayerMixin — embedded mpv via IPC

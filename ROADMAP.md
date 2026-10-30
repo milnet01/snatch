@@ -302,7 +302,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: in-session-2026-08-20.
   Lanes: packaging, performance.
 
-- 📋 [SNAT-0027] **ffmpeg and ffprobe are 153 MB of near-duplicate binary.**
+- 🚫 [SNAT-0027] **ffmpeg and ffprobe are 153 MB of near-duplicate binary.**
   Measured in bin/ on 2026-08-20: ffmpeg 77 MB, ffprobe 76 MB, yt-dlp
   3.0 MB, qjs 2.5 MB. So 153 MB of a ~158 MB payload is those two, and
   they come from the same static build (eugeneware/ffmpeg-static b6.1.1)
@@ -340,6 +340,10 @@ and application work. IDs are allocated from `.roadmap-counter`.
   moves where three platforms' binaries come from and their pinned
   digests (ADR-0001). That choice is the user's; waiting on it.
   Separately, SNAT-0026 already cut the launch cost these files caused.
+  Dropped (2026-10-30): the user chose to accept the size rather than
+  move three platforms' binaries to another publisher. ffprobe stays,
+  for the reason above. SNAT-0026 removed the launch cost on Linux and
+  macOS; the Windows one-file build still pays it.
   **Layman:** Two of the bundled tools are almost the same program shipped twice, and together they are most of the download.
   Kind: perf.
   Source: in-session-2026-08-20.
@@ -3807,7 +3811,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: fix.
   Source: in-session-2026-10-30.
 
-- 📋 [SNAT-0086] **At the minimum window height the format and playlist lists have no room.**
+- ✅ [SNAT-0086] **At the minimum window height the format and playlist lists have no room.**
   Measured 2026-10-30 on a private display: the Download tab's window
   needs 1009 px tall for everything at full size, and about 707 px of that
   is rows that cannot shrink. The window minimum is 750 px, which leaves
@@ -3822,6 +3826,16 @@ and application work. IDs are allocated from `.roadmap-counter`.
   - compact the fixed rows (preview, queue); keeps one screen, changes
     how the tab looks.
   Only the Download tab was measured.
+  Shipped (2026-10-30): the user chose scrolling. ScrollableFrame
+  (widgets.py) holds the Download tab. Lists shrink to about 170 px of
+  frame first; below that a scrollbar appears, measured from the rows so
+  fonts on any platform count. Driven on a private display on Linux: at
+  1000x750 a scrollbar shows and the bottom row is reachable; at 1200x900
+  and 1200x1200 none shows; the wheel scrolls the page, not over a list;
+  all of it holds with a playlist and after a theme switch.
+  Not checked: the wheel on Windows and macOS (delta code unexercised),
+  and Tab-key focus does not scroll a hidden control into view. No
+  automated test; CI's suite drives no GUI.
   **Layman:** In the smallest window Snatch allows, you cannot see the list of formats or playlist videos until you make the window taller.
   Kind: fix.
   Source: split-from-SNAT-0085-2026-10-30.
