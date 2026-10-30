@@ -1,0 +1,19 @@
+# Dependabot version updates (SNAT-0037).
+#
+# GitHub Actions only. Every `uses:` is pinned to a commit SHA (SNAT-0070),
+# and a pin nobody moves goes stale; Dependabot moves the SHA and its
+# version comment together.
+#
+# Python packages are deliberately absent. The requirement files are
+# hash-locked by scripts/lock-requirements.sh, and a Dependabot edit would
+# bypass it. They are watched by the pip-audit step in ci.yml and by the
+# repository's Dependabot alerts instead.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    # A release a few days old has had time to be pulled if it was bad.
+    cooldown:
+      default-days: 7

@@ -35,6 +35,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - **A history entry that failed to save no longer appears in History**
 
+### Security
+
+- **Updated the bundled image library to close new advisories** (SNAT-0037)
+  The Pillow version in 1.2.0 has published security advisories against
+  it, all fixed in the version now bundled. Pillow is what opens the
+  picture previews Snatch fetches.
+
+- **Every build now checks for known advisories** (SNAT-0037)
+  A build fails if any package Snatch ships or builds with has a
+  published security advisory. Before, nothing would have noticed.
+
 ## [1.2.0] - 2026-10-08
 
 **Theme:** Search by upload date.

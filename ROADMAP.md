@@ -1710,7 +1710,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: in-session-2026-08-20.
   Lanes: security, packaging, supply-chain.
 
-- 📋 [SNAT-0037] **Nothing watches for vulnerabilities in what Snatch ships.**
+- ✅ [SNAT-0037] **Nothing watches for vulnerabilities in what Snatch ships.**
   Two gaps in one item, because they are the same gap from opposite
   directions: nothing tells us about a vulnerability, and nobody can tell
   us either.
@@ -1760,6 +1760,18 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Related and filed since: SNAT-0066 covers the PyPI installs being pinned
   by version and not by hash, which is the same surface from the other
   direction.
+  Shipped (2026-10-30): the monitoring half. static-checks runs
+  pip-audit over requirements-build.txt and requirements-ci.txt, so a
+  published advisory fails the build. Dependabot alerts are enabled on
+  the repository (they were off), covering weeks with no push.
+  .github/dependabot.yml keeps the SHA-pinned actions current; Python
+  packages are left out of it because a Dependabot edit would bypass
+  scripts/lock-requirements.sh.
+
+  Its first run proved the point: Pillow 12.3.0, shipped in 1.2.0, had
+  new published advisories, all fixed in 13.0.0. Pillow moved to
+  13.0.0, and setuptools (build only) moved with the relock. The audit
+  runs on Linux, so macholib and pefile are not covered.
   **Layman:** We have no early warning when a part we ship turns out to be unsafe.
   Kind: security.
   Source: in-session-2026-08-20.

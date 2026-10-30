@@ -52,9 +52,11 @@ than implied away here.
 **A vulnerable or compromised package Snatch ships.** Pillow and tkinterdnd2
 are bundled into every release and run inside the app's process, and Pillow is
 what decodes remote image bytes. Which half of that is ours is settled in the
-bundled-dependency bullet under § Out of scope and not repeated here. Nothing
-currently watches for such an advisory: SNAT-0037 is that gap, open because a
-real one was missed once already.
+bundled-dependency bullet under § Out of scope and not repeated here. Two
+things watch for such an advisory (SNAT-0037). CI runs `pip-audit` over the
+hash-locked requirement files, and a published advisory fails the build.
+GitHub's Dependabot alerts cover the weeks with no push. The audit runs on
+Linux, so it skips the build packages only macOS or Windows install.
 
 **The content Snatch is asked to handle.** yt-dlp parses the page and the
 media file; Snatch handles the URL the user pasted, the JSON and progress
