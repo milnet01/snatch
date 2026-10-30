@@ -23,7 +23,7 @@ set -euo pipefail
 # and is run before building a release: the app offers the user an update
 # only when the latest is newer than the copy in use, so a release that
 # bundles anything older asks the user to download on first launch.
-YTDLP_VERSION="${YTDLP_VERSION:-2026.09.16.232951}"
+YTDLP_VERSION="${YTDLP_VERSION:-2026.10.29.232701}"
 YTDLP_REPO="${YTDLP_REPO:-yt-dlp/yt-dlp-nightly-builds}"
 # One source for all three platforms, so there is one pin to bump.
 FFMPEG_STATIC_TAG="${FFMPEG_STATIC_TAG:-b6.1.1}"
@@ -73,9 +73,9 @@ MPV_MIRROR_REPO="${MPV_MIRROR_REPO:-milnet01/snatch}"
 digest_for() {
     case "$1" in
         # yt-dlp ${YTDLP_VERSION}
-        yt-dlp)                 echo f8ca14db511702a5dbfc5a527056312907ddd0914d0b4036f108d6849e17ef61 ;;
-        yt-dlp_macos)           echo d04fa823ed825673880ab544e74f50844c4cf1625b01b8195d6d815da96370ce ;;
-        yt-dlp.exe)             echo 9c900a6b5d13933b1d31a3a039139a9fa020c7fb0d8edaa049054a802641533d ;;
+        yt-dlp)                 echo 966308057aa5f79ed09fead7609e46c8cf8fd89b23aeb2ef96989c6695a14724 ;;
+        yt-dlp_macos)           echo 85a829ac48b6c4fd9b7fa6638ccd2cc235878d582177e6ce103af21d540353d6 ;;
+        yt-dlp.exe)             echo 738eb6db13e9f7887924c6857306999ff674ee4fa74cb38879ed8dacc1c137b6 ;;
         # ffmpeg-static ${FFMPEG_STATIC_TAG}
         ffmpeg-linux-x64)       echo e7e7fb30477f717e6f55f9180a70386c62677ef8a4d4d1a5d948f4098aa3eb99 ;;
         ffprobe-linux-x64)      echo 4f231a1960d83e403d08f7971e271707bec278a9ae18e21b8b5b03186668450d ;;

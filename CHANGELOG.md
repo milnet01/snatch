@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-10-30
+
+**Theme:** Linux fixes for newer systems.
+
+### Changed
+
+- **Bundled yt-dlp updated to 2026.10.29.232701**
+  A new download no longer asks to update it on first launch.
+
 ### Fixed
 
 - **The Linux download works again on newer systems** (SNAT-0087)

@@ -3859,7 +3859,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: fix.
   Source: split-from-SNAT-0085-2026-10-30.
 
-- 🚧 [SNAT-0087] **The Linux AppImage cannot run yt-dlp on a distro with a newer OpenSSL.**
+- ✅ [SNAT-0087] **The Linux AppImage cannot run yt-dlp on a distro with a newer OpenSSL.**
   Seen 2026-10-30 on openSUSE Tumbleweed (Python 3.13) running the
   published v1.3.0 and v1.2.0 AppImages: --selftest fails with "bundled
   yt-dlp did not run". PyInstaller's bootloader points LD_LIBRARY_PATH at
@@ -3868,17 +3868,24 @@ and application work. IDs are allocated from `.roadmap-counter`.
   "version OPENSSL_3.3.0 not found". With that variable unset the same
   binary prints its version. CI cannot see this: it builds and tests on
   Ubuntu 22.04, whose libraries match the bundle's.
+  Shipped (2026-10-30): restore_child_library_path() at the top of
+  main(). A CI-built AppImage run on Tumbleweed: --selftest passes, and
+  a real fetch through the packaged app found 47 formats.
   **Layman:** On newer Linux systems the downloaded Snatch could not fetch or download anything, because its own libraries got in the way of the tool that does the work.
   Kind: fix.
   Source: in-session-2026-10-30.
 
-- 🚧 [SNAT-0088] **The AppImage cannot verify HTTPS on a distro that keeps certificates elsewhere.**
+- ✅ [SNAT-0088] **The AppImage cannot verify HTTPS on a distro that keeps certificates elsewhere.**
   Seen 2026-10-30 on openSUSE Tumbleweed running a CI-built AppImage,
   with SNATCH_LOG on: CERTIFICATE_VERIFY_FAILED on the thumbnail fetch and
   the version check. The bundled OpenSSL looks where Ubuntu keeps them
   (/usr/lib/ssl), absent here; this system's are at /etc/ssl/ca-bundle.pem.
   It fails closed, so nothing insecure happened. yt-dlp is unaffected: it
   runs under the system's python3.
+  Shipped (2026-10-30): use_system_ca_bundle() at the top of main(). A
+  CI-built AppImage run on Tumbleweed: no CERTIFICATE_VERIFY_FAILED in
+  the log, and the update check found the latest nightly. macOS's path
+  not exercised.
   **Layman:** On some Linux systems Snatch showed no thumbnails and "No connection" on the update button, because it looked for security certificates in the wrong folder.
   Kind: fix.
   Source: in-session-2026-10-30.
