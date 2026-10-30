@@ -431,7 +431,7 @@ Each entry:
 | Deno, Node.js, QuickJS or Bun | YouTube JS challenge solving | bundled copy **and** every one on PATH — all enabled, yt-dlp chooses |
 | ffmpeg/ffprobe | Media merging + analysis | Subprocess call |
 | mpv | Embedded video player | `platform_utils.find_mpv()` — prefers the bundled copy. **Not `HAS_MPV`**, which nothing reads |
-| Pillow (PIL) | Thumbnail display | `import PIL` → `HAS_PIL` |
+| Pillow (PIL) | Thumbnail display | `find_spec("PIL")` → `HAS_PIL`; imported on the first thumbnail, not at startup |
 
 ### 8.3 Optional Enhancements
 

@@ -8,6 +8,7 @@ import subprocess
 import threading
 import time
 import tkinter as tk
+from importlib.util import find_spec
 from tkinter import messagebox
 from io import BytesIO
 
@@ -20,11 +21,10 @@ from .version import _open_https
 
 log = get_logger(__name__)
 
-try:
-    from PIL import Image, ImageTk
-    HAS_PIL = True
-except ImportError:
-    HAS_PIL = False
+# Whether Pillow is installed, found without importing it. Pillow was most of
+# the app's import time, and only a thumbnail needs it, so it is imported
+# where a thumbnail is decoded (SNAT-0029).
+HAS_PIL = find_spec("PIL") is not None
 
 
 class DownloaderMixin:
@@ -420,6 +420,7 @@ class DownloaderMixin:
                     if len(img_data) > self.MAX_THUMBNAIL_BYTES:
                         raise ValueError(
                             f"thumbnail exceeds {self.MAX_THUMBNAIL_BYTES} bytes")
+                    from PIL import Image
                     img = Image.open(BytesIO(img_data))
                     img.thumbnail(self.THUMBNAIL_SIZE, Image.LANCZOS)
                     img.load()  # Decode here, off the main thread
@@ -537,6 +538,7 @@ class DownloaderMixin:
     def _set_thumbnail(self, img):
         """Show a decoded PIL image as the preview thumbnail. Main thread only."""
         try:
+            from PIL import ImageTk
             # Kept on self: a local PhotoImage is garbage-collected while
             # the label still shows it (STANDARDS.md 6.3).
             self.video_thumbnail = ImageTk.PhotoImage(img)

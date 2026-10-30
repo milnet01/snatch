@@ -330,6 +330,16 @@ and application work. IDs are allocated from `.roadmap-counter`.
   deliberate -- it is why a downloaded release works with nothing
   installed -- and SNAT-0028's distro packages are the place where
   depending on the system copy is the right answer.
+  Progress (2026-10-30): the cheapest option is closed. ffprobe cannot
+  go. Snatch passes --sponsorblock-remove (downloader.py), which runs
+  yt-dlp's ModifyChaptersPP; that calls _get_real_video_duration, and
+  get_metadata_object raises "ffprobe not found" without it (yt-dlp
+  postprocessor/ffmpeg.py, read on 2026.10.21). Embedding thumbnails
+  needs it the same way.
+  What is left is a leaner static build from another publisher, which
+  moves where three platforms' binaries come from and their pinned
+  digests (ADR-0001). That choice is the user's; waiting on it.
+  Separately, SNAT-0026 already cut the launch cost these files caused.
   **Layman:** Two of the bundled tools are almost the same program shipped twice, and together they are most of the download.
   Kind: perf.
   Source: in-session-2026-08-20.
@@ -1528,7 +1538,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: in-session-2026-08-20.
   Lanes: downloader.
 
-- 📋 [SNAT-0029] **Pillow is imported at startup for a feature most launches never use.**
+- ✅ [SNAT-0029] **Pillow is imported at startup for a feature most launches never use.**
   Measured 2026-08-20 with `python3 -X importtime -c "import snatch.app"`:
   134 ms total, of which PIL.Image accounts for 77 ms -- 57% of the app's
   entire import cost. PIL._imaging alone, the C extension, is 56 ms.
@@ -1562,6 +1572,13 @@ and application work. IDs are allocated from `.roadmap-counter`.
   the download loop already throttles UI updates to 150 ms, history is
   cached in memory, and search already uses --flat-playlist (SNAT-0011).
   The hot paths are in good shape -- the cost is in packaging.
+  Shipped (2026-10-30): HAS_PIL is now find_spec("PIL") is not None,
+  which checks Pillow is installed without importing it. Image is
+  imported in the thumbnail branch, ImageTk in _set_thumbnail; the
+  self-test still imports both, so a frozen build that lost Pillow
+  still fails. `python3 -X importtime -c "import snatch.app"`, six
+  alternating runs of HEAD and the change, warm cache: about 81 ms
+  median before, 62 ms after, and PIL.Image no longer in the list.
   **Layman:** Snatch loads its image library every time it opens, even though it is only needed to show a video's thumbnail.
   Kind: perf.
   Source: in-session-2026-08-20.
