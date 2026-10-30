@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-30
+
+**Theme:** Security fix, faster start and queued downloads at the same time.
+
 ### Added
 
 - **Queued videos can download at the same time** (SNAT-0069)
