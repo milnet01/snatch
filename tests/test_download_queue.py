@@ -87,6 +87,7 @@ class Host(DownloaderMixin):
         self._preferred_format_spec = lambda: ("best", False)
         self._get_base_cmd = lambda: ["yt-dlp"]
         self._show_error = MagicMock()
+        self._save_queue = MagicMock()
 
     def _add_history_entry(self, title, url, fmt, path):
         self.history.append((title, url))

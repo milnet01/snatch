@@ -69,6 +69,7 @@ platform builds, change the script — never the workflow step that calls it.
 ## Quick Reference
 - Config: `config.json` (in `platform_utils.app_data_dir()`, 0o600)
 - History: `history.json` (same dir, 0o600, max 200 entries)
+- Queue: `queue.json` (same dir, 0o600); restored as Pending, never auto-started
 - **`app_data_dir()` decides where those live, not the project root.** From
   source it *is* the project root; in a packaged build it is not — see
   STANDARDS.md 14.

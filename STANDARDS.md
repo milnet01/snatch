@@ -384,6 +384,7 @@ MAX_HISTORY_ENTRIES = 200
 | `sponsorblock` | int | `0` | Enable SponsorBlock segment removal |
 | `speed_limit` | string | `"Unlimited"` | Download speed limit |
 | `fragments` | string | `"1"` | Parts of one video fetched at once; ignored while `speed_limit` is set |
+| `dismissed_app_version` | string | `""` | The newer Snatch the user said No to; a later one shows again |
 | `queue_at_once` | string | `"1"` | Queue items run together; see `docs/specs/SNAT-0069-parallel-queue.md` |
 | `theme` | string | `"Dark"` | Active theme name |
 | `last_tab` | int | `0` | Index of the notebook tab to reopen on launch |
@@ -643,6 +644,7 @@ python snatch.py   # Launch the GUI
 | `config.json` | See below | `0o600` | JSON (2-space indent) |
 | `history.json` | See below | `0o600` | JSON array (2-space indent) |
 | `cookies.txt` | See below | `0o600` | Netscape cookie format |
+| `queue.json` | See below | `0o600` | JSON array of `url` and `title`; restored as Pending, never auto-started |
 | `snatch.log` | See below | `0o600` | Rotating text log (§5.3) |
 
 **Location is decided by `platform_utils.app_data_dir()`, not by this table.**

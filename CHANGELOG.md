@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Your queue is still there after you close Snatch** (SNAT-0023)
+  Unfinished videos come back as Pending. They never start by themselves:
+  press Download Queue to run them, or Clear Queue to drop them.
+
+- **Snatch tells you when a newer version exists** (SNAT-0021)
+  A button appears beside the theme menu and opens the download page. If
+  you say no, it stays hidden until a newer version than that one comes
+  out. If you are offline, nothing happens.
+
+- **A Donate button** (SNAT-0015)
+  It offers the same donation pages as the project's GitHub page.
+
 ## [1.3.1] - 2026-10-30
 
 **Theme:** Linux fixes for newer systems.

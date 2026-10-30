@@ -18,6 +18,7 @@ from .platform_utils import (find_ytdlp, find_ffmpeg, find_jsruntime,
                              is_windows, install_hint)
 from .logging_setup import get_logger
 from .version import _open_https
+from .utils import write_private_json
 
 log = get_logger(__name__)
 
@@ -35,6 +36,9 @@ OUTPUT_TEMPLATE = "%(title)s.%(ext)s"
 PARALLEL_OUTPUT_TEMPLATE = "%(title)s [%(id)s].%(ext)s"
 QUEUE_FINISHED_STATES = ("Done", "Failed", "Cancelled")
 QUEUE_RUNNING_MAX_PERCENT = 99
+# queue.json is user-editable; this bounds what it can make the app hold.
+MAX_SAVED_QUEUE_ROWS = 1000
+QUEUE_TITLE_CHARS = 60
 
 
 def queue_limit(at_once, speed_limit, uses_cookies_file):
@@ -71,6 +75,34 @@ def queue_percent(queue, running_percents):
     percent = (finished + sum(running_percents) / 100) / len(queue) * 100
     # A download at 100% is still merging or being moved into place.
     return min(percent, QUEUE_RUNNING_MAX_PERCENT) if running_percents else percent
+
+
+def rows_to_save(queue):
+    """The rows worth keeping across a restart: everything not yet Done."""
+    return [{"url": e["url"], "title": e.get("title")}
+            for e in queue if e["status"] != "Done"]
+
+
+def parse_saved_queue(data, is_valid_url):
+    """Rows from a queue.json's contents, whatever those turn out to be.
+
+    Each comes back Pending, whatever it was. A file left by a killed process
+    may name a half-written download, and yt-dlp decides for itself whether
+    that can resume. The URL check is the one a typed URL gets.
+    """
+    if not isinstance(data, list):
+        return []
+    rows = []
+    for item in data[:MAX_SAVED_QUEUE_ROWS]:
+        url = item.get("url") if isinstance(item, dict) else None
+        if not isinstance(url, str) or not is_valid_url(url):
+            continue
+        title = item.get("title")
+        if not isinstance(title, str) or not title:
+            title = url
+        rows.append({"url": url, "status": "Pending",
+                     "title": title[:QUEUE_TITLE_CHARS]})
+    return rows
 
 
 def _wait_all(procs, grace_sec, clock):
@@ -1142,6 +1174,7 @@ class DownloaderMixin:
 
     def _queue_job_ended(self, job, status):
         self._set_row_status(job.entry, status)
+        self._save_queue()
         self._finish_job(job)
         self._show_queue_progress(force=True)
         self.root.after(self.QUEUE_NEXT_ITEM_DELAY_MS, self._fill_queue_slots)
@@ -1180,9 +1213,31 @@ class DownloaderMixin:
         if not self._is_valid_url(url):
             messagebox.showwarning("Warning", "Please enter a valid HTTP/HTTPS URL")
             return
-        self.download_queue.append({"url": url, "status": "Pending", "title": url[:60]})
+        self.download_queue.append({"url": url, "status": "Pending",
+                                    "title": url[:QUEUE_TITLE_CHARS]})
         self._refresh_queue_tree()
+        self._save_queue()
         self.url_var.set("")
+
+    def _load_queue(self):
+        """Restore the saved queue. Nothing here may raise, or start a download."""
+        try:
+            with open(self.queue_file, "r", encoding="utf-8") as handle:
+                data = json.load(handle)
+        except FileNotFoundError:
+            return
+        except (OSError, ValueError) as exc:
+            log.warning("Could not read %s: %s", self.queue_file, exc)
+            return
+        self.download_queue = parse_saved_queue(data, self._is_valid_url)
+
+    def _save_queue(self):
+        """Keep the queue for next time. A failed save never stops the app."""
+        try:
+            write_private_json(self.queue_file,
+                               rows_to_save(self.download_queue))
+        except OSError:
+            log.warning("Could not save %s", self.queue_file, exc_info=True)
 
     def _refresh_queue_tree(self):
         """Refresh the queue treeview display"""
@@ -1206,6 +1261,7 @@ class DownloaderMixin:
         """Clear the download queue. Running jobs keep their rows and finish."""
         self.download_queue = []
         self._refresh_queue_tree()
+        self._save_queue()
 
     def _process_queue(self):
         """Download the queue's unfinished rows, as many at once as allowed."""
@@ -1357,5 +1413,6 @@ class DownloaderMixin:
                     added += 1
 
         self._refresh_queue_tree()
+        self._save_queue()
         messagebox.showinfo("Queued", f"Added {added} videos to queue.\n"
                                       f"Click 'Download Queue' to start.")

@@ -23,6 +23,14 @@ log = get_logger(__name__)
 
 # Shown along the bottom of the window. The README carries the same text,
 # and so do the project website and trailers, so change all of them together.
+# Where Donate leads. .github/FUNDING.yml is the source of truth, but it is not
+# bundled, so the app cannot read it; tests/test_donate_links.py holds these to it.
+DONATE_LINKS = (
+    ("GitHub Sponsors", "https://github.com/sponsors/milnet01"),
+    ("Patreon", "https://patreon.com/AntsProjectsHub"),
+    ("PayBru", "https://paybru.co.za/tip/ants-projects-hub"),
+)
+
 DISCLAIMER = (
     "Only download videos you have the right to download. Respect copyright "
     "and each site's terms of service. Snatch is not affiliated with or "
@@ -99,6 +107,9 @@ class SnatchApp(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
         self.download_queue = []
         self.is_processing_queue = False
         self.history_file = os.path.join(self.script_dir, "history.json")
+        self.queue_file = os.path.join(self.script_dir, "queue.json")
+        self.dismissed_app_version = saved_config.get("dismissed_app_version", "")
+        self.available_app_version = None
         self.filter_res_var = tk.StringVar(value="All")
         self.filter_type_var = tk.StringVar(value="All")
         self.filter_ext_var = tk.StringVar(value="All")
@@ -148,6 +159,12 @@ class SnatchApp(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
             self.notebook.select(last_tab)
 
         self.check_version()
+        self.check_app_update()
+        self._load_queue()
+        if self.download_queue:
+            self._refresh_queue_tree()
+            self.status_var.set(f"Restored {len(self.download_queue)} queued videos. "
+                                "Press Download Queue to start, or Clear Queue.")
         self.check_nodejs()
 
         # Drag & drop support
@@ -224,6 +241,7 @@ class SnatchApp(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
             "speed_limit": self.speed_limit_var.get(),
             "fragments": self.fragments_var.get(),
             "queue_at_once": self.queue_at_once_var.get(),
+            "dismissed_app_version": self.dismissed_app_version,
             "theme": self.theme_var.get(),
             "last_tab": self.notebook.index(self.notebook.select()),
         }
@@ -260,6 +278,18 @@ class SnatchApp(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
         # Version, theme selector, and update section
         version_frame = ttk.Frame(header_frame)
         version_frame.pack(side=tk.RIGHT)
+
+        # Packed only once a newer Snatch is known (SNAT-0021).
+        self.app_update_btn = ttk.Button(version_frame, style="Small.TButton",
+                                         command=self._on_app_update_click)
+        if self.available_app_version:
+            self._show_app_update(self.available_app_version)
+
+        # Opens the donation pages .github/FUNDING.yml lists (SNAT-0015).
+        self.donate_btn = ttk.Button(version_frame, text="Donate",
+                                     command=self._show_donate_menu,
+                                     style="Small.TButton")
+        self.donate_btn.pack(side=tk.LEFT, padx=(0, 6))
 
         # Where the diagnostic log is, so a bug report can include it (SNAT-0022)
         ttk.Button(version_frame, text="Log", command=self._show_log_location,
@@ -320,6 +350,18 @@ class SnatchApp(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
             if widget:
                 widget.cleanup()
 
+    def _show_donate_menu(self):
+        """Offer the donation pages, just below the Donate button."""
+        theme = get_theme()
+        menu = tk.Menu(self.donate_btn, tearoff=0,
+                       bg=theme.BG_LIGHT, fg=theme.FG,
+                       activebackground=theme.ACCENT,
+                       activeforeground=theme.BUTTON_FG)
+        for label, url in DONATE_LINKS:
+            menu.add_command(label=label, command=lambda url=url: open_path(url))
+        menu.tk_popup(self.donate_btn.winfo_rootx(),
+                      self.donate_btn.winfo_rooty() + self.donate_btn.winfo_height())
+
     def _show_log_location(self):
         """Tell the user where the diagnostic log is, and offer its folder."""
         text, folder = describe_log(self.script_dir)
@@ -371,6 +413,7 @@ class SnatchApp(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
         # Re-populate data that was loaded before
         if hasattr(self, 'history_tree'):
             self._load_history_into_tree()
+        self._refresh_queue_tree()
 
         # Restore the update button. create_widgets rebuilds it as a disabled
         # "Up to date", while version_var survives and keeps showing the old
@@ -448,6 +491,7 @@ class SnatchApp(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
         self.formats = []
         self.search_results = []
         self.playlist_entries = []
+        self._save_queue()
         self.download_queue = []
         self.video_thumbnail = None
         HistoryTabMixin._history_cache = None

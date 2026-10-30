@@ -12,7 +12,8 @@ import tempfile
 import urllib.error
 import urllib.request
 
-from .platform_utils import (find_ytdlp, is_windows, is_macos,
+from . import __version__
+from .platform_utils import (find_ytdlp, is_windows, is_macos, open_path,
                              user_bin_dir, updated_ytdlp_path)
 from .logging_setup import get_logger
 
@@ -52,6 +53,24 @@ YTDLP_SUMS_MAX_BYTES = 64 * 1024
 # arrives from the GitHub API and is interpolated into a download path, so a
 # value containing "/" or ".." would re-point that path within github.com.
 YTDLP_TAG_RE = re.compile(r"\A[0-9][0-9.]{0,31}\Z")
+
+
+# Snatch's own releases, which have nothing to do with yt-dlp's version line.
+SNATCH_RELEASE_API = "https://api.github.com/repos/milnet01/snatch/releases/latest"
+SNATCH_RELEASE_PAGE = "https://github.com/milnet01/snatch/releases/latest"
+SNATCH_RELEASE_MAX_BYTES = 1024 * 1024
+SNATCH_TAG_RE = re.compile(r"\Av([0-9]+)\.([0-9]+)\.([0-9]+)\Z")
+
+
+def newer_app_version(tag, current):
+    """The version in a release `tag` if it is newer than `current`, else None."""
+    match = SNATCH_TAG_RE.match(tag) if isinstance(tag, str) else None
+    if match is None:
+        return None
+    latest = tuple(int(part) for part in match.groups())
+    if latest <= tuple(int(part) for part in current.split(".")):
+        return None
+    return ".".join(match.groups())
 
 
 def _open_https(url, timeout):
@@ -107,6 +126,45 @@ class VersionMixin:
     Expects the host class to have: root, version_var, status_var,
     update_btn, current_version, latest_version.
     """
+
+    def check_app_update(self):
+        """Look once, in the background, for a newer Snatch."""
+        thread = threading.Thread(target=self._check_app_update_thread)
+        thread.daemon = True
+        thread.start()
+
+    def _check_app_update_thread(self):
+        # Silent on any failure. Being offline is not worth telling anyone.
+        try:
+            with _open_https(SNATCH_RELEASE_API, UPDATE_CHECK_TIMEOUT_SEC) as resp:
+                data = json.loads(resp.read(SNATCH_RELEASE_MAX_BYTES))
+            latest = newer_app_version(data.get("tag_name"), __version__)
+        except (OSError, ValueError, AttributeError):
+            log.debug("Could not check for a newer Snatch", exc_info=True)
+            return
+        if latest:
+            self.root.after(0, lambda: self._show_app_update(latest))
+
+    def _show_app_update(self, latest):
+        if latest == self.dismissed_app_version:
+            return
+        self.available_app_version = latest
+        self.app_update_btn.config(text=f"Snatch {latest} available")
+        self.app_update_btn.pack(side=tk.LEFT, padx=(0, 12))
+
+    def _on_app_update_click(self):
+        latest = self.available_app_version
+        if messagebox.askyesno(
+                "New Version of Snatch",
+                f"Snatch {latest} is available.\n\n"
+                "Open its download page?\n\n"
+                "Choosing No hides this until a newer version comes out."):
+            open_path(SNATCH_RELEASE_PAGE)
+            return
+        self.dismissed_app_version = latest
+        self.available_app_version = None
+        self.app_update_btn.pack_forget()
+        self._save_config()
 
     def check_version(self):
         """Check current yt-dlp version and compare with latest"""

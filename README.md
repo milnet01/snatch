@@ -113,7 +113,7 @@ or the folder it went to.
 ## Where Snatch keeps your files
 
 Downloads go wherever you choose in the app. Snatch also keeps a few small
-files of its own — your settings and your download history:
+files of its own — your settings, your download history and your queue:
 
 | Your computer | Where |
 |---|---|

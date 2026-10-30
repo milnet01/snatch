@@ -1,6 +1,7 @@
 # User data (must never be committed)
 config.json
 history.json
+queue.json
 cookies.txt
 snatch.log
 snatch.log.*

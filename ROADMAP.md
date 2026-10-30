@@ -1156,7 +1156,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: user-report-2026-08-19.
   Lanes: downloader, player, packaging.
 
-- 📋 [SNAT-0015] **Add a Donate button pointing at the FUNDING.yml sources.**
+- ✅ [SNAT-0015] **Add a Donate button pointing at the FUNDING.yml sources.**
   The three sources already live in .github/FUNDING.yml and are the ones
   to use:
     github  : milnet01            -> https://github.com/sponsors/milnet01
@@ -1180,6 +1180,10 @@ and application work. IDs are allocated from `.roadmap-counter`.
 
   Placement is open. The header row next to the theme picker and version
   label is the obvious spot; a menu entry is the less intrusive one.
+  Shipped (2026-10-30), for the next release: a header button with a
+  menu. Links are embedded because FUNDING.yml is not bundled;
+  tests/test_donate_links.py holds them to it. Not clicked through to a
+  live page.
   **Layman:** A button in the app so people who like Snatch can support it, opening the same donation pages the GitHub page offers.
   Kind: feature.
   Source: user-request-2026-08-19.
@@ -1442,7 +1446,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: in-session-2026-08-20.
   Lanes: testing, ci.
 
-- 📋 [SNAT-0021] **Nothing tells the user a newer Snatch exists.**
+- ✅ [SNAT-0021] **Nothing tells the user a newer Snatch exists.**
   SNAT-0016 gave the app a way to keep yt-dlp current. Snatch itself
   still has no way to say "there is a 1.1.0" -- a user who downloaded
   v1.0.0 has no signal that anything newer was ever published, short of
@@ -1490,6 +1494,11 @@ and application work. IDs are allocated from `.roadmap-counter`.
   when offline, and compare against the APP's version rather than
   yt-dlp's -- version.py holds the other version line and the two are
   unrelated.
+  Shipped (2026-10-30), for the next release: notify only. The note
+  above says this was superseded by SNAT-0038 and not to build it; on
+  2026-10-30 the user chose it anyway alongside SNAT-0038, knowing the
+  notice comes first. A button beside the theme menu opens the release
+  page. No hides that version; a later one shows again. Silent offline.
   **Layman:** Snatch can now update its downloader, but it cannot tell you when Snatch itself has a new version.
   Kind: feature.
   Source: in-session-2026-08-20.
@@ -1521,7 +1530,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: in-session-2026-08-20.
   Lanes: application.
 
-- 📋 [SNAT-0023] **The download queue is lost when the app closes.**
+- ✅ [SNAT-0023] **The download queue is lost when the app closes.**
   self.download_queue is a plain list built at startup (app.py:70) and
   reset on close (app.py:327). It is never written anywhere. Every other
   preference the app holds is persisted -- _save_config writes twelve
@@ -1544,6 +1553,10 @@ and application work. IDs are allocated from `.roadmap-counter`.
   checking.
   - Offer to clear it. A stale queue from three weeks ago that starts
   downloading on launch is worse than losing it.
+  Shipped (2026-10-30), for the next release: queue.json, 0o600, in
+  PRIVATE_DATA_FILES. Rows not Done come back Pending, checked by the
+  URL gate and capped; nothing auto-starts. A theme switch now refills
+  the list too, which it did not before.
   **Layman:** If you queue up a batch of videos and close Snatch, the queue is gone when you reopen it.
   Kind: enhancement.
   Source: in-session-2026-08-20.

@@ -69,7 +69,7 @@ def write_private_json(path, data):
 
 
 # Files inside app_data_dir() that hold user data and must be owner-only.
-PRIVATE_DATA_FILES = ("config.json", "history.json", "cookies.txt")
+PRIVATE_DATA_FILES = ("config.json", "history.json", "cookies.txt", "queue.json")
 PRIVATE_MODE = 0o600
 
 
