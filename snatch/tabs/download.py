@@ -9,6 +9,7 @@ from ..widgets import ScrollableFrame, ToggleSwitch, attach_context_menu
 from ..utils import zenity_file_dialog
 from ..platform_utils import open_path
 from ..logging_setup import get_logger
+from ..downloader import QUEUE_AT_ONCE_CHOICES
 
 log = get_logger(__name__)
 
@@ -253,6 +254,10 @@ class DownloadTabMixin:
                    style="Small.TButton").pack(side=tk.LEFT, padx=(0, 5))
         ttk.Button(queue_btn_row, text="Download Queue", command=self._process_queue,
                    style="Small.TButton").pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Label(queue_btn_row, text="At once:").pack(side=tk.LEFT, padx=(5, 4))
+        ttk.Combobox(queue_btn_row, textvariable=self.queue_at_once_var,
+                     values=QUEUE_AT_ONCE_CHOICES,
+                     state="readonly", width=3).pack(side=tk.LEFT)
         self.queue_status_label = ttk.Label(queue_btn_row, text="0 items in queue",
                                             style="Version.TLabel")
         self.queue_status_label.pack(side=tk.RIGHT)

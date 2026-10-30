@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Queued videos can download at the same time** (SNAT-0069)
+  A new At once menu beside the queue runs up to three together. It
+  starts at 1, so nothing changes until you raise it. Above 1, filenames
+  gain the video's id, so two videos with one title cannot overwrite
+  each other. A speed limit or a cookies file keeps it to one at a
+  time. Each row shows its own progress, and the bar shows the queue.
+
 - **A Parallel parts setting beside Speed Limit** (SNAT-0040)
   Fetches several pieces of one video at once, which can help on a
   slow connection. It starts at 1, so downloads behave as before until
@@ -38,6 +45,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   hidden. Those now always show, and the format or playlist list shrinks
   instead. If the window is too short even for that, the tab gets a
   scrollbar, and the mouse wheel scrolls it (SNAT-0086).
+
+- **Starting the queue again no longer re-downloads finished videos**
+  It now runs only the rows that are not Done. The queue also no longer
+  overwrites what is in the URL box, and a missing save folder marks
+  rows Failed where the queue used to hang.
 
 - **Playlists and searches with untitled videos no longer crash**
   A video with no title stopped the playlist from queueing, or the

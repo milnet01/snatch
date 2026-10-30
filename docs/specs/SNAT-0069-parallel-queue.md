@@ -93,9 +93,9 @@ The limit in force is stored in the job's `options` when it is created. The `--`
 | Where | Single download | Queue |
 |---|---|---|
 | Progress bar | that download | `(finished + sum of running percents / 100) / rows` |
-| Status line | yt-dlp's line, as now | `Downloading 3 of 10 (2 at once)` |
+| Status line | yt-dlp's line, as now | `Downloading 3 of 10...`, or `Downloading 3 of 10 (2 at once)` while more than one runs |
 | Window title | percent, as now | the bar's percent |
-| Queue row Status | not applicable | `Pending`, `42%`, `Merging`, `Done`, `Failed`, `Cancelled` |
+| Queue row Status | not applicable | `Pending`, `Starting`, `42%`, `Merging`, `Done`, `Failed`, `Cancelled` |
 | Merge | indeterminate bar, as now | row says `Merging`; bar stays determinate |
 
 The menu is an `ttk.Combobox` labelled "At once:" in `queue_btn_row` in `snatch/tabs/download.py`. Its variable is `self.queue_at_once_var`, saved as the `queue_at_once` key in `_save_config`, default `"1"`. `queue_limit` treats a value it does not offer as 1.
@@ -108,11 +108,13 @@ Workers report at most every `PROGRESS_THROTTLE_SEC`, as now. The main-thread ha
 
 Clearing the queue during a run removes the rows. Running jobs keep their row dicts, finish, and record history.
 
+Pressing Download Queue again runs every row that is not Done. Before this change it ran every row, Done ones included. A single download started between two queue items is refused as Busy, because `is_processing_queue` is still true.
+
 `cancel_download` sets `cancelled` on every job and `is_processing_queue` false. It calls `terminate()` on every process first, then waits on them against one shared `TERMINATE_GRACE_SEC` deadline, then calls `kill()` on any left, then waits against one shared `KILL_GRACE_SEC` deadline. This keeps the main thread's wait the same as today however many are running. Running rows become `Cancelled`; Pending rows stay Pending.
 
 ## 5. Invariants
 
-No clause can run yet, because the code does not exist. Each names the rule its fixture isolates.
+Each clause names the rule its fixture isolates. Every *Breaks when* was applied to the code on 2026-10-30, and the named test failed.
 
 - **INV-1** — Never more jobs run than `queue_limit` allows.
   *Test:* `tests/test_download_queue.py::test_fill_stops_at_the_limit`, with a stubbed job starter and five Pending rows at limit 2; isolates the slot count.
@@ -158,7 +160,7 @@ No clause can run yet, because the code does not exist. Each names the rule its 
   *Test:* `tests/test_download_queue.py::test_bad_url_never_reaches_popen`, a row added directly with a `file://` URL; it is marked Failed and `Popen` is not called.
   *Breaks when:* validation stays only in `_start_download`, which queue jobs no longer pass through.
 
-- **INV-12** — The queue bar's value is `(finished + sum of running percents / 100) / rows`, and it never reaches 100 while a row runs.
+- **INV-12** — The queue bar's value is `(finished + sum of running percents / 100) / rows`, capped at `QUEUE_RUNNING_MAX_PERCENT` while a row runs.
   *Test:* `tests/test_download_queue.py::test_queue_percent`.
   *Breaks when:* Failed rows are left out of `finished`, so the bar never reaches 100 on a queue with a failure.
 
@@ -171,6 +173,7 @@ No clause can run yet, because the code does not exist. Each names the rule its 
 - **A job cannot start** (`Popen` raises, or the save folder is gone): its row is Failed and the queue continues. Today the same case on the save-folder check leaves the row at "Downloading" and the queue stuck, because `_start_download` returns early.
 - **The site rate-limits parallel requests:** those items report Failed through yt-dlp's exit code. The user can retry at 1.
 - **The disk fills:** each yt-dlp fails on its own, and each row is Failed.
+- **The queue is cancelled while its rows are at `Starting`:** yt-dlp is still reading metadata, and it ends the same way (seen 2026-10-30).
 - **The window closes during a run:** `_on_close` already asks when `is_downloading` is true and calls `cancel_download`, which now covers every job.
 - **Two different videos share a title at 1:** one at a time, so this stays as it is today.
 - **The user changes the save folder mid-run:** each job holds the folder it started with, which is the existing `options` snapshot behaviour.
@@ -208,7 +211,7 @@ Manual recipe, on a private display and with real downloads, because no test her
 | Rule | What catches a breach |
 |------|----------------------|
 | INV-1 to INV-13 | the named tests in `tests/test_download_queue.py` |
-| The queue running against real yt-dlp, real files and a real cancel | **nothing** automated; §7's manual recipe, on Linux only |
+| The queue running against real yt-dlp, real files and a real cancel | **nothing** automated; §7's manual recipe, run on Linux on 2026-10-30 |
 | Windows and macOS behaviour of parallel processes | **`Partial:`** CI's self-test proves the build starts, not that a queue runs |
 | §4.4's display, row by row | **nothing** — no test drives the GUI |
 | A real gain in speed | **nothing** — unmeasured, which is why the default is 1 |

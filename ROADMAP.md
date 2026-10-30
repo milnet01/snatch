@@ -3524,7 +3524,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: doc-fix.
   Source: review-contract-security-md-2026-09-03.
 
-- 📋 [SNAT-0069] **The download queue runs strictly one item at a time.**
+- ✅ [SNAT-0069] **The download queue runs strictly one item at a time.**
   Split out of SNAT-0039, whose correctness half -- queued items ignoring
   your saved format preference -- shipped on 2026-08-20. That half is
   described in the v1.0.2 release notes; this is the remainder, and it is
@@ -3547,6 +3547,18 @@ and application work. IDs are allocated from `.roadmap-counter`.
   is a good way to be rate-limited by the site.
 
   Related: SNAT-0023 persists the queue across restarts.
+  Shipped (2026-10-30), to docs/specs/SNAT-0069-parallel-queue.md. An
+  "At once" menu, 1 to 3, default 1. Each download is now a DownloadJob,
+  so the single process handle and url_var hand-off are gone. Above 1,
+  filenames gain the video id, since yt-dlp's lock does not stop two
+  same-titled videos writing one file; a speed limit or cookies file
+  forces one at a time. Real runs on Linux, on a private display: at 2,
+  three files finished with at most two running; at 1, one at a time with
+  plain names; Cancel ended two live yt-dlp processes in 0.02 s, none
+  left. Those two were still at Starting, not mid-transfer.
+  Not measured: any speed gain, which is why the default is 1. Not run:
+  a real queue on Windows or macOS (CI's self-test only proves the build
+  starts).
   **Layman:** Queued videos download one after another, so a long queue takes longer than it needs to.
   Kind: perf.
   Source: split-from-SNAT-0039-2026-09-03.

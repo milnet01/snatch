@@ -26,6 +26,105 @@ log = get_logger(__name__)
 # where a thumbnail is decoded (SNAT-0029).
 HAS_PIL = find_spec("PIL") is not None
 
+# How many queued videos may download together (SNAT-0069). Small, because
+# unbounded parallel downloads invite rate limiting. "1" is the default.
+QUEUE_AT_ONCE_CHOICES = ("1", "2", "3")
+OUTPUT_TEMPLATE = "%(title)s.%(ext)s"
+# Two videos with one title would write one file. yt-dlp's lock does not stop
+# that: sanitize_open falls back to a plain open, and never locks on Windows.
+PARALLEL_OUTPUT_TEMPLATE = "%(title)s [%(id)s].%(ext)s"
+QUEUE_FINISHED_STATES = ("Done", "Failed", "Cancelled")
+QUEUE_RUNNING_MAX_PERCENT = 99
+
+
+def queue_limit(at_once, speed_limit, uses_cookies_file):
+    """How many queue items may run at once, given the current settings.
+
+    One at a time under a speed limit, which yt-dlp counts per process, and
+    with a cookies file, which each yt-dlp rewrites as it exits.
+    """
+    if speed_limit and speed_limit != "Unlimited":
+        return 1
+    if uses_cookies_file or at_once not in QUEUE_AT_ONCE_CHOICES:
+        return 1
+    return int(at_once)
+
+
+def next_queue_entries(queue, active_urls, slots):
+    """The next Pending rows to start, holding back any URL already running."""
+    chosen = []
+    taken = set(active_urls)
+    for entry in queue:
+        if len(chosen) >= slots:
+            break
+        if entry["status"] == "Pending" and entry["url"] not in taken:
+            chosen.append(entry)
+            taken.add(entry["url"])
+    return chosen
+
+
+def queue_percent(queue, running_percents):
+    """The whole queue's progress, 0-100. Failed rows count as finished."""
+    if not queue:
+        return 0
+    finished = sum(e["status"] in QUEUE_FINISHED_STATES for e in queue)
+    percent = (finished + sum(running_percents) / 100) / len(queue) * 100
+    # A download at 100% is still merging or being moved into place.
+    return min(percent, QUEUE_RUNNING_MAX_PERCENT) if running_percents else percent
+
+
+def _wait_all(procs, grace_sec, clock):
+    """Wait for `procs` against one shared deadline; return those still alive."""
+    deadline = clock() + grace_sec
+    alive = []
+    for proc in procs:
+        try:
+            proc.wait(timeout=max(0, deadline - clock()))
+        except subprocess.TimeoutExpired:
+            alive.append(proc)
+    return alive
+
+
+def stop_processes(procs, terminate_grace_sec, kill_grace_sec,
+                   clock=time.monotonic):
+    """Ask every process to stop, then insist. Called on the main thread.
+
+    The deadlines are shared, so the window waits no longer for three
+    processes than for one.
+    """
+    for proc in procs:
+        try:
+            proc.terminate()
+        except OSError:
+            log.debug("Terminating yt-dlp failed", exc_info=True)
+    alive = _wait_all(procs, terminate_grace_sec, clock)
+    for proc in alive:
+        try:
+            proc.kill()
+        except OSError:
+            log.debug("Killing yt-dlp failed", exc_info=True)
+    _wait_all(alive, kill_grace_sec, clock)
+
+
+class DownloadJob:
+    """One running download. `entry` is its queue row, or None if single."""
+
+    def __init__(self, url, save_path, format_spec, options, audio_only=False,
+                 merge=False, history_title=None, history_format=None,
+                 entry=None):
+        self.url = url
+        self.save_path = save_path
+        self.format_spec = format_spec
+        self.options = options
+        self.audio_only = audio_only
+        self.merge = merge
+        self.history_title = history_title
+        self.history_format = history_format
+        self.entry = entry
+        self.proc = None
+        self.cancelled = False
+        self.percent = 0.0
+
 
 class DownloaderMixin:
     """Mixin providing download, format fetching, queue, and filter logic.
@@ -51,6 +150,9 @@ class DownloaderMixin:
     # so these two are what actually bound it (CLAUDE.md).
     TERMINATE_GRACE_SEC = 3
     KILL_GRACE_SEC = 2
+    # The pause before the queue starts its next item.
+    QUEUE_NEXT_ITEM_DELAY_MS = 500
+    _last_queue_draw = 0.0
     # How many pieces of one video yt-dlp may fetch at once (SNAT-0040).
     # "1" is yt-dlp's own default and stays ours: measured 2026-08-20 on a
     # fast connection, 8 at once was not reliably faster than 1.
@@ -137,8 +239,10 @@ class DownloaderMixin:
         """
         return (self.cookies_file_var.get().strip(), self.browser_var.get())
 
-    def _download_options(self):
+    def _download_options(self, parallel=False):
         """Snapshot every Tk variable a download worker needs. Main thread only.
+
+        `parallel` says the job runs under a queue limit above 1.
 
         Passed in rather than read on the worker, for the reason above. One
         object rather than four parameters, because _download_thread already
@@ -150,6 +254,7 @@ class DownloaderMixin:
             "sponsorblock": self.sponsorblock_var.get() == 1,
             "speed_limit": self.speed_limit_var.get(),
             "fragments": self.fragments_var.get(),
+            "parallel": parallel,
         }
 
     @classmethod
@@ -760,15 +865,14 @@ class DownloaderMixin:
         self.last_download_format = format_spec[:30]
         self._start_download(format_spec, audio_only=audio_only, merge=merge)
 
-    def _start_download(self, format_spec, audio_only=False, merge=False,
-                        queue_mode=False, history_title=None, history_format=None):
+    def _start_download(self, format_spec, audio_only=False, merge=False):
         # The disabled download_btn is not the control it looks like:
         # app.py binds <Control-d> to download_selected regardless of widget
         # state, and the Quick Select buttons are never stored on self and so
-        # are never disabled. Without this, a second download overwrote
-        # self.download_process and the two threads then closed each other's
-        # pipes. _process_queue already guards; this did not.
-        if self.is_downloading and not queue_mode:
+        # are never disabled. Without this guard a second download would run
+        # alongside the first and fight over the progress bar. The queue
+        # counts too: between two items no job is running, but it is not idle.
+        if self.is_downloading or self.is_processing_queue:
             messagebox.showwarning("Busy", "A download is already in progress")
             return
 
@@ -788,59 +892,75 @@ class DownloaderMixin:
             messagebox.showerror("Error", "Save location does not exist")
             return
 
+        self.progress_var.set(0)
+        self.status_var.set("Starting download...")
+        self._launch_job(DownloadJob(url, save_path, format_spec,
+                                     self._download_options(),
+                                     audio_only=audio_only, merge=merge))
+
+    def _launch_job(self, job):
+        """Record a job as running and start its worker. Main thread only."""
+        self.active_jobs.append(job)
         self.is_downloading = True
         self.download_btn.config(state=tk.DISABLED)
         self.cancel_btn.config(state=tk.NORMAL)
         self.open_folder_btn.pack_forget()
-        self.progress_var.set(0)
-        self.status_var.set("Starting download...")
+        self._spawn_worker(job)
 
-        thread = threading.Thread(
-            target=self._download_thread,
-            args=(url, save_path, format_spec, self._download_options(),
-                  audio_only, merge, queue_mode, history_title,
-                  history_format))
+    def _spawn_worker(self, job):
+        thread = threading.Thread(target=self._download_thread, args=(job,))
         thread.daemon = True
         thread.start()
 
-    def _download_thread(self, url, save_path, format_spec, options,
-                         audio_only=False, merge=False, queue_mode=False,
-                         history_title=None, history_format=None):
+    def _download_cmd(self, job):
+        """The yt-dlp command for a job. Raises ValueError on a bad URL.
+
+        Checked here as well as where the URL was entered: this is the last
+        step before a subprocess, and a queue URL may come from remote
+        playlist JSON.
+        """
+        if not self._is_valid_url(job.url):
+            raise ValueError(f"not an HTTP/HTTPS URL: {job.url}")
+        options = job.options
+        template = (PARALLEL_OUTPUT_TEMPLATE if options["parallel"]
+                    else OUTPUT_TEMPLATE)
+
+        cmd = self._get_base_cmd()
+        cmd.extend(self._get_cookie_args(options["cookie_state"]))
+
+        cmd.extend([
+            "-f", job.format_spec,
+            "-o", os.path.join(job.save_path, template),
+            "--newline",
+            "--progress"
+        ])
+
+        if job.audio_only:
+            cmd.extend(["-x", "--audio-format", "mp3"])
+
+        if job.merge:
+            cmd.extend(["--merge-output-format", "mp4"])
+
+        if options["subtitles"]:
+            cmd.extend(["--write-sub", "--write-auto-sub", "--sub-lang", "en"])
+
+        if options["sponsorblock"]:
+            cmd.extend(["--sponsorblock-remove", "all"])
+
+        # Parallel parts inside parallel downloads multiply: three downloads
+        # at 8 parts would open 24 connections to one site.
+        fragments = "1" if options["parallel"] else options["fragments"]
+        cmd.extend(self._rate_args(options["speed_limit"], fragments))
+
+        cmd.extend(["--", job.url])
+        return cmd
+
+    def _download_thread(self, job):
         try:
-            cmd = self._get_base_cmd()
-            cmd.extend(self._get_cookie_args(options["cookie_state"]))
+            cmd = self._download_cmd(job)
 
-            cmd.extend([
-                "-f", format_spec,
-                "-o", os.path.join(save_path, "%(title)s.%(ext)s"),
-                "--newline",
-                "--progress"
-            ])
-
-            if audio_only:
-                cmd.extend(["-x", "--audio-format", "mp3"])
-
-            if merge:
-                cmd.extend(["--merge-output-format", "mp4"])
-
-            if options["subtitles"]:
-                cmd.extend(["--write-sub", "--write-auto-sub", "--sub-lang", "en"])
-
-            if options["sponsorblock"]:
-                cmd.extend(["--sponsorblock-remove", "all"])
-
-            cmd.extend(self._rate_args(options["speed_limit"],
-                                       options["fragments"]))
-
-            cmd.extend(["--", url])
-
-            # Bound to a local as well as to self. self.download_process is
-            # what cancel_download reaches, and _reset_ui sets it to None --
-            # which used to land between this thread's pipe close and its
-            # wait(), raising AttributeError into the handler below and
-            # popping "'NoneType' object has no attribute 'wait'" at a user
-            # who had just pressed Escape. The local is this thread's own
-            # handle and cannot be nulled or replaced underneath it.
+            # Bound to a local as well as to the job: the local is this
+            # thread's own handle, and cancel_download only reads job.proc.
             proc = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
@@ -848,7 +968,11 @@ class DownloaderMixin:
                 text=True,
                 bufsize=1
             )
-            self.download_process = proc
+            job.proc = proc
+            # A cancel that ran before job.proc was set could not reach this
+            # process, so it is honoured here.
+            if job.cancelled:
+                proc.terminate()
 
             try:
                 # Throttle UI updates to avoid flooding the event loop
@@ -857,7 +981,7 @@ class DownloaderMixin:
                 pending_status = None
 
                 for line in proc.stdout:
-                    if not self.is_downloading:
+                    if job.cancelled:
                         break
 
                     line = line.strip()
@@ -867,8 +991,7 @@ class DownloaderMixin:
                         pending_progress = float(progress_match.group(1))
 
                     if "[Merger]" in line or "[ExtractAudio]" in line:
-                        self.root.after(0, self._show_merge_progress)
-                        self.root.after(0, lambda: self._update_title_progress(text="Merging..."))
+                        self.root.after(0, lambda: self._job_merging(job))
                         last_ui_update = time.monotonic()
                         pending_progress = None
                         pending_status = None
@@ -880,29 +1003,16 @@ class DownloaderMixin:
                     # Flush pending updates at most every 150ms
                     now = time.monotonic()
                     if (pending_progress is not None or pending_status is not None) and now - last_ui_update >= self.PROGRESS_THROTTLE_SEC:
-                        if pending_progress is not None:
-                            p = pending_progress
-                            self.root.after(0, lambda p=p: self.progress_var.set(p))
-                            self.root.after(0, lambda p=p: self._update_title_progress(percent=p))
-                            pending_progress = None
-                        if pending_status is not None:
-                            s = pending_status
-                            self.root.after(0, lambda s=s: self.status_var.set(s))
-                            pending_status = None
+                        self._flush_job_updates(job, pending_progress, pending_status)
+                        pending_progress = None
+                        pending_status = None
                         last_ui_update = now
 
-                # Flush any remaining updates -- but not on the cancel path.
-                # The loop also exits by `break` when is_downloading goes
-                # false, and these after() callbacks would then land AFTER
-                # cancel_download had written "Download cancelled" and zeroed
-                # the bar, leaving a stale percentage on screen.
-                if self.is_downloading and pending_progress is not None:
-                    p = pending_progress
-                    self.root.after(0, lambda p=p: self.progress_var.set(p))
-                    self.root.after(0, lambda p=p: self._update_title_progress(percent=p))
-                if self.is_downloading and pending_status is not None:
-                    s = pending_status
-                    self.root.after(0, lambda s=s: self.status_var.set(s))
+                # Flush any remaining updates -- but not on the cancel path,
+                # where they would land after cancel_download had written
+                # "Download cancelled" and zeroed the bar.
+                if not job.cancelled:
+                    self._flush_job_updates(job, pending_progress, pending_status)
             finally:
                 # Always close the stdout pipe to release the file descriptor
                 try:
@@ -913,23 +1023,49 @@ class DownloaderMixin:
 
             proc.wait()
 
-            if self.is_downloading and proc.returncode == 0:
-                self.last_download_path = save_path
-                self.root.after(0, lambda: self._download_complete(
-                    queue_mode, history_title, history_format))
-            elif self.is_downloading:
-                if queue_mode:
-                    self.root.after(0, lambda: self._queue_item_failed())
-                else:
-                    self.root.after(0, lambda: self._show_error("Download failed"))
-                    self.root.after(0, self._reset_ui)
-                    self.root.after(0, self._update_title_progress)
+            if job.cancelled:
+                return
+            if proc.returncode == 0:
+                self.root.after(0, lambda: self._download_complete(job))
+            else:
+                self.root.after(0, lambda: self._download_failed(job, "Download failed"))
 
         except Exception as e:
             log.exception("Download failed")
-            self.root.after(0, lambda e=e: self._show_error(f"Download error: {e}"))
-            self.root.after(0, self._reset_ui)
-            self.root.after(0, self._update_title_progress)
+            message = f"Download error: {e}"
+            self.root.after(0, lambda: self._download_failed(job, message))
+
+    def _flush_job_updates(self, job, progress, status):
+        """Schedule a worker's pending updates onto the main thread."""
+        if progress is not None:
+            self.root.after(0, lambda: self._job_progress(job, progress))
+        if status is not None:
+            self.root.after(0, lambda: self._job_status(job, status))
+
+    def _job_progress(self, job, percent):
+        if job.cancelled:
+            return
+        job.percent = percent
+        if job.entry is None:
+            self.progress_var.set(percent)
+            self._update_title_progress(percent=percent)
+        else:
+            job.entry["status"] = f"{percent:.0f}%"
+            self._show_queue_progress()
+
+    def _job_status(self, job, status):
+        """yt-dlp's own line, for a single download. A queue shows its count."""
+        if job.entry is None and not job.cancelled:
+            self.status_var.set(status)
+
+    def _job_merging(self, job):
+        if job.cancelled:
+            return
+        if job.entry is None:
+            self._show_merge_progress()
+            self._update_title_progress(text="Merging...")
+        else:
+            self._set_row_status(job.entry, "Merging")
 
     def _show_merge_progress(self):
         """Switch to indeterminate progress for merge/extract phase"""
@@ -937,74 +1073,101 @@ class DownloaderMixin:
         self.progress_bar.start(15)
         self.status_var.set("Merging audio and video...")
 
-    def _download_complete(self, queue_mode=False, history_title=None,
-                           history_format=None):
-        self._stop_indeterminate()
-        self.progress_var.set(100)
-        self.status_var.set("Download complete!")
-        self._update_title_progress()
+    def _show_queue_progress(self, force=False):
+        """Draw the queue's rows, bar, title and status line, at most every 150ms."""
+        now = time.monotonic()
+        if not force and now - self._last_queue_draw < self.PROGRESS_THROTTLE_SEC:
+            return
+        self._last_queue_draw = now
+        running = [job for job in self.active_jobs if job.entry is not None]
+        for job in running:
+            self._set_row_status(job.entry, job.entry["status"])
+        percent = queue_percent(self.download_queue,
+                                [job.percent for job in running])
+        self.progress_var.set(percent)
+        self._update_title_progress(percent=percent)
+        finished = sum(e["status"] in QUEUE_FINISHED_STATES
+                       for e in self.download_queue)
+        total = len(self.download_queue)
+        at_once = f" ({len(running)} at once)" if len(running) > 1 else "..."
+        self.status_var.set(f"Downloading {min(finished + 1, total)} of {total}{at_once}")
 
-        # Prefer what this download was started with. Reading the two
-        # session-global attributes instead meant every QUEUED download wrote
-        # a record describing a different video: _process_next_queue_item
-        # calls _start_download directly and sets neither, so history.json
-        # recorded the last FETCHED title and the last MANUALLY CHOSEN format
-        # for each queue item -- or an empty title for a session that queued
-        # without fetching. The queue entry has always carried the right
-        # title; it was simply discarded.
+    def _finish_job(self, job):
+        """A job has ended. The buttons reset only when it was the last one."""
+        if job in self.active_jobs:
+            self.active_jobs.remove(job)
+        if not self.active_jobs:
+            self._reset_ui()
+
+    def _download_complete(self, job):
+        if job.cancelled:
+            return
+        self.last_download_path = job.save_path
+
+        # What this download was started with, not the session-global
+        # attributes or the URL box: those describe whatever was fetched or
+        # typed last, and a queue never touches them.
         self._add_history_entry(
-            history_title or self.last_download_title or self.video_title,
-            self.url_var.get().strip(),
-            history_format or self.last_download_format,
-            self.last_download_path
+            job.history_title or self.last_download_title or self.video_title,
+            job.url,
+            job.history_format or self.last_download_format,
+            job.save_path
         )
 
         self.open_folder_btn.pack(side=tk.LEFT, padx=(10, 0))
 
-        if queue_mode:
-            if self.queue_index < len(self.download_queue):
-                self.download_queue[self.queue_index]["status"] = "Done"
-                self._refresh_queue_tree()
-            self.queue_index += 1
-            self._reset_ui()
-            self.root.after(500, self._process_next_queue_item)
-        else:
+        if job.entry is None:
+            self._stop_indeterminate()
+            self.progress_var.set(100)
+            self.status_var.set("Download complete!")
+            self._update_title_progress()
             messagebox.showinfo("Success", "Download completed successfully!")
-            self._reset_ui()
+            self._finish_job(job)
+        else:
+            self._queue_job_ended(job, "Done")
 
-    def _queue_item_failed(self):
-        """Handle a failed queue item"""
-        if self.queue_index < len(self.download_queue):
-            self.download_queue[self.queue_index]["status"] = "Failed"
-            self._refresh_queue_tree()
-        self.queue_index += 1
-        self._reset_ui()
-        self.root.after(500, self._process_next_queue_item)
+    def _download_failed(self, job, message):
+        if job.cancelled:
+            return
+        if job.entry is None:
+            self._show_error(message)
+            self._finish_job(job)
+            self._update_title_progress()
+        else:
+            self._queue_item_failed(job)
+
+    def _queue_item_failed(self, job):
+        """One row fails; the others carry on."""
+        self._queue_job_ended(job, "Failed")
+
+    def _queue_job_ended(self, job, status):
+        self._set_row_status(job.entry, status)
+        self._finish_job(job)
+        self._show_queue_progress(force=True)
+        self.root.after(self.QUEUE_NEXT_ITEM_DELAY_MS, self._fill_queue_slots)
 
     def _reset_ui(self):
         self.is_downloading = False
         self.download_btn.config(state=tk.NORMAL)
         self.cancel_btn.config(state=tk.DISABLED)
-        self.download_process = None
 
     def cancel_download(self):
-        if self.download_process:
-            self.is_downloading = False
-            self.is_processing_queue = False
-            try:
-                self.download_process.terminate()
-                try:
-                    self.download_process.wait(timeout=self.TERMINATE_GRACE_SEC)
-                except subprocess.TimeoutExpired:
-                    self.download_process.kill()
-                    self.download_process.wait(timeout=self.KILL_GRACE_SEC)
-            except Exception:
-                log.debug("Tearing down the yt-dlp process on cancel failed",
-                          exc_info=True)
-            self.status_var.set("Download cancelled")
-            self._stop_indeterminate()
-            self._update_title_progress()
-            self._reset_ui()
+        """Stop every running download, and the queue."""
+        jobs = list(self.active_jobs)
+        if not jobs and not self.is_processing_queue:
+            return
+        self.is_processing_queue = False
+        for job in jobs:
+            job.cancelled = True
+            if job.entry is not None:
+                self._set_row_status(job.entry, "Cancelled")
+        stop_processes([job.proc for job in jobs if job.proc is not None],
+                       self.TERMINATE_GRACE_SEC, self.KILL_GRACE_SEC)
+        self.active_jobs.clear()
+        self.status_var.set("Download cancelled")
+        self._stop_indeterminate()
+        self._update_title_progress()
+        self._reset_ui()
 
     # ── Queue ───────────────────────────────────────────────────────
 
@@ -1025,51 +1188,88 @@ class DownloaderMixin:
         """Refresh the queue treeview display"""
         clear_treeview(self.queue_tree)
         for i, entry in enumerate(self.download_queue, 1):
-            self.queue_tree.insert("", tk.END, values=(
+            self.queue_tree.insert("", tk.END, iid=str(id(entry)), values=(
                 i,
                 entry["url"][:70],
                 entry["status"]
             ))
         self.queue_status_label.config(text=f"{len(self.download_queue)} items in queue")
 
+    def _set_row_status(self, entry, status):
+        """Change one row in place. A cleared queue no longer has the row."""
+        entry["status"] = status
+        iid = str(id(entry))
+        if self.queue_tree.exists(iid):
+            self.queue_tree.set(iid, "status", status)
+
     def _clear_queue(self):
-        """Clear the download queue"""
+        """Clear the download queue. Running jobs keep their rows and finish."""
         self.download_queue = []
         self._refresh_queue_tree()
 
     def _process_queue(self):
-        """Download all queued items sequentially using preferred format"""
+        """Download the queue's unfinished rows, as many at once as allowed."""
         if not self.download_queue:
             messagebox.showinfo("Queue Empty", "No items in the download queue")
             return
-        if self.is_downloading:
+        if self.is_downloading or self.is_processing_queue:
             messagebox.showwarning("Busy", "A download is already in progress")
             return
 
-        self.is_processing_queue = True
-        self.queue_index = 0
-        self._process_next_queue_item()
-
-    def _process_next_queue_item(self):
-        """Process the next item in the queue"""
-        if self.queue_index >= len(self.download_queue):
-            self.is_processing_queue = False
-            self.status_var.set("Queue complete!")
-            messagebox.showinfo("Queue Complete", "All queued downloads finished!")
-            return
-
-        entry = self.download_queue[self.queue_index]
-        entry["status"] = "Downloading"
+        # A row that did not get done runs again; a Done one does not.
+        for entry in self.download_queue:
+            if entry["status"] != "Done":
+                entry["status"] = "Pending"
         self._refresh_queue_tree()
 
-        total = len(self.download_queue)
-        self.status_var.set(f"Downloading {self.queue_index + 1} of {total}...")
-        self.url_var.set(entry["url"])
+        self.is_processing_queue = True
+        self.progress_var.set(0)
+        self._fill_queue_slots()
 
+    def _fill_queue_slots(self):
+        """Start queue items up to the limit; end the queue once none remain.
+
+        Safe to call at any time, and it is: every finish schedules it. A call
+        left over from before a cancel finds is_processing_queue false, and
+        one from before a restart only fills free slots.
+        """
+        if not self.is_processing_queue:
+            return
+
+        cookie_state = self._cookie_state()
+        limit = queue_limit(self.queue_at_once_var.get(),
+                            self.speed_limit_var.get(),
+                            "--cookies" in self._get_cookie_args(cookie_state))
+        save_path = self.save_path_var.get().strip()
         format_spec, merge = self._preferred_format_spec()
-        self._start_download(format_spec, merge=merge, queue_mode=True,
-                             history_title=entry.get("title"),
-                             history_format=format_spec)
+
+        while len(self.active_jobs) < limit:
+            chosen = next_queue_entries(self.download_queue,
+                                        {job.url for job in self.active_jobs},
+                                        limit - len(self.active_jobs))
+            if not chosen:
+                break
+            for entry in chosen:
+                # Marked Failed, not left waiting: a row that cannot start
+                # would otherwise hold the queue open for ever.
+                if not save_path or not os.path.isdir(save_path):
+                    self._set_row_status(entry, "Failed")
+                    continue
+                self._set_row_status(entry, "Starting")
+                self._launch_job(DownloadJob(
+                    entry["url"], save_path, format_spec,
+                    self._download_options(parallel=limit > 1),
+                    merge=merge, history_title=entry.get("title"),
+                    history_format=format_spec, entry=entry))
+
+        if self.active_jobs:
+            self._show_queue_progress(force=True)
+        elif not any(e["status"] == "Pending" for e in self.download_queue):
+            self.is_processing_queue = False
+            self.progress_var.set(100)
+            self._update_title_progress()
+            self.status_var.set("Queue complete!")
+            messagebox.showinfo("Queue Complete", "All queued downloads finished!")
 
     # ── Playlist ────────────────────────────────────────────────────
 
