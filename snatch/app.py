@@ -92,6 +92,7 @@ class SnatchApp(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
         self.subtitle_var = tk.IntVar(value=saved_config.get("subtitles", 0))
         self.sponsorblock_var = tk.IntVar(value=saved_config.get("sponsorblock", 0))
         self.speed_limit_var = tk.StringVar(value=saved_config.get("speed_limit", "Unlimited"))
+        self.fragments_var = tk.StringVar(value=saved_config.get("fragments", "1"))
         self.preferred_resolution = saved_config.get("preferred_resolution", "")
         self.preferred_ext = saved_config.get("preferred_ext", "")
         self.download_queue = []
@@ -221,6 +222,7 @@ class SnatchApp(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
             "subtitles": self.subtitle_var.get(),
             "sponsorblock": self.sponsorblock_var.get(),
             "speed_limit": self.speed_limit_var.get(),
+            "fragments": self.fragments_var.get(),
             "theme": self.theme_var.get(),
             "last_tab": self.notebook.index(self.notebook.select()),
         }

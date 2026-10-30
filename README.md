@@ -98,6 +98,9 @@ or the folder it went to.
   videos automatically (SponsorBlock).
 - **Subtitles** — download them alongside the video.
 - **Speed limit** — stop Snatch from eating your whole connection.
+- **Parallel parts** — fetch several pieces of one video at once. It can help
+  on a slow or distant connection; on a fast one it made little difference in
+  testing, so it starts at 1. A speed limit, when set, takes priority.
 - **Audio only** — pull just the sound out, for music or podcasts.
 - **Private videos** — import cookies from Firefox or Chrome so Snatch can
   reach age-restricted or members-only videos you already have access to.

@@ -51,6 +51,10 @@ class DownloaderMixin:
     # so these two are what actually bound it (CLAUDE.md).
     TERMINATE_GRACE_SEC = 3
     KILL_GRACE_SEC = 2
+    # How many pieces of one video yt-dlp may fetch at once (SNAT-0040).
+    # "1" is yt-dlp's own default and stays ours: measured 2026-08-20 on a
+    # fast connection, 8 at once was not reliably faster than 1.
+    FRAGMENT_CHOICES = ("1", "2", "4", "8")
 
     # yt-dlp groups these as Chromium-based. On Windows their cookie
     # stores are sealed by App-Bound Encryption and cannot be decrypted
@@ -145,7 +149,23 @@ class DownloaderMixin:
             "subtitles": self.subtitle_var.get() == 1,
             "sponsorblock": self.sponsorblock_var.get() == 1,
             "speed_limit": self.speed_limit_var.get(),
+            "fragments": self.fragments_var.get(),
         }
+
+    @classmethod
+    def _rate_args(cls, speed_limit, fragments):
+        """yt-dlp arguments for the speed limit and parallel parts.
+
+        yt-dlp applies --limit-rate to each fragment's connection on its
+        own, so N parts under a limit would download at up to N times it.
+        A set limit therefore wins, and the download runs one part at a
+        time. A value the menus do not offer adds nothing.
+        """
+        if speed_limit and speed_limit != "Unlimited":
+            return ["--limit-rate", speed_limit]
+        if fragments in cls.FRAGMENT_CHOICES and fragments != "1":
+            return ["--concurrent-fragments", fragments]
+        return []
 
     def _get_cookie_args(self, cookie_state):
         """Get the appropriate cookie arguments for yt-dlp.
@@ -809,9 +829,8 @@ class DownloaderMixin:
             if options["sponsorblock"]:
                 cmd.extend(["--sponsorblock-remove", "all"])
 
-            speed = options["speed_limit"]
-            if speed and speed != "Unlimited":
-                cmd.extend(["--limit-rate", speed])
+            cmd.extend(self._rate_args(options["speed_limit"],
+                                       options["fragments"]))
 
             cmd.extend(["--", url])
 

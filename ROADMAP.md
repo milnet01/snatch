@@ -1938,7 +1938,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: in-session-2026-08-20.
   Lanes: downloader, performance.
 
-- 📋 [SNAT-0040] **Expose yt-dlp fragment concurrency as a setting -- measured, and the default is not obvious.**
+- ✅ [SNAT-0040] **Expose yt-dlp fragment concurrency as a setting -- measured, and the default is not obvious.**
   _get_base_cmd passes no -N / --concurrent-fragments, so yt-dlp uses
   its default of 1 and fetches DASH fragments one after another.
 
@@ -1971,6 +1971,14 @@ and application work. IDs are allocated from `.roadmap-counter`.
   For batch throughput see SNAT-0039 --
   running queued downloads in parallel is the bigger and better-evidenced
   win.
+  Shipped (2026-10-30): a "Parallel parts" menu (1, 2, 4, 8) beside
+  Speed Limit, default 1, saved as `fragments` in config.json. The
+  interaction this bullet warned about is real: yt-dlp's slow_down()
+  counts bytes per fragment downloader, so --limit-rate applies per
+  connection and N parts could reach N times the limit. A set limit
+  therefore wins and no -N is passed. _rate_args holds that rule;
+  tests/test_rate_args.py pins it. Not measured on a slow connection:
+  the default stays 1 until someone has numbers.
   **Layman:** There is a yt-dlp option that can fetch a video in several pieces at once. On a fast connection it made little difference here, so it should be a setting rather than something we force on.
   Kind: perf.
   Source: in-session-2026-08-20.

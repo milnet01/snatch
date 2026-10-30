@@ -383,6 +383,7 @@ MAX_HISTORY_ENTRIES = 200
 | `subtitles` | int | `0` | Download subtitles |
 | `sponsorblock` | int | `0` | Enable SponsorBlock segment removal |
 | `speed_limit` | string | `"Unlimited"` | Download speed limit |
+| `fragments` | string | `"1"` | Parts of one video fetched at once; ignored while `speed_limit` is set |
 | `theme` | string | `"Dark"` | Active theme name |
 | `last_tab` | int | `0` | Index of the notebook tab to reopen on launch |
 

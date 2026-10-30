@@ -256,6 +256,11 @@ class DownloadTabMixin:
                                    values=["Unlimited", "1M", "2M", "5M", "10M", "20M"],
                                    state="readonly", width=10)
         speed_combo.pack(side=tk.LEFT, padx=(0, 10))
+        # Ignored while a speed limit is set; _rate_args says why.
+        ttk.Label(progress_top, text="Parallel parts:").pack(side=tk.LEFT, padx=(0, 4))
+        ttk.Combobox(progress_top, textvariable=self.fragments_var,
+                     values=self.FRAGMENT_CHOICES,
+                     state="readonly", width=3).pack(side=tk.LEFT)
 
         self.progress_bar = ttk.Progressbar(progress_frame, variable=self.progress_var,
                                              maximum=100, mode="determinate")

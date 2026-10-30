@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **A Parallel parts setting beside Speed Limit** (SNAT-0040)
+  Fetches several pieces of one video at once, which can help on a
+  slow connection. It starts at 1, so downloads behave as before until
+  you change it. A speed limit, when set, takes priority.
+
 - **A disclaimer along the bottom of the window** (SNAT-0084)
   It asks you to download only videos you have the right to, and says
   Snatch is not affiliated with YouTube, Google or yt-dlp. The README
