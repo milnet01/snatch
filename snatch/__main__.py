@@ -4,10 +4,12 @@ import sys
 
 from . import HAS_DND
 from .logging_setup import configure_logging
-from .platform_utils import app_data_dir
+from .platform_utils import app_data_dir, restore_child_library_path
 
 
 def main():
+    restore_child_library_path()
+
     # `--selftest [REPORT]` checks a packaged build without opening a window;
     # the build scripts run it on every artefact they produce (SNAT-0024).
     if sys.argv[1:2] == ["--selftest"]:

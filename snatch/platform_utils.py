@@ -75,6 +75,25 @@ def install_hint(tool):
     return hints["linux"]
 
 
+def restore_child_library_path():
+    """Stop the programs this app starts inheriting the bundle's libraries.
+
+    PyInstaller's bootloader points LD_LIBRARY_PATH at the bundle, for its own
+    use. A child inherits that, and the bundled yt-dlp runs under the system's
+    python3, which then loads the bundle's older libcrypto and dies on any
+    newer distro (SNAT-0087). This process's own libraries are unaffected:
+    the loader read the variable when it started. The saved _ORIG value is
+    what the user had, and is absent when they had none.
+    """
+    if not is_frozen() or is_windows():
+        return
+    original = os.environ.get("LD_LIBRARY_PATH_ORIG")
+    if original is None:
+        os.environ.pop("LD_LIBRARY_PATH", None)
+    else:
+        os.environ["LD_LIBRARY_PATH"] = original
+
+
 def is_frozen():
     """True when running inside a PyInstaller bundle."""
     return getattr(sys, "frozen", False)

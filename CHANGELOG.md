@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **The Linux download works again on newer systems** (SNAT-0087)
+  On systems with a newer OpenSSL, such as openSUSE Tumbleweed, the
+  AppImage could not run its download tool, so fetching and downloading
+  failed. Snatch's own libraries were leaking into the programs it starts.
+
 ## [1.3.0] - 2026-10-30
 
 **Theme:** Security fix, faster start and queued downloads at the same time.

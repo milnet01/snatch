@@ -1,6 +1,6 @@
 <!-- ants-roadmap-format: 1 -->
 <!-- Generated from the Ants Terminal roadmap store. Edit it with roadmap_log; hand edits are discarded by the next write. -->
-<!-- ants-roadmap-id-high-water: SNAT=86 -->
+<!-- ants-roadmap-id-high-water: SNAT=87 -->
 # Snatch — Roadmap
 
 A tkinter frontend for yt-dlp. This roadmap tracks packaging, distribution
@@ -3858,3 +3858,16 @@ and application work. IDs are allocated from `.roadmap-counter`.
   **Layman:** In the smallest window Snatch allows, you cannot see the list of formats or playlist videos until you make the window taller.
   Kind: fix.
   Source: split-from-SNAT-0085-2026-10-30.
+
+- 🚧 [SNAT-0087] **The Linux AppImage cannot run yt-dlp on a distro with a newer OpenSSL.**
+  Seen 2026-10-30 on openSUSE Tumbleweed (Python 3.13) running the
+  published v1.3.0 and v1.2.0 AppImages: --selftest fails with "bundled
+  yt-dlp did not run". PyInstaller's bootloader points LD_LIBRARY_PATH at
+  the bundle, children inherit it, and the bundled yt-dlp is a zipapp run
+  by the system python3, which then loads the bundle's libcrypto:
+  "version OPENSSL_3.3.0 not found". With that variable unset the same
+  binary prints its version. CI cannot see this: it builds and tests on
+  Ubuntu 22.04, whose libraries match the bundle's.
+  **Layman:** On newer Linux systems the downloaded Snatch could not fetch or download anything, because its own libraries got in the way of the tool that does the work.
+  Kind: fix.
+  Source: in-session-2026-10-30.
