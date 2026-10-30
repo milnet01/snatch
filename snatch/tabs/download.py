@@ -204,8 +204,13 @@ class DownloadTabMixin:
         pl_scroll.pack(side=tk.RIGHT, fill=tk.Y)
 
         # ── Row 4: Quick buttons (full width) ───────────────────────
+        # Rows 4 to 6 are packed from the bottom and listed BEFORE the format
+        # list, because Tk hands out space in packing order. The window can
+        # be shorter than the tab wants (the default is), and the list is the
+        # one row that can shrink; packed last, these were cut off instead,
+        # Download button included (SNAT-0085).
         quick_frame = ttk.Frame(parent)
-        quick_frame.pack(fill=tk.X, pady=(0, 8))
+        quick_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(0, 8), before=format_frame)
 
         ttk.Label(quick_frame, text="Quick Select:", font=("Helvetica", 9, "bold")).pack(side=tk.LEFT, padx=(0, 10))
         ttk.Button(quick_frame, text="Best Video+Audio",
@@ -217,7 +222,7 @@ class DownloadTabMixin:
 
         # ── Row 5: Queue (left) | Progress (right) ──────────────────
         row5 = ttk.Frame(parent)
-        row5.pack(fill=tk.X, pady=(0, 8))
+        row5.pack(side=tk.BOTTOM, fill=tk.X, pady=(0, 8), before=quick_frame)
         row5.columnconfigure(0, weight=1, uniform="half")
         row5.columnconfigure(1, weight=1, uniform="half")
 
@@ -272,7 +277,7 @@ class DownloadTabMixin:
 
         # ── Row 6: Buttons + Toggles (full width) ───────────────────
         btn_frame = ttk.Frame(parent)
-        btn_frame.pack(fill=tk.X, pady=(5, 0))
+        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(5, 0), before=row5)
 
         self.download_btn = ttk.Button(btn_frame, text="Download Selected Format",
                                         command=self.download_selected, style="Accent.TButton")

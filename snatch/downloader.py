@@ -1077,8 +1077,10 @@ class DownloaderMixin:
         """Display playlist entries in the playlist treeview"""
         self.is_playlist = True
         self.playlist_entries = entries
+        # Before the format list, which is empty for a playlist: in a short
+        # window the row packed first keeps its space (SNAT-0085).
         self.playlist_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 12),
-                                 after=self.format_tree.master)
+                                 before=self.format_tree.master)
 
         clear_treeview(self.playlist_tree)
 

@@ -32,6 +32,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **The Download button is no longer cut off** (SNAT-0085)
+  At the default window size the bottom of the Download tab was clipped,
+  and in a shorter window the queue, progress bar and buttons were
+  hidden. Those now always show, and the format or playlist list shrinks
+  instead. At the very smallest window size the list has no room left,
+  so make the window taller to choose a format.
+
 - **Playlists and searches with untitled videos no longer crash**
   A video with no title stopped the playlist from queueing, or the
   search result from being selected, and showed "None" in the list.

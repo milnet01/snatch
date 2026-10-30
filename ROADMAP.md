@@ -1,6 +1,6 @@
 <!-- ants-roadmap-format: 1 -->
 <!-- Generated from the Ants Terminal roadmap store. Edit it with roadmap_log; hand edits are discarded by the next write. -->
-<!-- ants-roadmap-id-high-water: SNAT=84 -->
+<!-- ants-roadmap-id-high-water: SNAT=86 -->
 # Snatch — Roadmap
 
 A tkinter frontend for yt-dlp. This roadmap tracks packaging, distribution
@@ -3787,3 +3787,41 @@ and application work. IDs are allocated from `.roadmap-counter`.
   **Layman:** Snatch now reminds you to download only what you have the right to, and says it is not tied to YouTube, Google or yt-dlp.
   Kind: feature.
   Source: user-request-2026-10-16 (relayed by ants-projects-hub-website).
+
+- ✅ [SNAT-0085] **The Download button is cut off when the window is at or near its minimum size.**
+  Seen 2026-10-30 in headless screenshots. At the minimum window size
+  (1000x750) the Download tab shows nothing below Available Formats: no
+  queue, progress bar, speed menus, Download or Cancel buttons. At
+  1000x950 the Download button is still clipped. The version before the
+  disclaimer (6bc9d03~1) already clipped everything below Quick Select at
+  1000x750, so the disclaimer worsened this and did not cause it.
+  Shipped (2026-10-30): rows 4 to 6 are packed from the bottom and
+  listed before the format list, so the list shrinks when the window is
+  short; the playlist list is packed before the format list, or it would
+  have been squeezed out instead. Screenshots on a private display: at
+  1200x900, the default, every control shows, with and without a
+  playlist. At 1000x750 all the buttons show but the lists collapse;
+  SNAT-0086 holds that remainder and the choice it needs.
+  Not driven: the layout was checked by eye, no test covers it.
+  **Layman:** On a small screen or a short window, the bottom of the Download tab, including the Download button, can be hidden.
+  Kind: fix.
+  Source: in-session-2026-10-30.
+
+- 📋 [SNAT-0086] **At the minimum window height the format and playlist lists have no room.**
+  Measured 2026-10-30 on a private display: the Download tab's window
+  needs 1009 px tall for everything at full size, and about 707 px of that
+  is rows that cannot shrink. The window minimum is 750 px, which leaves
+  the list about 43 px, so it collapses. Quick Select and the Download
+  button stay visible since SNAT-0085.
+
+  Needs a choice, and it is the user's:
+  - raise the minimum height to about 850 px; simple, but the window
+    then does not fit a 768 px laptop screen;
+  - make the tab scroll on a short window; fits every screen, more code,
+    and the mouse wheel must be tested on three platforms;
+  - compact the fixed rows (preview, queue); keeps one screen, changes
+    how the tab looks.
+  Only the Download tab was measured.
+  **Layman:** In the smallest window Snatch allows, you cannot see the list of formats or playlist videos until you make the window taller.
+  Kind: fix.
+  Source: split-from-SNAT-0085-2026-10-30.
