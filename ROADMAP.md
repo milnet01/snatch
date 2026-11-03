@@ -1840,7 +1840,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: in-session-2026-08-20.
   Lanes: security, process.
 
-- 🚧 [SNAT-0038] **Full in-app auto-update: offer, show notes since your version, install, relaunch.**
+- ✅ [SNAT-0038] **Full in-app auto-update: offer, show notes since your version, install, relaunch.**
   Asked by the user 2026-08-20, superseding SNAT-0021's notify-only
   scope. Check GitHub for a newer release, show the accumulated changelog
   for EVERY version between the installed one and the latest, and on
@@ -1914,6 +1914,11 @@ and application work. IDs are allocated from `.roadmap-counter`.
   CI's zipped artifact sizes (run 41614979673 -> 41634609511): Windows
   +3.7 MB, macOS +4.0 MB, Linux +4.3 MB. The Windows build's selftest
   passed "update signature" in that run (INV-12).
+  Shipped (2026-11-03): in 1.4.0, with CI green on Linux, Windows and
+  macOS (a4425f1, cb91895, ed7db7b). The user chose to flip it before the
+  spec's section 7 live recipe, because that recipe needs this release to
+  exist. The recipe runs next, against a 1.4.1 patch; a failure there
+  gets its own fix item.
   **Layman:** Snatch offers a new version, shows everything that changed since the one you have, and if you accept it updates and reopens itself.
   Kind: feature.
   Source: user-request-2026-08-20.
