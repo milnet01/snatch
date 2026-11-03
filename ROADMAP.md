@@ -1,6 +1,6 @@
 <!-- ants-roadmap-format: 1 -->
 <!-- Generated from the Ants Terminal roadmap store. Edit it with roadmap_log; hand edits are discarded by the next write. -->
-<!-- ants-roadmap-id-high-water: SNAT=88 -->
+<!-- ants-roadmap-id-high-water: SNAT=89 -->
 # Snatch — Roadmap
 
 A tkinter frontend for yt-dlp. This roadmap tracks packaging, distribution
@@ -864,6 +864,19 @@ and application work. IDs are allocated from `.roadmap-counter`.
   **Layman:** Keep our own copy of the video player we bundle, so a Windows build never breaks because someone else deleted a file.
   Kind: package.
   Source: user-request-2026-10-15.
+
+- 📋 [SNAT-0089] **Run the built AppImage on a newer distro before a release.**
+  CI builds and tests on Ubuntu 22.04, the oldest base the AppImage
+  supports. That missed SNAT-0087 (bundled OpenSSL libraries leaking
+  into yt-dlp) and SNAT-0088 (certificates kept in a different place):
+  both broke only on newer distros. Add a step to the build process
+  that runs the built AppImage in a container of a current distro
+  (for example openSUSE Tumbleweed or the latest Fedora) and has it
+  fetch one URL with yt-dlp over HTTPS. Change scripts/build-*.sh, not
+  the workflow step, so local-ci.sh runs it too.
+  **Layman:** Try the Linux download on a recent Linux system before each release, so a break like 1.3.0's is caught first.
+  Kind: test.
+  Source: session-2026-11-03.
 
 ## Application
 
