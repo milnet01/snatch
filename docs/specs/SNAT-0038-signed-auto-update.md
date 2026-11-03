@@ -1,7 +1,7 @@
 <!-- ants-spec-format: 1 -->
 # SNAT-0038 — Update Snatch in place from a signed release
 
-**Status:** spec draft (2026-11-03).
+**Status:** accepted (2026-11-03).
 **Kind:** feature.
 **Source:** ROADMAP SNAT-0038 (user-request-2026-08-20; key and spec approved by the user 2026-11-03).
 **Supersedes:** SNAT-0021's click action, which opens the release page.
@@ -114,8 +114,9 @@ class UpdateOffer:
     notes: str            # every version since ours, newest first
 ```
 
-`find_offer(current, asset_name)` reuses the launch check's single fetch of
-`SNATCH_RELEASE_API`. GitHub excludes drafts and prereleases from it. It
+`find_offer(release, current, asset_name)` takes `release`, the JSON that
+`_check_app_update_thread` already parsed from `SNATCH_RELEASE_API`, and
+fetches nothing. GitHub excludes drafts and prereleases from that endpoint. It
 returns an offer only when the tag is newer than `current` by
 `newer_app_version`, and the release lists exactly one asset each named
 `asset_name`, `SNATCH-UPDATE` and `SNATCH-UPDATE.sig`. Otherwise it returns
@@ -183,8 +184,9 @@ same-volume rename.
 **Before installing**, on the main thread: `_confirm_close()` asks about
 running downloads, exactly as closing the window does. If the user says no,
 the update stops and the temp file is deleted. Then `_shutdown_state()`
-cancels downloads, stops mpv, and saves config and `queue.json`. Nothing
-writes user data after this point.
+cancels downloads, stops mpv, and saves config and `queue.json`. It clears
+nothing, so if the install then fails the app stays usable and saves as
+usual. `_on_close` keeps its clearing and `root.destroy()`.
 
 **AppImage:** `chmod 0o755` the temp file, fsync it, then
 `os.replace(temp, appimage)`, then fsync the folder. The running copy keeps
@@ -193,8 +195,9 @@ its mounted image, so the swap is safe.
 **Windows:** rename the running `<target>` to `<target>.old`, removing
 an earlier `.old` first and using `<target>.old-<n>` if that one is still
 locked. Then `os.replace(temp, target)`, tried five times 500 ms apart in case
-antivirus holds the new file. If it still fails, rename the `.old`
-file back, delete the temp file and report the error.
+antivirus holds the new file. If it still fails, rename the file this
+install moved aside back to `<target>`, delete the temp file and report the
+error.
 
 **Relaunch**, on both: `subprocess.Popen([str(target)], env=env,
 stdin=DEVNULL, stdout=DEVNULL, stderr=DEVNULL, close_fds=True)`. On Linux
@@ -235,8 +238,11 @@ Clicking it with an installer and an offer opens `UpdateDialog`:
 **Key, once:** `scripts/gen-signing-key.py` writes an unencrypted PKCS#8 PEM to
 `$SNATCH_SIGNING_KEY`, default `~/.config/snatch-release/signing.key`. It uses
 `O_CREAT | O_EXCL` and mode 0600, refuses to overwrite an existing file, and
-prints the base64 public key for `snatch/update_key.py`. It also tells the
-user to copy the key to a second drive.
+prints the base64 public key for `snatch/update_key.py`. It signs the fixed
+bytes `snatch selftest\n` and prints them and the signature as
+`SELFTEST_MANIFEST` and `SELFTEST_SIGNATURE` for `snatch/selftest.py`; they
+are not a manifest and are never parsed as one. It also tells the user to
+copy the key to a second drive.
 
 **CI:** the `release` job passes `draft: true` to `softprops/action-gh-release`.
 A draft is invisible to users and to `/releases/latest`.
@@ -259,8 +265,8 @@ A draft is invisible to users and to `/releases/latest`.
 
 ## 5. Invariants
 
-- **INV-1** — An offer exists only for a release that is newer, is not a
-  draft or prerelease, and carries this build's asset, `SNATCH-UPDATE` and
+- **INV-1** — An offer exists only for a release that is newer and carries
+  this build's asset, `SNATCH-UPDATE` and
   `SNATCH-UPDATE.sig`; otherwise the button opens the release page as today.
   *Test:* `tests/test_self_update.py::test_offer_*`, one fixture per missing
   piece.
@@ -313,10 +319,11 @@ A draft is invisible to users and to `/releases/latest`.
   *Test:* `tests/test_update_installer.py::test_detect_*`.
   *Breaks when:* `$APPIMAGE` alone arms the updater.
 
-- **INV-9** — A Windows install whose final replace fails renames
-  `<target>.old` back to `<target>`, so the user keeps a working copy.
+- **INV-9** — A Windows install whose final replace fails renames the file
+  it moved aside (`<target>.old` or `<target>.old-<n>`) back to `<target>`,
+  so the user keeps a working copy.
   *Test:* `tests/test_update_installer.py::test_windows_failed_replace_restores_the_original`,
-  with `os.replace` patched to raise.
+  with `os.replace` patched to raise, for both names.
   *Breaks when:* the rename-back step is missing or runs only on success.
 
 - **INV-10** — Config and `queue.json` are written before the new process is
@@ -336,8 +343,8 @@ A draft is invisible to users and to `/releases/latest`.
 
 - **INV-12** — A packaged build can verify an Ed25519 signature.
   *Test:* `snatch --selftest` verifies `SELFTEST_MANIFEST` against
-  `SELFTEST_SIGNATURE`, two constants in `snatch/selftest.py` signed once by
-  the maintainer's real key, with the bundled `cryptography`. Every
+  `SELFTEST_SIGNATURE`, two constants in `snatch/selftest.py` printed by
+  `gen-signing-key.py` (§4.8), with the bundled `cryptography`. Every
   `scripts/build-*.sh` already runs `--selftest` on its artefact. The
   constants live in the package because a packaged build does not contain
   `tests/`.
@@ -353,11 +360,11 @@ A draft is invisible to users and to `/releases/latest`.
 - **INV-14** — No private key is tracked, and `sign-release.py` never
   publishes a manifest its own committed public key cannot verify.
   *Test:* `tests/test_release_signing.py::test_no_private_key_is_tracked`
-  scans every file `git ls-files` lists for a PEM private-key header
-  (`-----BEGIN`, any words, `PRIVATE KEY-----`), building the pattern at run
-  time so the test's own source does not match;
+  scans every file `git ls-files` lists for the regular expression
+  `-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----`;
   `::test_sign_refuses_a_key_that_does_not_match` runs `sign-release.py` with
-  a foreign key and `gh` replaced by a recorder, and expects no
+  a foreign key and `gh` replaced by a recorder that serves a valid draft
+  (the three platform assets and a matching `SHA256SUMS`), and expects no
   `gh release upload` or `gh release edit` call.
   *Breaks when:* the verify-before-publish step is removed.
 
@@ -415,8 +422,8 @@ opener, keeping what each proves.
    survived.
 4. On the Windows test box (`scripts/wplay.ps1`'s folder pattern), run the
    earlier `snatch.exe` from Explorer via the signed-in desktop, update it,
-   and confirm the same. Confirm `snatch.exe.old` is gone after the next
-   start.
+   and confirm the same. Close it, start it again, and confirm
+   `snatch.exe.old` is gone.
 
 ## 8. Alternatives considered (and rejected)
 
@@ -456,7 +463,7 @@ opener, keeping what each proves.
 | INV-1 | `tests/test_self_update.py::test_offer_*` |
 | INV-2 | `tests/test_self_update.py::test_bad_signature_downloads_nothing` |
 | INV-3 | `tests/test_self_update.py::test_replayed_manifest_is_refused` |
-| INV-4 | `tests/test_self_update.py::test_digest_mismatch_is_refused` |
+| INV-4 | `tests/test_self_update.py::test_digest_mismatch_is_refused`, `::test_other_platforms_digest_is_refused` |
 | INV-5 | `tests/test_self_update.py::test_manifest_parse_*` |
 | INV-6 | `tests/test_https_only.py::test_a_redirect_hop_off_https_is_refused` |
 | INV-7 | `tests/test_self_update.py::test_failure_leaves_no_temp_*` |
