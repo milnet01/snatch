@@ -197,6 +197,11 @@ Two steps: CI builds a draft, then you sign and publish it on your own PC
    git push --follow-tags origin main
    ```
 
+   GitHub sometimes has no macOS runner free and cancels that job with "The
+   job was not acquired by Runner". That is not a build failure: `gh run
+   rerun <run-id> --failed` retries it. Seen on both release runs of
+   2026-11-03.
+
 2. Once the run is green, sign and publish the draft:
 
    ```bash

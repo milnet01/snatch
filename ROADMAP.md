@@ -1927,6 +1927,14 @@ and application work. IDs are allocated from `.roadmap-counter`.
   spec's section 7 live recipe, because that recipe needs this release to
   exist. The recipe runs next, against a 1.4.1 patch; a failure there
   gets its own fix item.
+  Live recipe (spec section 7), 2026-11-03. Linux PASSED: the
+  published v1.4.0 AppImage offered 1.4.1, Update now relaunched
+  it as v1.4.1 within 5 s, the file's SHA-256 matched v1.4.1's
+  SHA256SUMS, and the queue came back as Pending. Windows NOT YET
+  RUN: C:\snatch-update-test on wintest holds the published 1.4.0
+  snatch.exe (hash checked) and a queue.json. Step 4 needs a person
+  at the signed-in desktop, since SSH cannot click there. If it
+  fails, file a fix for a later patch; do not reopen this item.
   **Layman:** Snatch offers a new version, shows everything that changed since the one you have, and if you accept it updates and reopens itself.
   Kind: feature.
   Source: user-request-2026-08-20.
