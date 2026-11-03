@@ -1901,6 +1901,10 @@ and application work. IDs are allocated from `.roadmap-counter`.
   None there is the correct interim behaviour.
 
   Depends on SNAT-0036 (signing/checksums). Supersedes SNAT-0021.
+  Spec gated 2026-11-03: review-contract ran two loops on
+  docs/specs/SNAT-0038-signed-auto-update.md (18 verified findings, all
+  fixed; commits 54bdf30, 1a23132). Cap reached calmly; Status accepted.
+  Loop log: docs/reviews/SNAT-0038-signed-auto-update-loop-log.md.
   **Layman:** Snatch offers a new version, shows everything that changed since the one you have, and if you accept it updates and reopens itself.
   Kind: feature.
   Source: user-request-2026-08-20.
