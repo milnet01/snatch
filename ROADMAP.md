@@ -1910,6 +1910,10 @@ and application work. IDs are allocated from `.roadmap-counter`.
   scripts/sign-release.py signs and publishes. Not shipped until the
   spec's section 7 live recipe passes on Linux and on the Windows test
   box, which needs the release carrying this and a patch release after.
+  Bundled cryptography's cost, measured 2026-11-03 as the change in
+  CI's zipped artifact sizes (run 41614979673 -> 41634609511): Windows
+  +3.7 MB, macOS +4.0 MB, Linux +4.3 MB. The Windows build's selftest
+  passed "update signature" in that run (INV-12).
   **Layman:** Snatch offers a new version, shows everything that changed since the one you have, and if you accept it updates and reopens itself.
   Kind: feature.
   Source: user-request-2026-08-20.
