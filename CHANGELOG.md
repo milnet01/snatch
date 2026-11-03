@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-03
+
+**Theme:** Snatch updates itself.
+
 ### Added
 
 - **Snatch updates itself on Linux and Windows** (SNAT-0038)
