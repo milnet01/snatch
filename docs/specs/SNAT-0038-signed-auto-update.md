@@ -63,7 +63,7 @@ behaviour: the button opens the release page.
 | File | Job |
 |------|-----|
 | `snatch/update_key.py` (new) | `RELEASE_PUBLIC_KEY_B64`, the raw 32-byte Ed25519 public key in base64; `public_key()` |
-| `snatch/self_update.py` (new) | Release discovery, notes, manifest verification, download. No tkinter. |
+| `snatch/self_update.py` (new) | Release discovery, notes, manifest verification, download. Creates no widgets; takes `_open_https` and the shared constants from the modules that hold them now. |
 | `snatch/update_installer.py` (new) | `detect_installer()`, `AppImageInstaller`, `WindowsInstaller`, stale-file cleanup |
 | `snatch/update_dialog.py` (new) | `UpdateDialog`, a non-modal `tk.Toplevel` |
 | `snatch/version.py` | `_open_https` checks every redirect hop; `_on_app_update_click` opens the dialog when an installer exists |
@@ -107,6 +107,7 @@ release names the older version, so it cannot be replayed under a newer tag.
 @dataclass(frozen=True)
 class UpdateOffer:
     version: str          # "1.4.0"
+    asset_name: str       # find_offer's argument; download_verified looks up its digest
     asset_url: str        # browser_download_url of this build's asset
     manifest_url: str
     signature_url: str
@@ -137,7 +138,7 @@ is used. Notes never block the offer.
    (refuse over 64 KiB).
 2. Verify the signature with `public_key()`. Then parse the manifest (§4.2).
    Require `version` to equal `offer.version` and to be newer than
-   `__version__`. Look up `asset_name`'s digest.
+   `__version__`. Look up `offer.asset_name`'s digest.
 3. Only then fetch the asset into `tempfile.mkstemp(prefix=".snatch-update-",
    dir=target_dir)`. Refuse a `Content-Length` over `UPDATE_MAX_BYTES`
    (512 MiB), stop at that many bytes, hash while writing in
@@ -167,14 +168,17 @@ def detect_installer() -> AppImageInstaller | WindowsInstaller | None
 - **Anything else** → `None`: a source run, macOS, a future distro package
   (SNAT-0028).
 
-Either installer also returns `None` unless its target file and folder are
-writable (`os.access(..., os.W_OK)`), for example a copy in `C:\Program Files`.
+`detect_installer()` also returns `None` unless a file can be created and
+removed in the target's folder, for example a copy in `C:\Program Files`. Do
+not use `os.access` for this: on Windows it returned True for a folder whose
+access list denied writing (measured 2026-11-03, Windows 10).
 `None` means today's behaviour, unchanged.
 
 ### 4.6 Installing
 
-Both installers take the verified temp file, which sits in the target's folder
-so every move is a same-volume rename.
+Both installers take the verified temp file, which sits in the folder of
+`<target>`, the file the installer was built with (§4.5), so every move is a
+same-volume rename.
 
 **Before installing**, on the main thread: `_confirm_close()` asks about
 running downloads, exactly as closing the window does. If the user says no,
@@ -186,9 +190,9 @@ writes user data after this point.
 `os.replace(temp, appimage)`, then fsync the folder. The running copy keeps
 its mounted image, so the swap is safe.
 
-**Windows:** rename the running `snatch.exe` to `snatch.exe.old`, removing
-an earlier `.old` first and using `snatch.exe.old-<n>` if that one is still
-locked. Then `os.replace(temp, exe)`, tried five times 500 ms apart in case
+**Windows:** rename the running `<target>` to `<target>.old`, removing
+an earlier `.old` first and using `<target>.old-<n>` if that one is still
+locked. Then `os.replace(temp, target)`, tried five times 500 ms apart in case
 antivirus holds the new file. If it still fails, rename the `.old`
 file back, delete the temp file and report the error.
 
@@ -196,8 +200,10 @@ file back, delete the temp file and report the error.
 stdin=DEVNULL, stdout=DEVNULL, stderr=DEVNULL, close_fds=True)`. On Linux
 add `start_new_session=True`. On Windows add
 `creationflags=CREATE_NEW_PROCESS_GROUP`, never `DETACHED_PROCESS`. `env` is
-`os.environ` minus `APPIMAGE`, `APPDIR`, `ARGV0` and `_PYI_*` keys, plus
-`PYINSTALLER_RESET_ENVIRONMENT=1`. `restore_child_library_path()` has
+`os.environ` minus `APPIMAGE`, `APPDIR` and `ARGV0`, plus
+`PYINSTALLER_RESET_ENVIRONMENT=1`. That flag makes the new bootloader reset
+its own `_PYI_*` variables; PyInstaller's advanced-topics page says code
+outside the bootloader must not modify them. `restore_child_library_path()` has
 already cleaned `LD_LIBRARY_PATH`. There is no shell anywhere. Then
 `os._exit(0)`, also when the spawn fails, because the swap is already
 committed. A failed spawn is logged; the user starts the new version
@@ -258,8 +264,8 @@ A draft is invisible to users and to `/releases/latest`.
   `SNATCH-UPDATE.sig`; otherwise the button opens the release page as today.
   *Test:* `tests/test_self_update.py::test_offer_*`, one fixture per missing
   piece.
-  *Breaks when:* a release without `SNATCH-UPDATE.sig`, or with two
-  `Snatch-*.AppImage` assets, yields an offer.
+  *Breaks when:* a release without `SNATCH-UPDATE.sig`, or without an asset
+  named `asset_name`, yields an offer.
 
 - **INV-2** — Nothing is written to disk for the asset until the manifest's
   signature verifies against `RELEASE_PUBLIC_KEY_B64`.
@@ -308,7 +314,7 @@ A draft is invisible to users and to `/releases/latest`.
   *Breaks when:* `$APPIMAGE` alone arms the updater.
 
 - **INV-9** — A Windows install whose final replace fails renames
-  `snatch.exe.old` back to `snatch.exe`, so the user keeps a working copy.
+  `<target>.old` back to `<target>`, so the user keeps a working copy.
   *Test:* `tests/test_update_installer.py::test_windows_failed_replace_restores_the_original`,
   with `os.replace` patched to raise.
   *Breaks when:* the rename-back step is missing or runs only on success.
@@ -321,12 +327,12 @@ A draft is invisible to users and to `/releases/latest`.
   after it.
 
 - **INV-11** — The relaunch uses an argument list and no shell, never passes
-  `DETACHED_PROCESS`, and strips `APPIMAGE`, `APPDIR`, `ARGV0` and `_PYI_*`
-  from the child's environment.
+  `DETACHED_PROCESS`, strips `APPIMAGE`, `APPDIR` and `ARGV0` from the
+  child's environment, and sets `PYINSTALLER_RESET_ENVIRONMENT=1`.
   *Test:* `tests/test_update_installer.py::test_relaunch_*` captures the
   `Popen` call.
   *Breaks when:* a shell string, `shell=True` or `DETACHED_PROCESS` appears,
-  or the child inherits `APPDIR`.
+  the child inherits `APPDIR`, or the reset flag is missing.
 
 - **INV-12** — A packaged build can verify an Ed25519 signature.
   *Test:* `snatch --selftest` verifies `SELFTEST_MANIFEST` against
@@ -347,9 +353,12 @@ A draft is invisible to users and to `/releases/latest`.
 - **INV-14** — No private key is tracked, and `sign-release.py` never
   publishes a manifest its own committed public key cannot verify.
   *Test:* `tests/test_release_signing.py::test_no_private_key_is_tracked`
-  scans `git ls-files` for `PRIVATE KEY`;
-  `::test_sign_refuses_a_key_that_does_not_match` runs the script's signing
-  function with a foreign key and expects it to stop before any `gh` call.
+  scans every file `git ls-files` lists for a PEM private-key header
+  (`-----BEGIN`, any words, `PRIVATE KEY-----`), building the pattern at run
+  time so the test's own source does not match;
+  `::test_sign_refuses_a_key_that_does_not_match` runs `sign-release.py` with
+  a foreign key and `gh` replaced by a recorder, and expects no
+  `gh release upload` or `gh release edit` call.
   *Breaks when:* the verify-before-publish step is removed.
 
 ## 6. Failure modes
@@ -370,7 +379,7 @@ A draft is invisible to users and to `/releases/latest`.
   new file is in place, and the next manual launch runs it.
 - **Power cut mid-install** — AppImage: `os.replace` is atomic, so either file
   is whole. Windows: between the rename and the replace there is no
-  `snatch.exe`; `snatch.exe.old` is the old build and the user can rename it
+  `<target>`; `<target>.old` is the old build and the user can rename it
   back.
 - **A broken installer ships** — it is the old version that installs the new
   one, so a bug in this code can only be fixed by a manual download
@@ -393,8 +402,9 @@ straight through, and `_open_https` patched. Network fixtures are signed with
 a key generated in the test. Each test is first seen failing against the code
 before its fix.
 
-`tests/test_https_only.py::test_only_open_https_calls_urlopen` is updated to
-allow `_open_https`'s own opener and still nothing else.
+Both existing tests in `tests/test_https_only.py` find or patch `urlopen`,
+which `_open_https`'s own opener does not call. Rewrite both around the
+opener, keeping what each proves.
 
 **Live recipe, before the first release that relies on updating:**
 
