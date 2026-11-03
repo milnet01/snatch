@@ -45,13 +45,29 @@ FAKE_GH = textwrap.dedent("""\
     """)
 
 
+def _tracked_files():
+    """Every tracked file, or every file present where git cannot answer.
+
+    The pre-push gate runs the suite in a container over a fresh worktree,
+    whose .git points at a repository the container cannot see, so `git
+    ls-files` exits 128 there. Every file present is a superset of the
+    tracked ones, so the fallback is stricter, never weaker.
+    """
+    try:
+        listed = subprocess.run(["git", "ls-files", "-z"], cwd=ROOT,
+                                check=True, capture_output=True,
+                                timeout=GIT_TIMEOUT_SEC)
+    except (OSError, subprocess.CalledProcessError):
+        return [p.relative_to(ROOT).as_posix() for p in ROOT.rglob("*")
+                if ".git" not in p.relative_to(ROOT).parts]
+    return [name for name in listed.stdout.decode().split("\0") if name]
+
+
 def test_no_private_key_is_tracked():
-    listed = subprocess.run(["git", "ls-files", "-z"], cwd=ROOT, check=True,
-                            capture_output=True, timeout=GIT_TIMEOUT_SEC)
     leaks = []
-    for name in listed.stdout.decode().split("\0"):
+    for name in _tracked_files():
         path = ROOT / name
-        if name and path.is_file() and PRIVATE_KEY.search(path.read_bytes()):
+        if path.is_file() and PRIVATE_KEY.search(path.read_bytes()):
             leaks.append(name)
     assert leaks == []
 
