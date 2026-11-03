@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-11-03
+
+**Theme:** Linux builds tested on a current system.
+
 ### Changed
 
 - **Every Linux build is now tried on a current Linux system before release** (SNAT-0089)
