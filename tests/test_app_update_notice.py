@@ -38,6 +38,9 @@ class Host(VersionMixin):
         self.available_app_version = None
         self.dismissed_app_version = ""
         self._save_config = MagicMock()
+        self.update_installer = None
+        self.app_update_offer = None
+        self._update_dialog = None
 
 
 def _serve(monkeypatch, body):
@@ -119,3 +122,56 @@ def test_yes_opens_the_release_page(monkeypatch):
     host._on_app_update_click()
     assert opened.call_args[0][0].startswith("https://github.com/milnet01/snatch/")
     assert host.dismissed_app_version == ""
+
+
+# ── SNAT-0038: a signed release, on a build that can update, is offered ──
+
+def _signed_release(tag="v1.4.0"):
+    names = ("Snatch-x86_64.AppImage", "SNATCH-UPDATE", "SNATCH-UPDATE.sig")
+    return {"tag_name": tag, "body": "What changed.",
+            "assets": [{"name": n,
+                        "browser_download_url": f"https://example.com/{n}"}
+                       for n in names]}
+
+
+def _offline_notes(monkeypatch):
+    from snatch import self_update
+
+    def offline(_url, _timeout):
+        raise OSError("no route to host")
+    monkeypatch.setattr(self_update, "_open_https", offline)
+
+
+def test_a_signed_release_is_offered_to_a_build_that_can_update(monkeypatch):
+    monkeypatch.setattr(version, "__version__", "1.3.1")
+    _serve(monkeypatch, json.dumps(_signed_release()).encode())
+    _offline_notes(monkeypatch)
+    host = Host()
+    host.update_installer = MagicMock(asset_name="Snatch-x86_64.AppImage")
+    host._check_app_update_thread()
+    assert host.app_update_offer.version == "1.4.0"
+    assert host.app_update_offer.notes == "## 1.4.0\n\nWhat changed."
+    host.app_update_btn.pack.assert_called_once()
+
+
+def test_a_build_that_cannot_update_gets_no_offer(monkeypatch):
+    monkeypatch.setattr(version, "__version__", "1.3.1")
+    _serve(monkeypatch, json.dumps(_signed_release()).encode())
+    host = Host()
+    host._check_app_update_thread()
+    assert host.available_app_version == "1.4.0"
+    assert host.app_update_offer is None
+
+
+def test_a_click_with_an_offer_opens_the_dialog(monkeypatch):
+    from snatch import update_dialog
+    monkeypatch.setattr(version, "messagebox", MagicMock())
+    dialog = MagicMock()
+    monkeypatch.setattr(update_dialog, "UpdateDialog", dialog)
+    host = Host()
+    host.update_installer = MagicMock()
+    host.app_update_offer = MagicMock()
+    host._on_app_update_click()
+    dialog.assert_called_once_with(host, host.app_update_offer,
+                                   host.update_installer)
+    version.messagebox.askyesno.assert_not_called()

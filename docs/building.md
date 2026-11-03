@@ -178,13 +178,36 @@ someone who already has them.
 
 ## Releasing
 
-Push a `v*` tag. The `release` job needs all three builds to succeed, so a
-release can never be published with a platform missing or broken.
+Two steps: CI builds a draft, then you sign and publish it on your own PC
+(SNAT-0038). Nobody sees a draft, and no copy of Snatch is offered it.
 
-```bash
-git tag -a v1.2.3 -m "v1.2.3"
-git push --follow-tags origin main
-```
+1. Push a `v*` tag. The `release` job needs all three builds to succeed, so
+   a draft can never be made with a platform missing or broken.
+
+   ```bash
+   git tag -a v1.2.3 -m "v1.2.3"
+   git push --follow-tags origin main
+   ```
+
+2. Once the run is green, sign and publish the draft:
+
+   ```bash
+   python3 scripts/sign-release.py v1.2.3
+   ```
+
+   It checks every build against `SHA256SUMS`, then signs a manifest, and
+   uploads it as `SNATCH-UPDATE` and `SNATCH-UPDATE.sig`. Then it publishes
+   the release and verifies the published files. It needs `gh`, signed in.
+
+**The signing key** lives at `~/.config/snatch-release/signing.key`, or
+wherever `$SNATCH_SIGNING_KEY` points. It is never in the repository. If it
+is missing, restore it from your backup. Do not make a new one: every
+installed copy accepts only the key in `snatch/update_key.py`, so a new key
+means every user updates once by hand. `scripts/gen-signing-key.py` made the
+key once, and refuses to overwrite one.
+
+A release published without signing still works. Installed copies just open
+the release page instead of updating themselves.
 
 ## Known rough edges
 

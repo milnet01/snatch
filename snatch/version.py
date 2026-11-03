@@ -73,17 +73,37 @@ def newer_app_version(tag, current):
     return ".".join(match.groups())
 
 
-def _open_https(url, timeout):
-    """Open an HTTPS URL and refuse a redirect that left HTTPS.
+class _HttpsOnlyRedirects(urllib.request.HTTPRedirectHandler):
+    """Refuse each redirect hop off HTTPS before following it (SNAT-0038).
 
-    urllib follows redirects, and its HTTPRedirectHandler permits an
-    https -> http downgrade. Checking only the URL passed in asserts what we
-    asked for rather than what we got, so the response URL is checked too.
+    Checking only the final URL passes https -> http -> https, whose middle
+    hop anyone on the path could read and rewrite (FIBR-0167).
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if not newurl.startswith("https://"):
+            fp.close()
+            raise ValueError("refusing a redirect off HTTPS")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+# Our own opener, not install_opener(): replacing the process-wide one would
+# change every other urllib caller in the process.
+_HTTPS_OPENER = urllib.request.build_opener(_HttpsOnlyRedirects)
+
+
+def _open_https(url, timeout):
+    """Open an HTTPS URL, refusing any redirect hop that leaves HTTPS.
+
+    urllib follows redirects, and its stock HTTPRedirectHandler permits an
+    https -> http downgrade, so _HTTPS_OPENER checks every hop. The response
+    URL is checked as well, so nothing past the opener can hand back a
+    non-HTTPS answer unnoticed.
     """
     if not url.startswith("https://"):
         raise ValueError("refusing a request that is not HTTPS")
     req = urllib.request.Request(url, headers={"User-Agent": "Snatch"})
-    resp = urllib.request.urlopen(req, timeout=timeout)
+    resp = _HTTPS_OPENER.open(req, timeout=timeout)
     if not resp.geturl().startswith("https://"):
         resp.close()
         raise ValueError("refusing a download redirected off HTTPS")
@@ -142,17 +162,38 @@ class VersionMixin:
         except (OSError, ValueError, AttributeError):
             log.debug("Could not check for a newer Snatch", exc_info=True)
             return
-        if latest:
-            self.root.after(0, lambda: self._show_app_update(latest))
+        if not latest:
+            return
+        offer = None
+        if self.update_installer is not None:
+            # Imported here: self_update imports this module.
+            from .self_update import find_offer, with_notes
+            offer = find_offer(data, __version__,
+                               self.update_installer.asset_name)
+            if offer is not None:
+                offer = with_notes(offer, __version__)
+        del data
+        self.root.after(0, lambda: self._show_app_update(latest, offer))
 
-    def _show_app_update(self, latest):
+    def _show_app_update(self, latest, offer=None):
         if latest == self.dismissed_app_version:
             return
         self.available_app_version = latest
+        self.app_update_offer = offer
         self.app_update_btn.config(text=f"Snatch {latest} available")
         self.app_update_btn.pack(side=tk.LEFT, padx=(0, 12))
 
     def _on_app_update_click(self):
+        # A signed offer and a build that can replace itself: show the notes
+        # and offer to install (SNAT-0038). Anything else: the release page.
+        if self.app_update_offer is not None and self.update_installer is not None:
+            from .update_dialog import UpdateDialog
+            if self._update_dialog is not None and self._update_dialog.winfo_exists():
+                self._update_dialog.lift()
+                return
+            self._update_dialog = UpdateDialog(
+                self, self.app_update_offer, self.update_installer)
+            return
         latest = self.available_app_version
         if messagebox.askyesno(
                 "New Version of Snatch",
@@ -161,8 +202,13 @@ class VersionMixin:
                 "Choosing No hides this until a newer version comes out."):
             open_path(SNATCH_RELEASE_PAGE)
             return
-        self.dismissed_app_version = latest
+        self._dismiss_app_update()
+
+    def _dismiss_app_update(self):
+        """Hide the button until a newer version than this one comes out."""
+        self.dismissed_app_version = self.available_app_version
         self.available_app_version = None
+        self.app_update_offer = None
         self.app_update_btn.pack_forget()
         self._save_config()
 

@@ -23,7 +23,11 @@ snatch/
 ├── utils.py                   # Shared utilities (formatting, dialogs, treeview)
 ├── cookies.py                 # Browser cookie extraction (Firefox SQLite)
 ├── player.py                  # PlayerMixin — embedded mpv via IPC
-├── version.py                 # VersionMixin — yt-dlp version check + update
+├── version.py                 # VersionMixin — yt-dlp version check + update; _open_https
+├── self_update.py             # Snatch's own update: offer, notes, signed-manifest check, download
+├── update_installer.py        # Which builds can update; the file swap and relaunch
+├── update_dialog.py           # UpdateDialog — notes, Update now / Skip / Later
+├── update_key.py              # The release signing key's public half
 ├── downloader.py              # DownloaderMixin — downloads, queue, format logic
 ├── platform_utils.py          # Platform-aware paths, bundled-binary lookup, open_path
 └── tabs/
@@ -212,14 +216,21 @@ def _is_valid_url(url):
 - **Never use `shell=True`** in subprocess calls
 - **Never use `sh -c`** — pass arguments as list items, not shell strings
 - **Use list-form commands**, not string concatenation
-- **No privilege escalation** — the app never invokes `pkexec` or `sudo`. Updates
-  are written into `platform_utils.user_bin_dir()`, inside the user's own data
-  directory, so nothing outside the app is ever modified
+- **No privilege escalation** — the app never invokes `pkexec` or `sudo`.
+  yt-dlp updates are written into `platform_utils.user_bin_dir()`, inside the
+  user's own data directory. Snatch's own update replaces only its own
+  AppImage or `snatch.exe`, and only when a file can be created in that
+  folder (`update_installer.detect_installer`)
+- **Install only what the release key signed** — a Snatch update is installed
+  only after `SNATCH-UPDATE` verifies against `update_key.RELEASE_PUBLIC_KEY_B64`
+  and the download hashes to its line. See
+  `docs/specs/SNAT-0038-signed-auto-update.md`
 - **HTTPS-only** for network fetches. Route app-side downloads through
-  `version._open_https`, which checks the requested URL **and**
-  `resp.geturl()` afterwards — urllib follows redirects and permits an
-  https -> http downgrade, so a prefix check alone asserts what was asked
-  for rather than what arrived. (`--proto '=https'` is curl's equivalent
+  `version._open_https`, which checks the requested URL, **every redirect
+  hop**, and `resp.geturl()` afterwards — urllib follows redirects and
+  permits an https -> http downgrade, so a prefix check alone asserts what
+  was asked for rather than what arrived, and a final-URL check alone passes
+  https -> http -> https. (`--proto '=https'` is curl's equivalent
   guard in the build scripts; it is not available to the app.)
 - **Never leak sensitive paths** (cookie file locations) in status bar output
 
@@ -358,6 +369,8 @@ SOCKET_RECV_CAP = 65536
 SOCKET_CHUNK_SIZE = 4096
 THUMBNAIL_SIZE = (160, 120)
 MAX_HISTORY_ENTRIES = 200
+UPDATE_MAX_BYTES = 512 * 1024 * 1024   # self_update: cap on a Snatch build download
+MANIFEST_MAX_BYTES = 64 * 1024         # self_update: cap on SNATCH-UPDATE
 ```
 
 ---
@@ -384,7 +397,7 @@ MAX_HISTORY_ENTRIES = 200
 | `sponsorblock` | int | `0` | Enable SponsorBlock segment removal |
 | `speed_limit` | string | `"Unlimited"` | Download speed limit |
 | `fragments` | string | `"1"` | Parts of one video fetched at once; ignored while `speed_limit` is set |
-| `dismissed_app_version` | string | `""` | The newer Snatch the user said No to; a later one shows again |
+| `dismissed_app_version` | string | `""` | The newer Snatch the user said No or Skip this version to; a later one shows again |
 | `queue_at_once` | string | `"1"` | Queue items run together; see `docs/specs/SNAT-0069-parallel-queue.md` |
 | `theme` | string | `"Dark"` | Active theme name |
 | `last_tab` | int | `0` | Index of the notebook tab to reopen on launch |
@@ -426,6 +439,7 @@ Each entry:
 | Python 3.10+ | Runtime |
 | tkinter | GUI framework (usually bundled with Python) |
 | yt-dlp | Video downloading engine |
+| cryptography | Verifies the signature on a Snatch update (SNAT-0038) |
 
 ### 8.2 Recommended
 

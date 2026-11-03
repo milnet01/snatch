@@ -1840,7 +1840,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: in-session-2026-08-20.
   Lanes: security, process.
 
-- 📋 [SNAT-0038] **Full in-app auto-update: offer, show notes since your version, install, relaunch.**
+- 🚧 [SNAT-0038] **Full in-app auto-update: offer, show notes since your version, install, relaunch.**
   Asked by the user 2026-08-20, superseding SNAT-0021's notify-only
   scope. Check GitHub for a newer release, show the accumulated changelog
   for EVERY version between the installed one and the latest, and on
@@ -1905,6 +1905,11 @@ and application work. IDs are allocated from `.roadmap-counter`.
   docs/specs/SNAT-0038-signed-auto-update.md (18 verified findings, all
   fixed; commits 54bdf30, 1a23132). Cap reached calmly; Status accepted.
   Loop log: docs/reviews/SNAT-0038-signed-auto-update-loop-log.md.
+  Built 2026-11-03 to the spec: snatch/self_update.py, update_installer.py,
+  update_dialog.py, update_key.py; CI now publishes a draft that
+  scripts/sign-release.py signs and publishes. Not shipped until the
+  spec's section 7 live recipe passes on Linux and on the Windows test
+  box, which needs the release carrying this and a patch release after.
   **Layman:** Snatch offers a new version, shows everything that changed since the one you have, and if you accept it updates and reopens itself.
   Kind: feature.
   Source: user-request-2026-08-20.

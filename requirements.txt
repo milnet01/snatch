@@ -2,6 +2,9 @@
 # Bump these together and rebuild the .exe; do not float versions.
 Pillow==13.0.0
 tkinterdnd2==0.4.3
+# Verifies the signature on a Snatch update (SNAT-0038). Its wheels carry
+# their own OpenSSL, so no system library is needed.
+cryptography==50.0.2
 # yt-dlp is NOT imported as a library — the app shells out to the bundled
 # binary, whose version is pinned in scripts/fetch-binaries.sh (nightly
 # channel; the stable release does not play YouTube). Kept only so a

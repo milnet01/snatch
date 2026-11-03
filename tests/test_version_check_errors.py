@@ -127,7 +127,7 @@ def test_an_http_error_distinguishes_the_rate_limit(host, monkeypatch,
     def boom(*args, **kwargs):
         raise urllib.error.HTTPError("u", code, "msg", {}, None)
 
-    monkeypatch.setattr(version_module.urllib.request, "urlopen", boom)
+    monkeypatch.setattr(version_module._HTTPS_OPENER, "open", boom)
 
     host._check_version_thread()
 
@@ -140,7 +140,7 @@ def test_no_network_says_so(host, monkeypatch):
     def boom(*args, **kwargs):
         raise urllib.error.URLError("name resolution failed")
 
-    monkeypatch.setattr(version_module.urllib.request, "urlopen", boom)
+    monkeypatch.setattr(version_module._HTTPS_OPENER, "open", boom)
 
     host._check_version_thread()
 
@@ -165,7 +165,7 @@ def test_an_unreadable_response_is_not_reported_as_offline(host, monkeypatch):
         def geturl(self):
             return "https://api.github.com/"
 
-    monkeypatch.setattr(version_module.urllib.request, "urlopen",
+    monkeypatch.setattr(version_module._HTTPS_OPENER, "open",
                         lambda *a, **k: _Response())
 
     host._check_version_thread()

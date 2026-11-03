@@ -318,11 +318,16 @@ jobs:
           fi
           cat SHA256SUMS
 
-      - name: Attach to GitHub Release
+      # A draft, never a published release (SNAT-0038). A draft is invisible
+      # to users and to /releases/latest, so no copy of Snatch is offered it
+      # until scripts/sign-release.py, on the maintainer's PC, has signed it
+      # and published it. A GitHub account compromise cannot sign an update.
+      - name: Attach to a draft GitHub Release
         # Pinned to a commit: a tag is mutable, and this job is the one holding
         # contents: write.
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
+          draft: true
           files: |
             artifacts/snatch-linux/Snatch-*.AppImage
             artifacts/snatch-windows/snatch.exe

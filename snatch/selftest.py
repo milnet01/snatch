@@ -12,6 +12,7 @@ The Windows build has no console, so its stdout goes nowhere: pass a report
 file to read the per-check results there.
 """
 
+import base64
 import importlib
 import json
 import os
@@ -32,16 +33,27 @@ MODULES = (
     "snatch.logging_setup",
     "snatch.platform_utils",
     "snatch.player",
+    "snatch.self_update",
     "snatch.selftest",
     "snatch.tabs.download",
     "snatch.tabs.history",
     "snatch.tabs.media_info",
     "snatch.tabs.search",
     "snatch.theme",
+    "snatch.update_dialog",
+    "snatch.update_installer",
+    "snatch.update_key",
     "snatch.utils",
     "snatch.version",
     "snatch.widgets",
 )
+
+# Fixed bytes signed by the release key, printed by scripts/gen-signing-key.py
+# (SNAT-0038). Not a manifest, and never parsed as one. They live in the
+# package because a packaged build does not contain tests/.
+SELFTEST_MANIFEST = b"snatch selftest\n"
+SELFTEST_SIGNATURE = (
+    "ZjoUjHnURIvyA8hsg0MxCUt9DI2Atr4HQoita2YtIGlerii2DJVlieORmtRRSptRX6gq0uHF7aQZ+9cXaFYOBQ==")
 
 # The binaries fetch-binaries.sh bundles on every platform. mpv is added on
 # Windows, the one platform that bundles it.
@@ -125,6 +137,15 @@ def _check_private_write():
         shutil.rmtree(directory, ignore_errors=True)
 
 
+def _check_update_signature():
+    # A build whose cryptography lost its native module would refuse every
+    # update as unverifiable, and nothing else would notice (INV-12).
+    from .update_key import public_key
+    public_key().verify(base64.b64decode(SELFTEST_SIGNATURE, validate=True),
+                        SELFTEST_MANIFEST)
+    return "Ed25519 signature verified with the release key"
+
+
 def _checks():
     checks = [("import every module", _check_imports),
               ("Tcl runtime", _check_tcl),
@@ -132,6 +153,7 @@ def _checks():
     names = BUNDLED + (("mpv",) if platform_utils.is_windows() else ())
     checks += [(f"bundled {n}", _check_binary(n)) for n in names]
     checks.append(("private settings write", _check_private_write))
+    checks.append(("update signature", _check_update_signature))
     return checks
 
 

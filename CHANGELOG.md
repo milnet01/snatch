@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Snatch updates itself on Linux and Windows** (SNAT-0038)
+  The "Snatch X available" button now shows what changed in every version
+  since yours. Update now downloads the new version, installs it and
+  reopens Snatch, keeping your queue and settings. An update is installed
+  only if it is signed by the project's own key. On a Mac, or when running
+  from source, the button still opens the download page.
+
 - **Your queue is still there after you close Snatch** (SNAT-0023)
   Unfinished videos come back as Pending. They never start by themselves:
   press Download Queue to run them, or Clear Queue to drop them.

@@ -107,6 +107,11 @@ or the folder it went to.
 - **Audio only** — pull just the sound out, for music or podcasts.
 - **Private videos** — import cookies from Firefox or Chrome so Snatch can
   reach age-restricted or members-only videos you already have access to.
+- **Updates itself** — on Linux (the AppImage) and Windows, when a newer
+  Snatch is out it shows what changed since your version. Say yes and it
+  installs the update and reopens, with your queue and settings intact. It
+  refuses any update not signed by this project's own key. On a Mac, or
+  when running from source, the button opens the download page instead.
 
 ---
 

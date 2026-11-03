@@ -18,6 +18,7 @@ from .tabs.search import SearchTabMixin
 from .tabs.media_info import MediaInfoTabMixin
 from .tabs.history import HistoryTabMixin
 from .logging_setup import describe_log, get_logger
+from .update_installer import cleanup_stale, detect_installer
 
 log = get_logger(__name__)
 
@@ -110,6 +111,12 @@ class SnatchApp(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
         self.queue_file = os.path.join(self.script_dir, "queue.json")
         self.dismissed_app_version = saved_config.get("dismissed_app_version", "")
         self.available_app_version = None
+        # None unless this build can replace itself (SNAT-0038).
+        self.update_installer = detect_installer()
+        if self.update_installer is not None:
+            cleanup_stale(self.update_installer)
+        self.app_update_offer = None
+        self._update_dialog = None
         self.filter_res_var = tk.StringVar(value="All")
         self.filter_type_var = tk.StringVar(value="All")
         self.filter_ext_var = tk.StringVar(value="All")
@@ -283,7 +290,8 @@ class SnatchApp(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
         self.app_update_btn = ttk.Button(version_frame, style="Small.TButton",
                                          command=self._on_app_update_click)
         if self.available_app_version:
-            self._show_app_update(self.available_app_version)
+            self._show_app_update(self.available_app_version,
+                                  self.app_update_offer)
 
         # Opens the donation pages .github/FUNDING.yml lists (SNAT-0015).
         self.donate_btn = ttk.Button(version_frame, text="Donate",
@@ -473,17 +481,32 @@ class SnatchApp(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
         else:
             self.root.title(self._base_title)
 
-    def _on_close(self):
-        """Handle window close -- confirm if a download is active"""
+    def _confirm_close(self):
+        """True unless a download is running and the user wants to keep it."""
+        if not self.is_downloading:
+            return True
+        return messagebox.askyesno("Download in Progress",
+                                   "A download is still running.\n\n"
+                                   "Are you sure you want to quit?")
+
+    def _shutdown_state(self):
+        """Stop what is running and save what persists.
+
+        Clears nothing, so the app stays usable when an update calls this and
+        then fails to install (SNAT-0038).
+        """
         if self.is_downloading:
-            if not messagebox.askyesno("Download in Progress",
-                                       "A download is still running.\n\n"
-                                       "Are you sure you want to quit?"):
-                return
             self.cancel_download()
         self._stop_player()
         self._stop_search_anim()
         self._save_config()
+        self._save_queue()
+
+    def _on_close(self):
+        """Handle window close -- confirm if a download is active"""
+        if not self._confirm_close():
+            return
+        self._shutdown_state()
 
         self._cleanup_toggles()
 
@@ -491,7 +514,6 @@ class SnatchApp(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
         self.formats = []
         self.search_results = []
         self.playlist_entries = []
-        self._save_queue()
         self.download_queue = []
         self.video_thumbnail = None
         HistoryTabMixin._history_cache = None

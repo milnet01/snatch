@@ -4,3 +4,7 @@ ruff==0.16.4
 pytest==9.1.1
 zizmor==1.29.0
 pip-audit==2.10.1
+# The tests verify update signatures (SNAT-0038). Constrained by
+# requirements.txt, so the version is pinned in one place only.
+-c requirements.txt
+cryptography

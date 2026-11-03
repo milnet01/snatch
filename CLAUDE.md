@@ -73,6 +73,10 @@ platform builds, change the script — never the workflow step that calls it.
 - **`app_data_dir()` decides where those live, not the project root.** From
   source it *is* the project root; in a packaged build it is not — see
   STANDARDS.md 14.
+- Releasing: CI makes a **draft**; `scripts/sign-release.py vX.Y.Z` signs and
+  publishes it. The signing key is `~/.config/snatch-release/signing.key`
+  (or `$SNATCH_SIGNING_KEY`), never in the repo; keep a copy on a second drive.
+  Never make a new one — see `docs/building.md` § Releasing (SNAT-0038)
 - Themes: `theme.py` — Dark, Nord, Monokai, YouTube, Dracula, Gruvbox, Solarized (registry: `THEMES`)
 - Feature flags: `HAS_DND` (`snatch/__init__.py`), `HAS_PIL` (`snatch/downloader.py`)
 - **mpv is gated by `platform_utils.find_mpv()`, not by `HAS_MPV`** — that
