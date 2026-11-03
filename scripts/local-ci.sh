@@ -179,6 +179,10 @@ cat <<'REPORT'
               pushing and reading the CI result — a green local run is NOT
               evidence about them.
    NOT RUN  : release  (fires on a v* tag only)
+   NOT RUN  : build-linux's current-distro check (SNAT-0089), under act
+              act's job container has no podman or docker, so the build
+              skips it. --no-act runs it, or run it by hand on an AppImage:
+              scripts/check-appimage-newer-distro.sh <AppImage>
 
    CAVEAT   : even build-linux is not an exact mirror. act runs
               catthehacker/ubuntu, not GitHub's runner image, so the two

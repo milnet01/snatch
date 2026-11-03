@@ -49,3 +49,49 @@ def test_a_frozen_build_missing_a_binary_fails(tmp_path, monkeypatch):
     assert selftest.run(str(report)) == 1
     assert "FAIL  bundled yt-dlp: RuntimeError: yt-dlp is not in the bundle" in (
         report.read_text(encoding="utf-8"))
+
+
+class _Answer:
+    status = 200
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+def test_https_is_skipped_unless_a_url_is_given(tmp_path, monkeypatch):
+    monkeypatch.delenv(selftest.HTTPS_URL_ENV, raising=False)
+    report = tmp_path / "report.txt"
+
+    assert selftest.run(str(report)) == 0
+    assert "SKIP  HTTPS fetch" in report.read_text(encoding="utf-8")
+
+
+def test_https_passes_when_the_url_answers(tmp_path, monkeypatch):
+    # SNAT-0089: the newer-distro check sets the URL; the fetch goes through
+    # the opener the update check uses, so it meets the same certificates.
+    monkeypatch.setenv(selftest.HTTPS_URL_ENV, "https://example.invalid/")
+    seen = []
+    monkeypatch.setattr(selftest, "_open_https",
+                        lambda url, timeout: seen.append(url) or _Answer())
+    report = tmp_path / "report.txt"
+
+    assert selftest.run(str(report)) == 0
+    assert seen == ["https://example.invalid/"]
+    assert "PASS  HTTPS fetch: https://example.invalid/ answered 200" in (
+        report.read_text(encoding="utf-8"))
+
+
+def test_https_fails_on_an_unverifiable_certificate(tmp_path, monkeypatch):
+    # The SNAT-0088 shape: certificates looked for where this system has none.
+    def unverified(url, timeout):
+        raise OSError("CERTIFICATE_VERIFY_FAILED")
+    monkeypatch.setenv(selftest.HTTPS_URL_ENV, "https://example.invalid/")
+    monkeypatch.setattr(selftest, "_open_https", unverified)
+    report = tmp_path / "report.txt"
+
+    assert selftest.run(str(report)) == 1
+    assert "FAIL  HTTPS fetch: OSError: CERTIFICATE_VERIFY_FAILED" in (
+        report.read_text(encoding="utf-8"))

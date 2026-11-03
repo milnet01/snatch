@@ -865,7 +865,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: package.
   Source: user-request-2026-10-15.
 
-- 📋 [SNAT-0089] **Run the built AppImage on a newer distro before a release.**
+- ✅ [SNAT-0089] **Run the built AppImage on a newer distro before a release.**
   CI builds and tests on Ubuntu 22.04, the oldest base the AppImage
   supports. That missed SNAT-0087 (bundled OpenSSL libraries leaking
   into yt-dlp) and SNAT-0088 (certificates kept in a different place):
@@ -874,6 +874,14 @@ and application work. IDs are allocated from `.roadmap-counter`.
   (for example openSUSE Tumbleweed or the latest Fedora) and has it
   fetch one URL with yt-dlp over HTTPS. Change scripts/build-*.sh, not
   the workflow step, so local-ci.sh runs it too.
+  Shipped (2026-11-03): scripts/check-appimage-newer-distro.sh, called by
+  build-linux.sh, runs the AppImage's --selftest in an opensuse/tumbleweed
+  container with a new opt-in HTTPS check (SNATCH_SELFTEST_HTTPS_URL,
+  through version._open_https). Not a yt-dlp fetch as first written:
+  yt-dlp runs on the system python3, so it never met SNAT-0088; the app's
+  own opener did. Red: the published 1.3.0 AppImage fails it on
+  "bundled yt-dlp" (SNAT-0087); 1.4.0 passes. A missing podman/docker
+  fails on GitHub and is reported as skipped elsewhere.
   **Layman:** Try the Linux download on a recent Linux system before each release, so a break like 1.3.0's is caught first.
   Kind: test.
   Source: session-2026-11-03.

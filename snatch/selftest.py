@@ -55,6 +55,12 @@ SELFTEST_MANIFEST = b"snatch selftest\n"
 SELFTEST_SIGNATURE = (
     "ZjoUjHnURIvyA8hsg0MxCUt9DI2Atr4HQoita2YtIGlerii2DJVlieORmtRRSptRX6gq0uHF7aQZ+9cXaFYOBQ==")
 
+# The HTTPS check runs only when this names a URL, so the self-test still
+# needs no network on a build machine. scripts/check-appimage-newer-distro.sh
+# sets it (SNAT-0089).
+HTTPS_URL_ENV = "SNATCH_SELFTEST_HTTPS_URL"
+HTTPS_TIMEOUT_SEC = 20
+
 # The binaries fetch-binaries.sh bundles on every platform. mpv is added on
 # Windows, the one platform that bundles it.
 BUNDLED = ("yt-dlp", "ffmpeg", "ffprobe", "qjs")
@@ -146,6 +152,24 @@ def _check_update_signature():
     return "Ed25519 signature verified with the release key"
 
 
+def _open_https(url, timeout):
+    # Imported here, not at the top: version imports tkinter, and a build
+    # whose tkinter is broken must still get as far as reporting it.
+    from .version import _open_https as open_https
+    return open_https(url, timeout)
+
+
+def _check_https():
+    # The update check's own opener, so it meets the certificates the app
+    # does. A frozen build looks for them where the build machine keeps them,
+    # and on another layout HTTPS fails closed (SNAT-0088).
+    url = os.environ.get(HTTPS_URL_ENV)
+    if not url:
+        raise Skip(f"{HTTPS_URL_ENV} is not set")
+    with _open_https(url, HTTPS_TIMEOUT_SEC) as resp:
+        return f"{url} answered {resp.status}"
+
+
 def _checks():
     checks = [("import every module", _check_imports),
               ("Tcl runtime", _check_tcl),
@@ -154,6 +178,7 @@ def _checks():
     checks += [(f"bundled {n}", _check_binary(n)) for n in names]
     checks.append(("private settings write", _check_private_write))
     checks.append(("update signature", _check_update_signature))
+    checks.append(("HTTPS fetch", _check_https))
     return checks
 
 

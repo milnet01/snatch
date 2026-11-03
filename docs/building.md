@@ -27,6 +27,14 @@ private settings file can be written and read back. A failure stops the build
 and prints the report. Run it by hand the same way on any build, or from
 source with `python3 snatch.py --selftest`.
 
+**The Linux build then runs that self-test on a current distro (SNAT-0089).**
+`scripts/check-appimage-newer-distro.sh` starts the AppImage in an openSUSE
+Tumbleweed container with the self-test's HTTPS check switched on. The build
+base is the oldest system the AppImage supports, and 1.3.0 broke only on newer
+ones. It needs podman or docker. On GitHub a missing one fails the build;
+elsewhere the build says the check was skipped. Run it by hand on any
+AppImage: `scripts/check-appimage-newer-distro.sh dist/Snatch-x86_64.AppImage`.
+
 ## Before you push
 
 ```bash

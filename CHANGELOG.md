@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Every Linux build is now tried on a current Linux system before release** (SNAT-0089)
+  The AppImage is built on an older system, and 1.3.0 broke only on newer
+  ones. Each build now also starts on the latest openSUSE Tumbleweed and
+  checks it can run yt-dlp and make a secure connection, so a break like
+  that stops the release instead of reaching you.
+
 ## [1.4.0] - 2026-11-03
 
 **Theme:** Snatch updates itself.

@@ -162,4 +162,9 @@ if ! "$out" --selftest "$report" >/dev/null; then
 fi
 cat "$report"
 
+# The smoke test above runs on the build base, the oldest system we support.
+# This runs the same self-test on a current one (SNAT-0089).
+echo "=== check the AppImage on a current distro ==="
+scripts/check-appimage-newer-distro.sh "$out"
+
 echo "=== built $out ($(du -h "$out" | cut -f1)) ==="
