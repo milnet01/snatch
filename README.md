@@ -25,6 +25,11 @@ yt-dlp, ffmpeg or anything else.
 | **Mac** | `Snatch-arm64.dmg` | Open it, drag Snatch to Applications. **First time only:** right-click the app and choose **Open** (see below). |
 | **Linux** | `Snatch-x86_64.AppImage` | Right-click → Properties → tick "allow executing as program", then double-click. |
 
+**The Mac version is the least tested.** It needs a Mac with an Apple chip (M1
+or newer). Each release is checked to start on GitHub's Mac build machines, but
+no one has used it on a real Mac yet. If it doesn't work for you, please
+[open an issue](https://github.com/milnet01/snatch/issues).
+
 <details>
 <summary><b>Windows says "Windows protected your PC"</b></summary>
 

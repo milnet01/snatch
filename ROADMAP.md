@@ -251,6 +251,16 @@ and application work. IDs are allocated from `.roadmap-counter`.
   smoke test on CI's macos runner (SNAT-0024, which would at least prove
   it starts), or say plainly in the README that the Mac build is
   untested. The last is free and should probably happen regardless.
+  2026-11-05: the free part is done. README's Download section now says
+  the Mac build is the least tested, needs an Apple chip, passes its
+  start-up self-test on CI's macos runner (scripts/build-macos.sh,
+  SNAT-0024) and has never been used on a real Mac. The self-test opens
+  no window, so the GUI, Gatekeeper workaround, yt-dlp_macos update and
+  browser playback fallback remain unproven.
+  Waiting-on: user (do you know anyone with an M1-or-newer Mac who could
+  open the .dmg and try one download? Recommendation: yes if easy;
+  otherwise leave this open with the README warning, as the cost of a
+  broken Mac build is now only a filed issue. 2026-11-05)
   **Layman:** We ship a Mac version that no one has ever opened. It might not work at all.
   Kind: investigate.
   Source: in-session-2026-08-20.
