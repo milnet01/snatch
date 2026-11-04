@@ -790,7 +790,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Kind: perf.
   Source: claude-config-request-2026-09-28 local-gate.md § 9.
 
-- 📋 [SNAT-0080] **Record trailer footage for the website's YouTube trailer.**
+- ✅ [SNAT-0080] **Record trailer footage for the website's YouTube trailer.**
   Asked by ants-projects-hub-website (inbox msg 567, 2026-10-10; no
   rush). Brief: ~/.local/share/claude-handoff/ants-projects-hub-website-
   trailers-2026-10-10.md (shared; read it, never delete it). Record 3-6
@@ -800,6 +800,11 @@ and application work. IDs are allocated from `.roadmap-counter`.
   /mnt/Games/Trailers/incoming/snatch/, then message that session.
   Demo data only: shoot from a copy, never the repo root, which holds
   real history. Style reference: /mnt/Games/Trailers/slipcase-sample.mp4.
+  Delivered 2026-11-05: six clips (search, in-app play, fetch formats,
+  download, history, themes) and notes.md in
+  /mnt/Games/Trailers/incoming/snatch/, recorded from a demo copy with
+  made-up history. ants-projects-hub-website messaged (msg 1229),
+  including that Spring's licence is unverified and macOS is untested.
   **Layman:** The project website is making a short video trailer for each app and needs a few clips of Snatch in use.
   Kind: marketing.
   Source: ants-projects-hub-website-request-2026-10-10.
@@ -1935,6 +1940,16 @@ and application work. IDs are allocated from `.roadmap-counter`.
   snatch.exe (hash checked) and a queue.json. Step 4 needs a person
   at the signed-in desktop, since SSH cannot click there. If it
   fails, file a fix for a later patch; do not reopen this item.
+  Windows half of the live recipe (spec section 7 step 4) is staged
+  and waiting. C:\snatch-update-test on wintest holds the published
+  1.4.0 snatch.exe (SHA-256 563496ac..., matches v1.4.0 SHA256SUMS)
+  and a queue.json with one entry, "Live-test queue entry". Checked
+  2026-11-05.
+  Waiting-on: user (at the Windows desktop: open snatch.exe from
+  Explorer, click "Snatch 1.4.1 available" then Update now, confirm the
+  title says v1.4.1 and the queue entry survived, then close, reopen,
+  close. Recommendation: do it next time you are at that PC; the ssh
+  checks that follow take a minute. 2026-11-05)
   **Layman:** Snatch offers a new version, shows everything that changed since the one you have, and if you accept it updates and reopens itself.
   Kind: feature.
   Source: user-request-2026-08-20.
