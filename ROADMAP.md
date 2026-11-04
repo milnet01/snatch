@@ -402,6 +402,15 @@ and application work. IDs are allocated from `.roadmap-counter`.
 
   Does NOT replace the AppImage. That stays for distros OBS does not
   cover and for users who want no installation at all.
+  2026-11-05, not started: it publishes under the user's OBS account
+  and needs the yt-dlp decision below first.
+  Waiting-on: user (go ahead with an OBS package, and should it rely on
+  Snatch fetching its own current yt-dlp rather than the distro's?
+  Recommendation: yes to both, Tumbleweed first, via a spec. A distro
+  yt-dlp cannot play YouTube (SNAT-0014). Before building, check where
+  app_data_dir() puts config and the fetched yt-dlp when Snatch is
+  installed read-only system-wide; from source it is the project root,
+  which would be /usr/share there. 2026-11-05)
   **Layman:** Put Snatch in the normal software installers for Linux, so people can install and update it the way they install everything else.
   Kind: package.
   Source: user-request-2026-08-20.
