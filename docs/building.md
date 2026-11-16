@@ -220,8 +220,12 @@ Two steps: CI builds a draft, then you sign and publish it on your own PC
 
    ```bash
    osc service manualrun
+   osc addremove
    osc commit -m "Update to v1.2.3"
    ```
+
+   `osc addremove` uploads the new release's source files and drops the old
+   ones; without it `osc commit` skips them.
 
 **The signing key** lives at `~/.config/snatch-release/signing.key`, or
 wherever `$SNATCH_SIGNING_KEY` points. It is never in the repository. If it

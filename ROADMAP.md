@@ -1,6 +1,6 @@
 <!-- ants-roadmap-format: 1 -->
 <!-- Generated from the Ants Terminal roadmap store. Edit it with roadmap_log; hand edits are discarded by the next write. -->
-<!-- ants-roadmap-id-high-water: SNAT=89 -->
+<!-- ants-roadmap-id-high-water: SNAT=90 -->
 # Snatch — Roadmap
 
 A tkinter frontend for yt-dlp. This roadmap tracks packaging, distribution
@@ -427,6 +427,15 @@ and application work. IDs are allocated from `.roadmap-counter`.
   self-test. Waiting on: the first OBS submit (the user's go-ahead), the
   §7.1 manual recipe on the installed package, then a README install
   section once home:milnet:snatch exists.
+  Released in 1.5.0 (2026-11-16); the 1.4.1 tag predated packaging/obs/,
+  so OBS could not build until a release carried it. Created
+  home:milnet:snatch (openSUSE_Tumbleweed, x86_64) and uploaded revision 1.
+  The build succeeded and its %check printed "OK: 0 check(s) failed".
+  rpmlint findings filed as SNAT-0090. docs/building.md step 3 gained
+  `osc addremove`, without which `osc commit` skips the new tarball.
+  Waiting-on: OBS to publish the repository (stuck at "building" for 40
+  minutes on 2026-11-16, an OBS queue); then the 7.1 manual recipe and a
+  README install section.
   **Layman:** Put Snatch in the normal software installers for Linux, so people can install and update it the way they install everything else.
   Kind: package.
   Source: user-request-2026-08-20.
@@ -925,6 +934,27 @@ and application work. IDs are allocated from `.roadmap-counter`.
   **Layman:** Try the Linux download on a recent Linux system before each release, so a break like 1.3.0's is caught first.
   Kind: test.
   Source: session-2026-11-03.
+
+- 📋 [SNAT-0090] **Clear the real rpmlint findings in the Tumbleweed package.**
+  The first OBS build of 1.5.0 (home:milnet:snatch, openSUSE_Tumbleweed)
+  succeeded and its %check self-test passed, but rpmlint reported:
+  - no-changelogname-tag: no snatch.changes file (osc vc makes one).
+    The build also warned it could not set SOURCE_DATE_EPOCH for the
+    same reason.
+  - macro-in-comment: %install and %check in snatch.spec header
+    comments; escape as %%.
+  - invalid-desktopfile: rpmlint gave no detail, and the same file
+    passes desktop-file-validate locally. Find out why before changing
+    it.
+  Judged intended or false, leave them: zero-length INSTALLED_BY_PACKAGE
+  (the marker is the design, spec 4.1), non-executable snatch.py (the
+  launcher runs it), files-duplicate icon.png, and
+  branding-requires-unversioned hicolor-icon-theme.
+  Part of SNAT-0028.
+  **Layman:** Tidy small warnings the openSUSE build service raised about the Snatch package; none stops it installing or working.
+  Kind: package.
+  Source: obs-build-log-2026-11-16.
+  Lanes: packaging.
 
 ## Application
 
