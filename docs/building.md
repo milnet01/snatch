@@ -155,7 +155,8 @@ Since SNAT-0016 a packaged build can fetch a newer nightly for itself, into
 `app_data_dir()/bin/` — `app_data_dir()/bin/updated/` when running from
 source — and `find_ytdlp()` prefers that copy. The bundled binary stays as the
 fallback, so a failed or half-written download can never leave the app with no
-yt-dlp. The `updated/` split exists because from source `app_data_dir()` is the
+yt-dlp. A distro package bundles none, so its fallback is the system's yt-dlp
+(SNAT-0028). The `updated/` split exists because from source `app_data_dir()` is the
 repo root, so the plain path is the same `bin/` that `fetch-binaries.sh` fills
 with the pinned copy: before 2026-09-01 a self-update overwrote the pin and
 there was no floor left, while this sentence said otherwise.
@@ -175,6 +176,7 @@ platform for a reason:
 | Windows | next to `snatch.exe` | Keeps the app portable — move the .exe and settings follow. |
 | macOS | `~/Library/Application Support/Snatch` | Writing inside a `.app` bundle breaks on upgrade and on a read-only mount. |
 | Linux | `$XDG_DATA_HOME/snatch` | An AppImage's `sys.executable` is a temp directory that is deleted on exit. |
+| Linux distro package | `$XDG_DATA_HOME/snatch` | The install folder is read-only. Shared with the AppImage. |
 
 `user_bin_dir()` adds a `bin/` subdirectory to that location, holding binaries
 the app has fetched for itself. Windows is the one case that can fall back
@@ -211,6 +213,15 @@ Two steps: CI builds a draft, then you sign and publish it on your own PC
    It checks every build against `SHA256SUMS`, then signs a manifest, and
    uploads it as `SNATCH-UPDATE` and `SNATCH-UPDATE.sig`. Then it publishes
    the release and verifies the published files. It needs `gh`, signed in.
+
+3. Rebuild the Tumbleweed package on OBS (SNAT-0028). The bump has already
+   moved the tag in `packaging/obs/_service`. In a checkout of
+   `home:milnet:snatch/snatch`, copy in the files from `packaging/obs/`, then:
+
+   ```bash
+   osc service manualrun
+   osc commit -m "Update to v1.2.3"
+   ```
 
 **The signing key** lives at `~/.config/snatch-release/signing.key`, or
 wherever `$SNATCH_SIGNING_KEY` points. It is never in the repository. If it

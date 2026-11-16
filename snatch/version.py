@@ -13,8 +13,9 @@ import urllib.error
 import urllib.request
 
 from . import __version__
-from .platform_utils import (find_ytdlp, is_windows, is_macos, open_path,
-                             user_bin_dir, updated_ytdlp_path)
+from .platform_utils import (find_ytdlp, is_macos, is_package_install,
+                             is_windows, open_path, updated_ytdlp_path,
+                             user_bin_dir)
 from .logging_setup import get_logger
 
 log = get_logger(__name__)
@@ -132,6 +133,18 @@ def _expected_digest(tag, asset):
     raise ValueError(f"{YTDLP_SUMS_ASSET} does not list {asset}")
 
 
+def _fallback_words():
+    """(button word, sentence phrase) for the copy Revert returns to.
+
+    A distro package ships no yt-dlp of its own: Revert returns to the
+    system's (SNAT-0028). One helper, so the button and the three messages
+    cannot disagree.
+    """
+    if is_package_install():
+        return ("system", "your system's yt-dlp")
+    return ("bundled", "the copy that came with Snatch")
+
+
 def _ytdlp_asset_name():
     """Release asset for this platform, mirroring scripts/fetch-binaries.sh."""
     if is_windows():
@@ -148,7 +161,12 @@ class VersionMixin:
     """
 
     def check_app_update(self):
-        """Look once, in the background, for a newer Snatch."""
+        """Look once, in the background, for a newer Snatch.
+
+        Never on a distro package: zypper updates it (SNAT-0028).
+        """
+        if is_package_install():
+            return
         thread = threading.Thread(target=self._check_app_update_thread)
         thread.daemon = True
         thread.start()
@@ -321,13 +339,22 @@ class VersionMixin:
                                state=tk.NORMAL)
         self.status_var.set(
             f"Update available: {self.current_version} -> {self.latest_version}")
+        # A distro package asks once ever while it runs the system's copy; the
+        # button stays the way to the download (SNAT-0028). Set only here, so
+        # an offline or rate-limited launch does not use the offer up.
+        if is_package_install() and not updated_ytdlp_path():
+            if self.ytdlp_offer_shown:
+                return
+            self.ytdlp_offer_shown = True
+            self._save_config()
         self._prompt_update()
 
     def _refresh_idle_button(self):
         """Set the button for the nothing-to-update case.
 
-        Offers the way back to the bundled copy whenever a fetched one is in
-        use -- the escape hatch for a nightly that misbehaves.
+        Offers the way back to the bundled copy (on a distro package, the
+        system's) whenever a fetched one is in use -- the escape hatch for a
+        nightly that misbehaves.
 
         This used to be packaged-builds-only, on the grounds that from source
         there was no separate bundled copy to revert to. That was true, and
@@ -339,7 +366,8 @@ class VersionMixin:
         to on both paths.
         """
         if updated_ytdlp_path():
-            self.update_btn.config(text="Revert to bundled yt-dlp",
+            word, _ = _fallback_words()
+            self.update_btn.config(text=f"Revert to {word} yt-dlp",
                                    state=tk.NORMAL)
         else:
             self.update_btn.config(text="Up to date", state=tk.DISABLED)
@@ -368,21 +396,24 @@ class VersionMixin:
     def _prompt_update(self):
         if not self.latest_version:
             return
+        _, fallback = _fallback_words()
         if messagebox.askyesno(
                 "Update yt-dlp",
                 f"Download yt-dlp {self.latest_version}?\n\n"
-                f"It is saved inside Snatch's own folder. The copy that came\n"
-                f"with Snatch is kept, so you can go back to it at any time."):
+                f"It is saved inside Snatch's own folder.\n"
+                f"{fallback[0].upper()}{fallback[1:]} is kept, so you can go "
+                f"back to it at any time."):
             self._do_update()
 
     def _prompt_revert(self):
-        """Delete the fetched copy so find_ytdlp() falls back to the bundle."""
+        """Delete the fetched copy so find_ytdlp() falls back to the floor."""
         path = updated_ytdlp_path()
         if not path:
             return
+        _, fallback = _fallback_words()
         if not messagebox.askyesno(
                 "Revert yt-dlp",
-                "Go back to the copy of yt-dlp that came with Snatch?\n\n"
+                f"Go back to {fallback}?\n\n"
                 "Use this if a downloaded version stops working. You can\n"
                 "download the newest one again afterwards."):
             return
@@ -392,7 +423,7 @@ class VersionMixin:
             messagebox.showerror(
                 "Error", f"Could not remove the downloaded yt-dlp:\n{e}")
             return
-        self.status_var.set("Reverted to the yt-dlp that came with Snatch")
+        self.status_var.set(f"Reverted to {fallback}")
         self.check_version()
 
     def _do_update(self):

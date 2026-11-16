@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **A package for openSUSE Tumbleweed** (SNAT-0028)
+  Snatch can now be installed and updated with zypper or Discover. It uses
+  Tumbleweed's own Python, ffmpeg and yt-dlp, and keeps your settings in the
+  same folder as the AppImage. On first launch it offers once to download
+  the current yt-dlp, which YouTube needs.
+
+### Fixed
+
+- **A QuickJS installed on your system is now found** (SNAT-0028)
+  Snatch looked for a program named `quickjs`, but QuickJS installs as
+  `qjs`. YouTube videos that need a JavaScript runtime now work with it.
+
 ## [1.4.1] - 2026-11-03
 
 **Theme:** Linux builds tested on a current system.

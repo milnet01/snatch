@@ -71,8 +71,8 @@ platform builds, change the script — never the workflow step that calls it.
 - History: `history.json` (same dir, 0o600, max 200 entries)
 - Queue: `queue.json` (same dir, 0o600); restored as Pending, never auto-started
 - **`app_data_dir()` decides where those live, not the project root.** From
-  source it *is* the project root; in a packaged build it is not — see
-  STANDARDS.md 14.
+  source it *is* the project root; in a packaged build, or a distro package
+  (marked by `snatch/INSTALLED_BY_PACKAGE`), it is not — see STANDARDS.md 14.
 - Releasing: CI makes a **draft**; `scripts/sign-release.py vX.Y.Z` signs and
   publishes it. The signing key is `~/.config/snatch-release/signing.key`
   (or `$SNATCH_SIGNING_KEY`), never in the repo; keep a copy on a second drive.

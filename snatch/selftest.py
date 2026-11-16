@@ -143,6 +143,20 @@ def _check_private_write():
         shutil.rmtree(directory, ignore_errors=True)
 
 
+def _check_package_data():
+    # A distro package's install folder is read-only, so its data must go
+    # elsewhere and be writable there (SNAT-0028).
+    if not platform_utils.is_package_install():
+        raise Skip("not a package install")
+    data = os.path.realpath(platform_utils.app_data_dir())
+    install = os.path.realpath(platform_utils.resource_path())
+    if data == install or data.startswith(install + os.sep):
+        raise RuntimeError(f"{data} is inside the install folder {install}")
+    if not platform_utils._is_writable_dir(data):
+        raise RuntimeError(f"cannot create a file in {data}")
+    return data
+
+
 def _check_update_signature():
     # A build whose cryptography lost its native module would refuse every
     # update as unverifiable, and nothing else would notice (INV-12).
@@ -177,6 +191,7 @@ def _checks():
     names = BUNDLED + (("mpv",) if platform_utils.is_windows() else ())
     checks += [(f"bundled {n}", _check_binary(n)) for n in names]
     checks.append(("private settings write", _check_private_write))
+    checks.append(("package data folder", _check_package_data))
     checks.append(("update signature", _check_update_signature))
     checks.append(("HTTPS fetch", _check_https))
     return checks

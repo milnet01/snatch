@@ -21,6 +21,12 @@
       "path": "pyinstaller.spec",
       "pattern": "\"CFBundleVersion\": \"{OLD}\"",
       "replace": "\"CFBundleVersion\": \"{NEW}\""
+    },
+    {
+      "$": "The OBS package's source tag (SNAT-0028). Left behind, the package would rebuild the previous release.",
+      "path": "packaging/obs/_service",
+      "pattern": "<param name=\"revision\">v{OLD}</param>",
+      "replace": "<param name=\"revision\">v{NEW}</param>"
     }
   ],
 

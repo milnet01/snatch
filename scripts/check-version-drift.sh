@@ -52,6 +52,8 @@ check pyinstaller.spec "CFBundleShortVersionString" \
       "\"CFBundleShortVersionString\": \"${version}\""
 check pyinstaller.spec "CFBundleVersion" \
       "\"CFBundleVersion\": \"${version}\""
+check packaging/obs/_service "OBS source tag" \
+      "<param name=\"revision\">v${version}</param>"
 
 # The changelog section is checked here because the recipe performs the cut
 # itself (a changelog_log op:"release" todo). cut-release's Phase 0e passes

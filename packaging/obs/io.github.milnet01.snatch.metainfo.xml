@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SNAT-0028: AppStream component for KDE Discover and GNOME Software.
+     No <releases> block, so it carries no version to keep in step.
+     Validate it with appstreamcli validate. -->
+<component type="desktop-application">
+  <id>io.github.milnet01.snatch</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+
+  <name>Snatch</name>
+  <summary>Download and play videos with yt-dlp</summary>
+
+  <developer id="io.github.milnet01">
+    <name>milnet01</name>
+  </developer>
+
+  <description>
+    <p>
+      Snatch is a desktop window for yt-dlp. Paste a link, pick a format and
+      download it, or search and play videos without leaving the app.
+    </p>
+    <p>
+      On first launch it offers to download the current yt-dlp, which
+      YouTube needs. It keeps that copy in your home folder, and you can go
+      back to your system's yt-dlp at any time.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">io.github.milnet01.snatch.desktop</launchable>
+
+  <url type="homepage">https://github.com/milnet01/snatch</url>
+  <url type="bugtracker">https://github.com/milnet01/snatch/issues</url>
+
+  <content_rating type="oars-1.1"/>
+</component>

@@ -15,7 +15,8 @@ A user of the Linux AppImage or the Windows `snatch.exe` who clicks the
 "Update now", Snatch downloads the new build, proves it was signed by the
 maintainer's key for exactly that version, replaces itself and reopens. The
 queue and settings come through intact. Every other build keeps today's
-behaviour: the button opens the release page.
+behaviour: the button opens the release page. A distro package shows no
+button (SNAT-0028).
 
 ## 2. Problem
 

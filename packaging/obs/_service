@@ -1,0 +1,29 @@
+<services>
+  <!-- SNAT-0028 § 4.7. The release tag drives the version: set_version writes
+       it into snatch.spec, whose Version: stays 0. Every service is manual:
+       `osc service manualrun`, then `osc commit`. -->
+
+  <!-- 1. Source checkout at the RELEASE TAG, never a branch. .claude/bump.json
+          moves this revision with __version__, and
+          scripts/check-version-drift.sh refuses one left behind. -->
+  <service name="obs_scm" mode="manual">
+    <param name="scm">git</param>
+    <param name="url">https://github.com/milnet01/snatch.git</param>
+    <param name="revision">v1.4.1</param>
+    <param name="match-tag">v*</param>
+    <param name="versionformat">@PARENT_TAG@</param>
+    <param name="versionrewrite-pattern">v(.*)</param>
+    <param name="versionrewrite-replacement">\1</param>
+    <param name="filename">snatch</param>
+  </service>
+
+  <!-- 2. Compress the checkout into snatch-{version}.tar.gz (Source0). -->
+  <service name="tar" mode="manual"/>
+  <service name="recompress" mode="manual">
+    <param name="file">snatch-*.tar</param>
+    <param name="compression">gz</param>
+  </service>
+
+  <!-- 3. Write the version into snatch.spec. -->
+  <service name="set_version" mode="manual"/>
+</services>

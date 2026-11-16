@@ -7,7 +7,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 
 from . import HAS_DND, __version__
-from .platform_utils import app_data_dir, open_path
+from .platform_utils import app_data_dir, open_path, resource_path
 from .theme import THEMES, get_theme, set_theme, setup_styles
 from .utils import tighten_user_data_permissions, write_private_json
 from .player import PlayerMixin
@@ -110,6 +110,8 @@ class SnatchApp(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
         self.history_file = os.path.join(self.script_dir, "history.json")
         self.queue_file = os.path.join(self.script_dir, "queue.json")
         self.dismissed_app_version = saved_config.get("dismissed_app_version", "")
+        # A distro package asks once ever to fetch yt-dlp (SNAT-0028).
+        self.ytdlp_offer_shown = saved_config.get("ytdlp_offer_shown") is True
         self.available_app_version = None
         # None unless this build can replace itself (SNAT-0038).
         self.update_installer = detect_installer()
@@ -249,6 +251,7 @@ class SnatchApp(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
             "fragments": self.fragments_var.get(),
             "queue_at_once": self.queue_at_once_var.get(),
             "dismissed_app_version": self.dismissed_app_version,
+            "ytdlp_offer_shown": self.ytdlp_offer_shown,
             "theme": self.theme_var.get(),
             "last_tab": self.notebook.index(self.notebook.select()),
         }
@@ -259,8 +262,12 @@ class SnatchApp(DownloadTabMixin, SearchTabMixin, MediaInfoTabMixin,
                         self.config_file, exc_info=True)
 
     def _set_icon(self):
-        """Set the window icon from the bundled icon file"""
-        icon_path = os.path.join(self.script_dir, "icon.png")
+        """Set the window icon from the bundled icon file.
+
+        From the install, not the data folder: on the AppImage and a distro
+        package those differ (SNAT-0028).
+        """
+        icon_path = resource_path("icon.png")
         if os.path.isfile(icon_path):
             try:
                 self._icon = tk.PhotoImage(file=icon_path)

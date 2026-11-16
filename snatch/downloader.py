@@ -226,8 +226,12 @@ class DownloaderMixin:
                 name, path = bundled
                 runtimes.append(f"{name}:{path}")
             runtimes.extend(
-                r for r in ("deno", "node", "quickjs", "bun") if shutil.which(r)
+                r for r in ("deno", "node", "bun") if shutil.which(r)
             )
+            # QuickJS installs as qjs, upstream and on Tumbleweed alike;
+            # yt-dlp's "quickjs" resolves to qjs on PATH (SNAT-0028).
+            if shutil.which("qjs"):
+                runtimes.append("quickjs")
             cls._cached_runtimes = runtimes
 
     @classmethod

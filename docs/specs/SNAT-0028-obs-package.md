@@ -134,8 +134,10 @@ def _fallback_words() -> tuple[str, str]:
 ```
 
 `_refresh_idle_button`, `_prompt_update`, `_prompt_revert` and the status line
-after a revert take their wording from it. Off a package install the text is
-today's, word for word.
+after a revert take their wording from it. Off a package install the button
+is today's. The three messages all say "the copy that came with Snatch",
+the update dialog's existing phrase; the revert dialog and status line used
+other wordings, which one phrase cannot reproduce.
 
 **Ask once.** A new config key, `ytdlp_offer_shown` (bool, default `false`),
 is loaded in `SnatchApp.__init__` and written by `_save_config`.
@@ -324,8 +326,9 @@ the user's go-ahead.
 
 - **INV-10** — On a package install the Revert button reads "Revert to
   system yt-dlp", and the update dialog, the revert dialog and the status
-  line after a revert name "your system's yt-dlp". Off a package install all
-  four are today's text.
+  line after a revert name "your system's yt-dlp". Off a package install the
+  button reads "Revert to bundled yt-dlp" and the three messages name "the
+  copy that came with Snatch".
   *Test:* `tests/test_package_install.py::test_fallback_wording`.
   *Breaks when:* any of the four call sites keeps its own string.
 

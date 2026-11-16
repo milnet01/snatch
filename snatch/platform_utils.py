@@ -127,6 +127,26 @@ def is_frozen():
     return getattr(sys, "frozen", False)
 
 
+# Written by the distro package's build, beside these modules, and by nothing
+# else; .gitignore keeps it out of the repository (SNAT-0028). A guess from an
+# unwritable folder would take a read-only checkout for a package.
+_PACKAGE_MARKER = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                               "INSTALLED_BY_PACKAGE")
+_PACKAGE_INSTALL = None
+
+
+def is_package_install():
+    """True when a distro package installed this copy (SNAT-0028).
+
+    A frozen build never carries the marker, so this and is_frozen() are
+    never both true.
+    """
+    global _PACKAGE_INSTALL
+    if _PACKAGE_INSTALL is None:
+        _PACKAGE_INSTALL = os.path.isfile(_PACKAGE_MARKER)
+    return _PACKAGE_INSTALL
+
+
 def app_data_dir():
     """Directory for user data (config.json, history.json, cookies.txt, downloads).
 
@@ -141,6 +161,9 @@ def app_data_dir():
     sys.executable points inside the AppImage's read-only mount, which is
     gone on exit, so it can never hold user data.
 
+    Distro package: the AppImage's folder, so the two share settings. The
+    install folder is read-only (SNAT-0028).
+
     Dev mode: the project root (same as the previous script_dir behaviour).
     """
     if is_frozen():
@@ -149,9 +172,15 @@ def app_data_dir():
         if is_macos():
             base = os.path.expanduser("~/Library/Application Support")
             return _ensure_dir(os.path.join(base, "Snatch"))
-        base = os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")
-        return _ensure_dir(os.path.join(base, "snatch"))
+        return _xdg_data_dir()
+    if is_package_install():
+        return _xdg_data_dir()
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _xdg_data_dir():
+    base = os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")
+    return _ensure_dir(os.path.join(base, "snatch"))
 
 
 def _ensure_dir(path):
@@ -208,14 +237,16 @@ def user_bin_dir():
     the user ("The copy that came with Snatch is kept, so you can go back to
     it at any time") all false on that path. Frozen builds are unaffected:
     there the bundled copy lives inside the packaged app and
-    never shared this one.
+    never shared this one. A distro package takes the frozen layout, so it
+    and the AppImage share one fetched yt-dlp (SNAT-0028).
 
     Cached -- find_ytdlp() runs on every subprocess call and the Windows
     writability probe is a real filesystem write.
     """
     global _USER_BIN_DIR
     if _USER_BIN_DIR is None:
-        parts = ["bin"] if is_frozen() else ["bin", "updated"]
+        shared = is_frozen() or is_package_install()
+        parts = ["bin"] if shared else ["bin", "updated"]
         candidate = _ensure_dir(os.path.join(app_data_dir(), *parts))
         if is_windows() and not _is_writable_dir(candidate):
             base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
@@ -251,7 +282,12 @@ def _find_bundled_binary(name):
     the pinned version is the fix, and a source run was not getting it. Absent
     until a build or fetch has run, in which case the PATH fallback applies as
     before.
+
+    Distro package: None. It ships no bin/, and a stray one in the install
+    folder must never become the floor; the system's copies are (SNAT-0028).
     """
+    if is_package_install():
+        return None
     suffix = ".exe" if is_windows() else ""
     if is_frozen():
         candidate = resource_path("bin", name + suffix)
@@ -287,7 +323,8 @@ def find_ytdlp():
     """Resolve yt-dlp: self-updated copy, then bundled, then PATH.
 
     The bundled copy stays as the floor, so a failed or half-written download
-    can never leave the app with no yt-dlp at all.
+    can never leave the app with no yt-dlp at all. A distro package bundles
+    none, so its floor is the system's copy on PATH.
     """
     updated = _find_updated_binary("yt-dlp")
     if updated:

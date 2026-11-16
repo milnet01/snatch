@@ -6,6 +6,10 @@ cookies.txt
 snatch.log
 snatch.log.*
 
+# Written only by the distro package build; in a checkout it would make
+# the source run behave as a package (SNAT-0028).
+snatch/INSTALLED_BY_PACKAGE
+
 # Python bytecode
 __pycache__/
 *.py[cod]

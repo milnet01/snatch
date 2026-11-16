@@ -357,7 +357,7 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Source: in-session-2026-08-20.
   Lanes: packaging, performance.
 
-- 📋 [SNAT-0028] **Publish Snatch on the openSUSE Build Service for as many distros as it will build for.**
+- 🚧 [SNAT-0028] **Publish Snatch on the openSUSE Build Service for as many distros as it will build for.**
   Asked by the user 2026-08-20. The account already has home:milnet on
   build.opensuse.org with two subprojects (ants-terminal, finbreak), so
   the pattern and the credentials exist -- this is home:milnet:snatch
@@ -422,6 +422,11 @@ and application work. IDs are allocated from `.roadmap-counter`.
   package Requires quickjs as yt-dlp's JavaScript runtime.
   Spec accepted 2026-11-16: docs/specs/SNAT-0028-obs-package.md
   (Tumbleweed only; no review-contract, see the commit).
+  Built 2026-11-16 (Tumbleweed step): code §4.1-4.5, packaging/obs/,
+  tests/test_package_install.py. A local rpmbuild passed its %check
+  self-test. Waiting on: the first OBS submit (the user's go-ahead), the
+  §7.1 manual recipe on the installed package, then a README install
+  section once home:milnet:snatch exists.
   **Layman:** Put Snatch in the normal software installers for Linux, so people can install and update it the way they install everything else.
   Kind: package.
   Source: user-request-2026-08-20.

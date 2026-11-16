@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Snatch
+GenericName=Video Downloader
+Comment=Download and play videos with yt-dlp
+Exec=snatch
+Icon=io.github.milnet01.snatch
+# The class snatch/__main__.py gives Tk, so the taskbar matches the window.
+StartupWMClass=Snatch
+Terminal=false
+Categories=AudioVideo;Video;
+Keywords=youtube;video;download;yt-dlp;
