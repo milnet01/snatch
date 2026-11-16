@@ -145,8 +145,8 @@ if IS_MACOS:
         info_plist={
             "CFBundleName": "Snatch",
             "CFBundleDisplayName": "Snatch",
-            "CFBundleShortVersionString": "1.4.1",
-            "CFBundleVersion": "1.4.1",
+            "CFBundleShortVersionString": "1.5.0",
+            "CFBundleVersion": "1.5.0",
             "NSHighResolutionCapable": True,
             # Tk apps must not be treated as background-only.
             "LSBackgroundOnly": False,
