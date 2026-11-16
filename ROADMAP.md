@@ -404,9 +404,18 @@ and application work. IDs are allocated from `.roadmap-counter`.
   and needs the yt-dlp decision below first.
   Decided by the user 2026-11-16: go ahead, Tumbleweed first, and the
   package relies on Snatch fetching its own current yt-dlp, not the
-  distro's. First step: check where app_data_dir() puts config and the
-  fetched yt-dlp when Snatch is installed read-only system-wide; from
-  source it is the project root, which would be /usr/share there.
+  distro's.
+  Checked 2026-11-16 by running a read-only copy: it does not work.
+  A distro install is not frozen, so app_data_dir() returns the
+  install directory. Config, history, queue and log writes fail with
+  PermissionError, user_bin_dir() cannot be created, so the yt-dlp
+  fetch fails, and find_ytdlp() falls back to the PATH copy.
+  Needs a spec (spec-format.md § 1): three subsystems (paths, the
+  yt-dlp update UI, packaging) and a design choice (how a package
+  install is detected).
+  Decided by the user 2026-11-16: on first launch, ask once to
+  download the current yt-dlp; the package requires the distro's
+  yt-dlp as the fallback, and Revert returns to it.
   **Layman:** Put Snatch in the normal software installers for Linux, so people can install and update it the way they install everything else.
   Kind: package.
   Source: user-request-2026-08-20.
