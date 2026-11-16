@@ -30,6 +30,21 @@ or newer). Each release is checked to start on GitHub's Mac build machines, but
 no one has used it on a real Mac yet. If it doesn't work for you, please
 [open an issue](https://github.com/milnet01/snatch/issues).
 
+### openSUSE Tumbleweed
+
+On Tumbleweed you can install Snatch as a package instead of the AppImage. It
+uses your system's yt-dlp and ffmpeg, and updates with the rest of your system.
+In a terminal:
+
+```bash
+sudo zypper ar -f https://download.opensuse.org/repositories/home:/milnet:/snatch/openSUSE_Tumbleweed/home:milnet:snatch.repo
+sudo zypper ref home_milnet_snatch
+sudo zypper in snatch
+```
+
+The second command asks whether to trust the repository's signing key. Type
+`a` (trust always). Then start Snatch from your applications menu.
+
 <details>
 <summary><b>Windows says "Windows protected your PC"</b></summary>
 

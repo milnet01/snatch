@@ -436,6 +436,26 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Waiting-on: OBS to publish the repository (stuck at "building" for 40
   minutes on 2026-11-16, an OBS queue); then the 7.1 manual recipe and a
   README install section.
+  Published 2026-11-16 17:59. §7.1 progress the same evening:
+  - Step 1 PASSED: `zypper ar -f <.repo URL>`, `zypper ref
+    home_milnet_snatch`, `zypper in snatch` installed snatch-1.5.0-1.1
+    and pulled in quickjs; yt-dlp, ffmpeg, python313-tk were already
+    installed and are in its Requires. Run with --non-interactive and
+    --gpg-auto-import-keys; a person gets zypper's r/t/a key prompt.
+  - `snatch --selftest` with a fresh XDG_DATA_HOME: 0 failed. rpm -V
+    snatch clean afterwards (nothing written under /usr/share/snatch).
+  - On-screen run, fresh XDG_DATA_HOME, 18:02: the files show the offer
+    was answered Yes (ytdlp_offer_shown true, bin/yt-dlp is nightly
+    2026.11.15.232800). No history.json, so no download; bin/yt-dlp still
+    present, so Revert not clicked. The user did not report what they
+    saw. Steps 2, 3 (answer No, reopen, no dialog), the download, 5 and 7
+    are NOT yet verified.
+  Run the GUI steps from a terminal with a fresh XDG_DATA_HOME, not the
+  menu: ~/.local/share/snatch already holds the AppImage's config.json
+  (dated 2026-08-19), so a menu launch is neither fresh nor isolated.
+  README gained a Tumbleweed install section with the commands above.
+  Waiting-on: user, for the GUI steps; then send the commands to
+  ants-projects-hub-website (their msg 2140 asks for them, unacked).
   **Layman:** Put Snatch in the normal software installers for Linux, so people can install and update it the way they install everything else.
   Kind: package.
   Source: user-request-2026-08-20.
