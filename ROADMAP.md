@@ -257,10 +257,8 @@ and application work. IDs are allocated from `.roadmap-counter`.
   SNAT-0024) and has never been used on a real Mac. The self-test opens
   no window, so the GUI, Gatekeeper workaround, yt-dlp_macos update and
   browser playback fallback remain unproven.
-  Waiting-on: user (do you know anyone with an M1-or-newer Mac who could
-  open the .dmg and try one download? Recommendation: yes if easy;
-  otherwise leave this open with the README warning, as the cost of a
-  broken Mac build is now only a filed issue. 2026-11-05)
+  2026-11-16: the user knows no one with an Apple-chip Mac. Left open
+  with the README warning; a broken Mac build costs only a filed issue.
   **Layman:** We ship a Mac version that no one has ever opened. It might not work at all.
   Kind: investigate.
   Source: in-session-2026-08-20.
@@ -404,13 +402,11 @@ and application work. IDs are allocated from `.roadmap-counter`.
   cover and for users who want no installation at all.
   2026-11-05, not started: it publishes under the user's OBS account
   and needs the yt-dlp decision below first.
-  Waiting-on: user (go ahead with an OBS package, and should it rely on
-  Snatch fetching its own current yt-dlp rather than the distro's?
-  Recommendation: yes to both, Tumbleweed first, via a spec. A distro
-  yt-dlp cannot play YouTube (SNAT-0014). Before building, check where
-  app_data_dir() puts config and the fetched yt-dlp when Snatch is
-  installed read-only system-wide; from source it is the project root,
-  which would be /usr/share there. 2026-11-05)
+  Decided by the user 2026-11-16: go ahead, Tumbleweed first, and the
+  package relies on Snatch fetching its own current yt-dlp, not the
+  distro's. First step: check where app_data_dir() puts config and the
+  fetched yt-dlp when Snatch is installed read-only system-wide; from
+  source it is the project root, which would be /usr/share there.
   **Layman:** Put Snatch in the normal software installers for Linux, so people can install and update it the way they install everything else.
   Kind: package.
   Source: user-request-2026-08-20.
