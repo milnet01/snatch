@@ -416,6 +416,12 @@ and application work. IDs are allocated from `.roadmap-counter`.
   Decided by the user 2026-11-16: on first launch, ask once to
   download the current yt-dlp; the package requires the distro's
   yt-dlp as the fallback, and Revert returns to it.
+  Decided by the user 2026-11-16: a marker file written by the
+  package build detects a package install; a package install does
+  not check for a newer Snatch; "ask once" means once ever; the
+  package Requires quickjs as yt-dlp's JavaScript runtime.
+  Spec accepted 2026-11-16: docs/specs/SNAT-0028-obs-package.md
+  (Tumbleweed only; no review-contract, see the commit).
   **Layman:** Put Snatch in the normal software installers for Linux, so people can install and update it the way they install everything else.
   Kind: package.
   Source: user-request-2026-08-20.
